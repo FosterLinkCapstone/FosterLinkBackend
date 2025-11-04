@@ -12,6 +12,7 @@ import java.util.List;
 @Data
 public class UserEntity {
 
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
@@ -19,26 +20,21 @@ public class UserEntity {
     private String firstName;
     private String lastName;
 
+    private String username;
     private String email;
     private String phoneNumber;
     private String password;
 
     private String profilePictureUrl;
 
-    private boolean idVerified;
-    private boolean verifiedFoster;
-    private boolean verifiedAgencyRep;
-    private boolean administrator;
-    private boolean faqAuthor;
-    private boolean emailVerified;
+    private boolean idVerified = false;
+    private boolean verifiedFoster = false;
+    private boolean verifiedAgencyRep = false;
+    private boolean administrator = false;
+    private boolean faqAuthor = false;
+    private boolean emailVerified = false;
     private Date createdAt;
     private Date updatedAt;
-
-    public void setPassword(String password) {
-        // TODO encode
-        this.password = password;
-    }
-
 
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "author")
     private List<FaqEntity> faqsAuthored;

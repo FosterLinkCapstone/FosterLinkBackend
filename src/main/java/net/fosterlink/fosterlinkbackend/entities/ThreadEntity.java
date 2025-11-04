@@ -33,4 +33,7 @@ public class ThreadEntity {
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "thread")
     private Set<ThreadTagEntity> tags;
 
+    @OneToMany(fetch=FetchType.LAZY, mappedBy = "thread")
+    private Set<ThreadLikeEntity>  likes;
+
 }
