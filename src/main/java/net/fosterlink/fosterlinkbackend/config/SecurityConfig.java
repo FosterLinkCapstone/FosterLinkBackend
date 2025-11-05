@@ -30,7 +30,8 @@ public class SecurityConfig {
             "/v1/threads/search-by-date",
             "/swagger-ui.html",
             "/swagger-resources/**",
-            "/webjars/**"
+            "/webjars/**",
+            "/v1"
     };
     private final String[] privateEndpoints = {
         "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete"
