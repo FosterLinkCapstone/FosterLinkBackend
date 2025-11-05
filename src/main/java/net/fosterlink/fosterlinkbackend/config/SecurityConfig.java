@@ -20,16 +20,25 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final String[] publicEndpoints = {
-            "/api/users/register",
-            "/api/users/login"
+            "/v1/users/register",
+            "/v1/users/login",
+            "/swagger-ui/**",
+            "/v1/docs/**",
+            "/v3/api-docs/**",
+            "/v1/threads/search-by-title",
+            "/v1/threads/search-by-id",
+            "/v1/threads/search-by-date",
+            "/swagger-ui.html",
+            "/swagger-resources/**",
+            "/webjars/**"
     };
     private final String[] privateEndpoints = {
-        "/api/users/get-all"
+        "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete"
     };
 
     @Autowired private UserService userService;
     @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private JwtAuthFilter auuthFilter;
+    @Autowired private JwtAuthFilter authFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -39,7 +48,7 @@ public class SecurityConfig {
                             .requestMatchers(privateEndpoints).authenticated()
                             .anyRequest().authenticated()
                         )
-                .addFilterBefore(auuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
