@@ -139,6 +139,10 @@ public class UserController {
                     @ApiResponse(
                             responseCode = "401",
                             description = "Either the email or password that you tried to login with was incorrect"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The email could not be found"
                     )
             }
     )
@@ -149,6 +153,8 @@ public class UserController {
             return ResponseEntity.ok(Map.of("token", jwt));
         } catch (BadCredentialsException e) {
             return ResponseEntity.status(401).build();
+        } catch (Exception e) {
+            return ResponseEntity.status(404).build();
         }
 
     }
