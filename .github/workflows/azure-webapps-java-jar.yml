@@ -26,6 +26,14 @@ jobs:
 
       - name: Build with Gradle
         run: gradle clean build
+        env:
+          DB_DATABASE: ${{ DB_DATABASE }}
+          DB_HOSTNAME: ${{ DB_HOSTNAME }}
+          DB_PORT: ${{ DB_PORT }}
+          DB_USE_SSL: ${{ DB_USE_SSL }}
+          SPRING_PASSWORD: ${{ SPRING_PASSWORD }}
+          SPRING_USERNAME: ${{ SPRING_USERNAME }}
+          JWT_SECRET: ${{ JWT_SECRET }}
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -39,13 +47,13 @@ jobs:
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
-  
+
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: java-app
-      
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -60,4 +68,4 @@ jobs:
           app-name: 'fosterlink-backend-dev'
           slot-name: 'Development'
           package: '*.jar'
-          
+
