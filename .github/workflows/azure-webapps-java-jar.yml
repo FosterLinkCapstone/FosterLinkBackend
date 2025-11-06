@@ -36,6 +36,9 @@ jobs:
       - name: Build with Gradle
         run: gradle clean build
 
+      - name: List build output
+        run: ls -R builds/libs
+
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -57,10 +60,13 @@ jobs:
           name: java-app
           path: ./artifact
 
+      - name: List artifact contents
+        run: ls -R ./artifact
+
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'fosterlink-backend-dev'
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: './build/libs/*.jar'
+          package: './artifact/*.jar'
