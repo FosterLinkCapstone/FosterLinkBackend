@@ -1,0 +1,28 @@
+databaseType = "MySql"
+id = "9584daaf-40d2-40ef-a732-c4bb40b166fb"
+name = "fosterlink-db-migrations"
+
+[flyway]
+callbackLocations = [ "filesystem:callbacks" ]
+locations = [ "filesystem:migrations" ]
+mixed = true
+outOfOrder = true
+schemaModelLocation = "schema-model"
+validateMigrationNaming = true
+
+  [flyway.check]
+  majorTolerance = 0
+
+[flywayDesktop]
+developmentEnvironment = "development"
+shadowEnvironment = "shadow"
+
+[redgateCompare]
+filterFile = "filter.rgf"
+
+[redgateCompare.mysql.options.ignores]
+ignoreNewlinesInTextObjects = "off"
+
+[environments.fosterlink-staging]
+url = "jdbc:mysql://fosterlink-staging.mysql.database.azure.com:3306/fosterlink_dev?useSSL=true"
+schemas = [ "fosterlink_dev" ]
