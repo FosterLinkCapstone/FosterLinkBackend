@@ -62,6 +62,5 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'fosterlink-backend-dev'
-          slot-name: 'Development'
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: './artifact/*.jar'
