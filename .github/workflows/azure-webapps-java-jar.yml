@@ -11,9 +11,18 @@ on:
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
     permissions:
       contents: read #This is required for actions/checkout
+    env:
+      DB_DATABASE: ${{ DB_DATABASE }}
+      DB_HOSTNAME: ${{ DB_HOSTNAME }}
+      DB_PORT: ${{ DB_PORT }}
+      DB_USE_SSL: ${{ DB_USE_SSL }}
+      SPRING_PASSWORD: ${{ SPRING_PASSWORD }}
+      SPRING_USERNAME: ${{ SPRING_USERNAME }}
+      JWT_SECRET: ${{ JWT_SECRET }}
 
     steps:
       - uses: actions/checkout@v4
@@ -26,14 +35,7 @@ jobs:
 
       - name: Build with Gradle
         run: gradle clean build
-        env:
-          DB_DATABASE: ${{ DB_DATABASE }}
-          DB_HOSTNAME: ${{ DB_HOSTNAME }}
-          DB_PORT: ${{ DB_PORT }}
-          DB_USE_SSL: ${{ DB_USE_SSL }}
-          SPRING_PASSWORD: ${{ SPRING_PASSWORD }}
-          SPRING_USERNAME: ${{ SPRING_USERNAME }}
-          JWT_SECRET: ${{ JWT_SECRET }}
+
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
