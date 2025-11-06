@@ -16,13 +16,13 @@ jobs:
     permissions:
       contents: read #This is required for actions/checkout
     env:
-      DB_DATABASE: ${{ DB_DATABASE }}
-      DB_HOSTNAME: ${{ DB_HOSTNAME }}
-      DB_PORT: ${{ DB_PORT }}
-      DB_USE_SSL: ${{ DB_USE_SSL }}
-      SPRING_PASSWORD: ${{ SPRING_PASSWORD }}
-      SPRING_USERNAME: ${{ SPRING_USERNAME }}
-      JWT_SECRET: ${{ JWT_SECRET }}
+      DB_DATABASE: ${{ secrets.DB_DATABASE }}
+      DB_HOSTNAME: ${{ secrets.DB_HOSTNAME }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_USE_SSL: ${{ secrets.DB_USE_SSL }}
+      SPRING_PASSWORD: ${{ secrets.SPRING_PASSWORD }}
+      SPRING_USERNAME: ${{ secrets.SPRING_USERNAME }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
     steps:
       - uses: actions/checkout@v4
