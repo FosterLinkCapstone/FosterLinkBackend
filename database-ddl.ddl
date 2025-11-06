@@ -21,7 +21,7 @@ USE `fosterlink_dev` ;
 -- Table `fosterlink_dev`.`agent`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`agent` (
-                                                        `id` INT NOT NULL,
+                                                        `id` INT NOT NULL AUTO_INCREMENT,
                                                         `name` VARCHAR(255) NULL DEFAULT NULL,
                                                         `email` VARCHAR(255) NULL DEFAULT NULL,
                                                         `phone_number` VARCHAR(255) NULL DEFAULT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`agent` (
 -- Table `fosterlink_dev`.`location`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`location` (
-                                                           `id` INT NOT NULL,
+                                                           `id` INT NOT NULL AUTO_INCREMENT,
                                                            `addr_line_1` VARCHAR(45) NOT NULL,
                                                            `addr_line_2` VARCHAR(45) NULL DEFAULT NULL,
                                                            `city` VARCHAR(255) NULL DEFAULT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`location` (
 -- Table `fosterlink_dev`.`agency`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`agency` (
-                                                         `id` INT NOT NULL,
+                                                         `id` INT NOT NULL AUTO_INCREMENT,
                                                          `name` VARCHAR(255) NULL DEFAULT NULL,
                                                          `mission_statement` TEXT NOT NULL,
                                                          `website_link` VARCHAR(500) NULL DEFAULT NULL,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`agency_deletion_request` (
 -- Table `fosterlink_dev`.`user`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`user` (
-                                                       `id` INT NOT NULL,
+                                                       `id` INT NOT NULL AUTO_INCREMENT,
                                                        `first_name` VARCHAR(255) NULL DEFAULT NULL,
                                                        `last_name` VARCHAR(255) NULL DEFAULT NULL,
                                                        `username` VARCHAR(45) NOT NULL,
@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`user` (
                                                            FOREIGN KEY (`agent_id`)
                                                                REFERENCES `fosterlink_dev`.`agent` (`id`))
     ENGINE = InnoDB
+    AUTO_INCREMENT = 5
     DEFAULT CHARACTER SET = utf8mb3;
 
 
@@ -155,7 +156,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`faq` (
 -- Table `fosterlink_dev`.`post_metadata`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`post_metadata` (
-                                                                `id` INT NOT NULL,
+                                                                `id` INT NOT NULL AUTO_INCREMENT,
                                                                 `hidden` BIT(1) NOT NULL,
                                                                 `user_deleted` BIT(1) NOT NULL,
                                                                 `locked` BIT(1) NOT NULL,
@@ -171,7 +172,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`post_metadata` (
 -- Table `fosterlink_dev`.`thread`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread` (
-                                                         `id` INT NOT NULL,
+                                                         `id` INT NOT NULL AUTO_INCREMENT,
                                                          `title` VARCHAR(255) NULL DEFAULT NULL,
                                                          `content` TEXT NOT NULL,
                                                          `created_at` DATETIME NOT NULL,
@@ -198,7 +199,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread` (
 -- Table `fosterlink_dev`.`thread_like`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_like` (
-                                                              `id` INT NOT NULL,
+                                                              `id` INT NOT NULL AUTO_INCREMENT,
                                                               `thread` INT NOT NULL,
                                                               `user` INT NOT NULL,
                                                               PRIMARY KEY (`id`),
@@ -220,7 +221,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_like` (
 -- Table `fosterlink_dev`.`thread_reply`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_reply` (
-                                                               `id` INT NOT NULL,
+                                                               `id` INT NOT NULL AUTO_INCREMENT,
                                                                `content` TEXT NOT NULL,
                                                                `created_at` DATETIME NOT NULL,
                                                                `updated_at` DATETIME NULL DEFAULT NULL,
@@ -245,7 +246,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_reply` (
 -- Table `fosterlink_dev`.`thread_reply_like`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_reply_like` (
-                                                                    `id` INT NOT NULL,
+                                                                    `id` INT NOT NULL AUTO_INCREMENT,
                                                                     `thread` INT NOT NULL,
                                                                     `user` INT NOT NULL,
                                                                     `thread_id` INT NULL DEFAULT NULL,
@@ -272,10 +273,11 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_reply_like` (
 -- Table `fosterlink_dev`.`thread_tag`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_tag` (
+                                                             `my_row_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                                                              `id` BIGINT NOT NULL,
                                                              `name` VARCHAR(255) NULL DEFAULT NULL,
                                                              `thread` INT NOT NULL,
-                                                             PRIMARY KEY (`id`),
+                                                             PRIMARY KEY (`my_row_id`),
                                                              INDEX `fk_thread_tag_thread1_idx` (`thread` ASC),
                                                              INDEX `thread` (`thread` ASC),
                                                              CONSTRAINT `fk_thread_tag_thread1`
@@ -284,36 +286,6 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_tag` (
     ENGINE = InnoDB
     DEFAULT CHARACTER SET = utf8mb3;
 
-
--- -----------------------------------------------------
--- Table `fosterlink_dev`.`thread_tags`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_tags` (
-                                                              `thread_entity_id` BIGINT NOT NULL,
-                                                              `tags_id` BIGINT NOT NULL,
-                                                              PRIMARY KEY (`thread_entity_id`, `tags_id`),
-                                                              INDEX `FKff558r3wh5l5j112aucw56ph8` (`tags_id` ASC),
-                                                              CONSTRAINT `FKff558r3wh5l5j112aucw56ph8`
-                                                                  FOREIGN KEY (`tags_id`)
-                                                                      REFERENCES `fosterlink_dev`.`thread_tag` (`id`))
-    ENGINE = InnoDB
-    DEFAULT CHARACTER SET = utf8mb3;
-
-USE `fosterlink_dev` ;
-
--- -----------------------------------------------------
--- procedure describe_and_count
--- -----------------------------------------------------
-
-DELIMITER $$
-USE `fosterlink_dev`$$
-CREATE DEFINER=`developer`@`%` PROCEDURE `describe_and_count`()
-BEGIN
-    SELECT COUNT(*) AS user_count FROM fosterlink_dev.`user`;
-    DESCRIBE fosterlink_dev.`user`;
-END$$
-
-DELIMITER ;
 
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
