@@ -37,7 +37,7 @@ jobs:
         run: gradle clean build
 
       - name: List build output
-        run: ls -R builds/libs
+        run: ls -R ${{ github.workspace }}/builds/libs/
 
 
       - name: Upload artifact for deployment job

@@ -18,6 +18,7 @@ import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -262,6 +263,33 @@ public class UserController {
             } else {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
+    }
+    @Operation(
+            summary = "Get the information of the currently logged in user",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The information of the currently logged in user",
+                            content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class))
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            }, security = {
+                    @SecurityRequirement(name="bearerAuth")
+            }
+    )
+    @GetMapping("/getInfo")
+    public ResponseEntity<?> getUserInfo() {
+        String email = JwtUtil.getLoggedInEmail();
+        UserEntity user = userRepository.findByEmail(email);
+        if (user != null) {
+            return ResponseEntity.ok(new UserResponse(user));
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
     }
 
     private String loginUser(String username, String password) throws BadCredentialsException {

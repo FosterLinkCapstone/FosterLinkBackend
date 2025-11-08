@@ -14,6 +14,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 @EnableWebSecurity
 @Configuration
@@ -34,16 +39,18 @@ public class SecurityConfig {
             "/v1"
     };
     private final String[] privateEndpoints = {
-        "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete"
+        "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete", "/v1/users/getInfo"
     };
 
     @Autowired private UserService userService;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtAuthFilter authFilter;
+    @Autowired private UrlBasedCorsConfigurationSource corsConfigurationSource;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)//todo
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth ->
                             auth.requestMatchers(publicEndpoints).permitAll()
                             .requestMatchers(privateEndpoints).authenticated()
@@ -62,5 +69,6 @@ public class SecurityConfig {
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
+
 
 }
