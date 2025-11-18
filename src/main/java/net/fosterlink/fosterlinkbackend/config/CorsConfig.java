@@ -25,20 +25,15 @@ public class CorsConfig {
     );
 
     @Bean
-    public CorsConfiguration corsConfigurationSource() {
+    public UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
         corsConfiguration.setAllowedOrigins(allowedOrigins); //TODO
         corsConfiguration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         corsConfiguration.setAllowedHeaders(List.of("*"));
         corsConfiguration.setAllowCredentials(true);
         corsConfiguration.setMaxAge(3600L);
-        return corsConfiguration;
-    }
-
-    @Bean
-    public UrlBasedCorsConfigurationSource urlBasedCorsConfigurationSource() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", corsConfigurationSource());
+        source.registerCorsConfiguration("/**", corsConfiguration);
         return source;
     }
 
