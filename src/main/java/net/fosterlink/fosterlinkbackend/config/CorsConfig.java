@@ -60,7 +60,11 @@ public class CorsConfig {
             "130.107.159.69",
             "130.107.159.71",
             "130.107.159.75",
-            "20.48.204.14"
+            "20.48.204.14",
+
+            // staging url
+
+            "fosterlink-frontend-staging-f2gcfxcbeqfuasax.canadacentral-01.azurewebsites.net"
     );
 
     @Bean
