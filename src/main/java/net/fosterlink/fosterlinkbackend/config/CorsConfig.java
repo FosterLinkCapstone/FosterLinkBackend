@@ -20,9 +20,8 @@ public class CorsConfig {
             "https://fosterlink-frontend-staging-f2gcfxcbeqfuasax.canadacentral-01.azurewebsites.net",
 
             // prod url
-            "https://fosterlink.net",
+            "https://fosterlink.net"
 
-            "https://fosterlink.net/*"
     );
 
     @Bean
@@ -41,11 +40,6 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", corsConfigurationSource());
         return source;
-    }
-
-    @Bean
-    public CorsFilter corsFilter() {
-        return new CorsFilter(urlBasedCorsConfigurationSource());
     }
 
 }
