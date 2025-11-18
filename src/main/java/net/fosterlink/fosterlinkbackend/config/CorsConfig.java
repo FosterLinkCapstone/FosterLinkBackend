@@ -64,7 +64,7 @@ public class CorsConfig {
 
             // staging url
 
-            "fosterlink-frontend-staging-f2gcfxcbeqfuasax.canadacentral-01.azurewebsites.net"
+            "https://fosterlink-frontend-staging-f2gcfxcbeqfuasax.canadacentral-01.azurewebsites.net"
     );
 
     @Bean
