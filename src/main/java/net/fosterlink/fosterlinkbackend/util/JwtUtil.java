@@ -6,7 +6,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 public class JwtUtil {
 
     public static String getLoggedInEmail() {
-        return ((UserDetails) SecurityContextHolder.getContext().getAuthentication()).getUsername();
+        return ((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUsername();
     }
     public static boolean isLoggedIn() {
         var sch = SecurityContextHolder.getContext().getAuthentication();

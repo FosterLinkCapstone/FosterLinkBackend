@@ -40,9 +40,8 @@ public class ThreadResponse implements Serializable {
 
     @Schema(description = "The username of the author of the thread")
     private String postedByUsername;
-    // TODO lazy check username integrity on frontend?
     @Schema(description = "The internal ID of the author of the thread ('user' table)")
-    private int postedById;
+    private int postedById; // TODO attach UserResponse instead
 
     @Schema(description = "The number of likes that the thread had at the time of request")
     private int likeCount;
