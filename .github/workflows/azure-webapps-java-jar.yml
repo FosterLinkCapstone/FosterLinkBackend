@@ -36,6 +36,12 @@ jobs:
       - name: Build with Gradle
         run: gradle clean build
 
+      - name: Rename non-plain JAR to app.jar
+        run: |
+          FILE=$(ls ${{ github.workspace }}/build/libs/*jar | grep -v plain | head -n 1)
+          echo "Found runnable JAR: $FILE"
+          mv "$FILE" "${{ github.workspace }}/build/libs/app.jar"
+
       - name: List build output
         run: ls -R ${{ github.workspace }}/build/libs/
 
