@@ -5,6 +5,7 @@ import net.fosterlink.fosterlinkbackend.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -53,7 +54,10 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)//todo
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth ->
-                            auth.requestMatchers(publicEndpoints).permitAll()
+
+                            auth
+                            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                            .requestMatchers(publicEndpoints).permitAll()
                             .requestMatchers(privateEndpoints).authenticated()
                             .anyRequest().authenticated()
                         )
