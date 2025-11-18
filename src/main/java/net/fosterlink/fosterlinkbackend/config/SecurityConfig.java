@@ -45,10 +45,13 @@ public class SecurityConfig {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtAuthFilter authFilter;
     @Autowired private UrlBasedCorsConfigurationSource corsConfigurationSource;
+    @Autowired private RequestLoggingFilter requestLoggingFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)//todo
+        http
+                .addFilterBefore(requestLoggingFilter, JwtAuthFilter.class)
+                .csrf(AbstractHttpConfigurer::disable)//todo
                 .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
