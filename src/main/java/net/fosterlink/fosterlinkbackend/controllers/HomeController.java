@@ -12,7 +12,7 @@ public class HomeController {
 
     @GetMapping
     public ResponseEntity<String> helloWorld() {
-        return ResponseEntity.ok("Hello World");
+        return ResponseEntity.ok("Hello World <- changes reflected");
     }
 
 }
