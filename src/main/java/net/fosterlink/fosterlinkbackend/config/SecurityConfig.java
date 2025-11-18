@@ -16,7 +16,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.ForwardedHeaderFilter;
 
 @EnableWebSecurity
 @Configuration
@@ -46,9 +48,11 @@ public class SecurityConfig {
     @Autowired private JwtAuthFilter authFilter;
     @Autowired private UrlBasedCorsConfigurationSource corsConfigurationSource;
     @Autowired private RequestLoggingFilter requestLoggingFilter;
+    @Autowired private ForwardedHeaderFilter forwardedHeaderFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        System.out.println("RUNNING FILTER CHAIN");
         http
                 .csrf(AbstractHttpConfigurer::disable)//todo
                 .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll())
@@ -61,7 +65,8 @@ public class SecurityConfig {
                             .anyRequest().authenticated()
                         )
                 .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(requestLoggingFilter, JwtAuthFilter.class);
+                .addFilterBefore(requestLoggingFilter, JwtAuthFilter.class)
+                .addFilterBefore(forwardedHeaderFilter, WebAsyncManagerIntegrationFilter.class);
         return http.build();
     }
 
