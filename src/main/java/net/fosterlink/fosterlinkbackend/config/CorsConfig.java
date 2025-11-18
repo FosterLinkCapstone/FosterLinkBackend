@@ -20,13 +20,15 @@ public class CorsConfig {
             "https://fosterlink-frontend-staging-f2gcfxcbeqfuasax.canadacentral-01.azurewebsites.net",
 
             // prod url
-            "https://fosterlink.net"
+            "https://fosterlink.net",
+
+            "https://fosterlink.net/*"
     );
 
     @Bean
     public CorsConfiguration corsConfigurationSource() {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
-        corsConfiguration.setAllowedOrigins(allowedOrigins); //TODO
+        corsConfiguration.setAllowedOriginPatterns(allowedOrigins); //TODO
         corsConfiguration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         corsConfiguration.setAllowedHeaders(List.of("*"));
         corsConfiguration.setAllowCredentials(true);
