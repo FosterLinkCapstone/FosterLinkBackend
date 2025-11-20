@@ -187,7 +187,7 @@ public class ThreadController {
     @GetMapping("/search-by-title")
     public ResponseEntity<?> searchByTitle(@RequestParam String title) {
         List<ThreadEntity> threads = threadRepository.findByTitleContaining(title);
-        return toResponseModel(threads);
+        return ResponseEntity.ok(toResponseModel(threads));
     }
 
     @Operation(
@@ -224,7 +224,7 @@ public class ThreadController {
             Date end = cal.getTime();
 
             List<ThreadEntity> threads = threadRepository.findByCreatedAtBetween(start, end);
-            return toResponseModel(threads);
+            return ResponseEntity.ok(toResponseModel(threads));
 
         } catch (ParseException e) {
             return ResponseEntity.badRequest().build();
@@ -277,14 +277,33 @@ public class ThreadController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
+    @Operation(
+            description = "Get all threads DEVELOPMENT ONLY",
+            tags = {"Thread"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "A collection of every thread.",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = ThreadResponse.class))
+                            )
+                    )
+            }
+    )
+    @GetMapping("/getAll")
+    public ResponseEntity<?> getAll() {
+        List<ThreadResponse> responses = toResponseModel(threadRepository.getAll());
+        return ResponseEntity.ok(responses);
+    }
 
-    private ResponseEntity<?> toResponseModel(List<ThreadEntity> threads) {
+    private List<ThreadResponse> toResponseModel(List<ThreadEntity> threads) {
         List<ThreadResponse> responses = new ArrayList<>();
         for (ThreadEntity thread : threads) {
             int lc = threadLikeRepository.likeCountForThread(thread.getId());
             responses.add(new ThreadResponse(thread, lc));
         }
-        return ResponseEntity.ok().body(responses);
+        return responses;
     }
 
 }

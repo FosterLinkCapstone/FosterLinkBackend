@@ -12,5 +12,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
 
     List<ThreadEntity> findByTitleContaining(String title);
     List<ThreadEntity> findByCreatedAtBetween(Date start, Date end);
+    @Query(value = "SELECT * FROM thread;", nativeQuery = true)
+    List<ThreadEntity> getAll();
 
 }

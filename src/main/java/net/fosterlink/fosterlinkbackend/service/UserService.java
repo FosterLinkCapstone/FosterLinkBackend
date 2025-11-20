@@ -26,7 +26,9 @@ public class UserService implements UserDetailsService {
      */
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return convertEntity(userRepository.findByEmail(email));
+        UserEntity userEntity = userRepository.findByEmail(email);
+        if (userEntity == null) return null;
+        return convertEntity(userEntity);
     }
     private LoggedInUser convertEntity(UserEntity userEntity) {
         return new LoggedInUser(userEntity.getId(), userEntity.getEmail(), userEntity.getPassword(), buildAuthorities(userEntity), true, true, true, true); // TODO account locking choke point
