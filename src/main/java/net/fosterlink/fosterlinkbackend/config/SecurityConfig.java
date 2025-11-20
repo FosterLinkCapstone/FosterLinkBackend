@@ -5,7 +5,6 @@ import net.fosterlink.fosterlinkbackend.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -47,12 +46,10 @@ public class SecurityConfig {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtAuthFilter authFilter;
     @Autowired private UrlBasedCorsConfigurationSource corsConfigurationSource;
-    @Autowired private RequestLoggingFilter requestLoggingFilter;
     @Autowired private ForwardedHeaderFilter forwardedHeaderFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        System.out.println("RUNNING FILTER CHAIN");
         http
                 .csrf(AbstractHttpConfigurer::disable)//todo
                 //.authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll())
@@ -65,7 +62,6 @@ public class SecurityConfig {
                             .anyRequest().authenticated()
                         )
                 .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(requestLoggingFilter, JwtAuthFilter.class)
                 .addFilterBefore(forwardedHeaderFilter, WebAsyncManagerIntegrationFilter.class);
         return http.build();
     }
