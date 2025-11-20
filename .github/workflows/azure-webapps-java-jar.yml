@@ -7,8 +7,8 @@ on:
   push:
     branches:
       - staging
+      - main
   workflow_dispatch:
-
 jobs:
   build:
 
@@ -54,6 +54,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
     needs: build
     permissions:
       id-token: write
@@ -68,11 +69,13 @@ jobs:
 
       - name: List artifact contents
         run: ls -R ./artifact
+      - name: List environment info
+        run: echo "Github branch ${{ github.ref_name }} | Azure profile name ${{ vars.ENV_NAME }}"
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'fosterlink-backend-dev'
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          app-name: ${{ vars.ENV_NAME }}
+          publish-profile: ${{ secrets.PUBLISH_PROFILE }}
           package: './artifact'
