@@ -7,13 +7,22 @@ on:
   push:
     branches:
       - staging
+      - main
   workflow_dispatch:
-
 jobs:
   build:
+
     runs-on: ubuntu-latest
     permissions:
       contents: read #This is required for actions/checkout
+    env:
+      DB_DATABASE: ${{ secrets.DB_DATABASE }}
+      DB_HOSTNAME: ${{ secrets.DB_HOSTNAME }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_USE_SSL: ${{ secrets.DB_USE_SSL }}
+      SPRING_PASSWORD: ${{ secrets.SPRING_PASSWORD }}
+      SPRING_USERNAME: ${{ secrets.SPRING_USERNAME }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
     steps:
       - uses: actions/checkout@v4
@@ -26,46 +35,45 @@ jobs:
 
       - name: Build with Gradle
         run: gradle clean build
-        env:
-          DB_DATABASE: ${{ DB_DATABASE }}
-          DB_HOSTNAME: ${{ DB_HOSTNAME }}
-          DB_PORT: ${{ DB_PORT }}
-          DB_USE_SSL: ${{ DB_USE_SSL }}
-          SPRING_PASSWORD: ${{ SPRING_PASSWORD }}
-          SPRING_USERNAME: ${{ SPRING_USERNAME }}
-          JWT_SECRET: ${{ JWT_SECRET }}
+
+      - name: Rename non-plain JAR to app.jar
+        run: |
+          FILE=$(ls ${{ github.workspace }}/build/libs/*jar | grep -v plain | head -n 1)
+          echo "Found runnable JAR: $FILE"
+          mv "$FILE" "${{ github.workspace }}/build/libs/app.jar"
+
+      - name: List build output
+        run: ls -R ${{ github.workspace }}/build/libs/
+
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: java-app
-          path: '${{ github.workspace }}/target/*.jar'
+          path: '${{ github.workspace }}/build/libs/*.jar'
 
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: java-app
+          path: ./artifact
 
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.__clientidsecretname__ }}
-          tenant-id: ${{ secrets.__tenantidsecretname__ }}
-          subscription-id: ${{ secrets.__subscriptionidsecretname__ }}
+      - name: List artifact contents
+        run: ls -R ./artifact
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'fosterlink-backend-dev'
-          slot-name: 'Development'
-          package: '*.jar'
-
+          app-name: ${{ vars.ENV_NAME }}
+          publish-profile: ${{ secrets.PUBLISH_PROFILE }}
+          package: './artifact'
