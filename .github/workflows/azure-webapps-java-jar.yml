@@ -69,6 +69,8 @@ jobs:
 
       - name: List artifact contents
         run: ls -R ./artifact
+      - name: List environment info
+        run: echo "Github branch ${{ github.ref_name }} | Azure profile name ${{ vars.ENV_NAME }}"
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
