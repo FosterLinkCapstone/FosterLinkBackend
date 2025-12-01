@@ -291,6 +291,14 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
+    @GetMapping("/isAdmin")
+    public ResponseEntity<?> isUserAdmin() {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            return ResponseEntity.ok(user.isAdministrator());
+        }
+        return ResponseEntity.ok(false);
+    }
 
     private String loginUser(String username, String password) throws BadCredentialsException {
         Authentication auth = authenticationManager.authenticate(

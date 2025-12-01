@@ -2,6 +2,7 @@ package net.fosterlink.fosterlinkbackend.models.rest;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
 import net.fosterlink.fosterlinkbackend.entities.ThreadTagEntity;
 
@@ -11,7 +12,8 @@ import java.util.List;
 
 @Data
 @Schema(description = "Details about an individual thread."
-        , requiredProperties = {"id", "title", "content", "createdAt", "postedByUsername", "postedById", "likeCount", "tags"})
+        , requiredProperties = {"id", "title", "content", "createdAt", "author", "likeCount", "tags"})
+@NoArgsConstructor
 public class ThreadResponse implements Serializable {
 
     public ThreadResponse(ThreadEntity threadEntity, int likeCount) {
@@ -20,11 +22,12 @@ public class ThreadResponse implements Serializable {
         this.content = threadEntity.getContent();
         this.createdAt = threadEntity.getCreatedAt();
         this.updatedAt = threadEntity.getUpdatedAt();
-        this.postedByUsername = threadEntity.getPostedBy().getUsername();
-        this.postedById = threadEntity.getPostedBy().getId();
+        this.author = new UserResponse(threadEntity.getPostedBy());
         this.likeCount = likeCount;
-        for (ThreadTagEntity tag : threadEntity.getTags()) {
-            tags.add(tag.getName());
+        if (threadEntity.getTags() != null) {
+            for (ThreadTagEntity tag : threadEntity.getTags()) {
+                tags.add(tag.getName());
+            }
         }
     }
     @Schema(description = "The internal ID of the thread")
@@ -37,14 +40,13 @@ public class ThreadResponse implements Serializable {
     private Date createdAt;
     @Schema(description = "The date and time that the thread was last updated. Can be null.")
     private Date updatedAt;
-
-    @Schema(description = "The username of the author of the thread")
-    private String postedByUsername;
-    @Schema(description = "The internal ID of the author of the thread ('user' table)")
-    private int postedById; // TODO attach UserResponse instead
+    @Schema(description = "The author of the thread")
+    private UserResponse author;
 
     @Schema(description = "The number of likes that the thread had at the time of request")
     private int likeCount;
+
+    private boolean isLiked;
 
     @Schema(description = "A list of tags that the thread has")
     private List<String> tags;
