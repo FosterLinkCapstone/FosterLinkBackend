@@ -35,7 +35,7 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
             agent.faq_author,
             agent.verified_agency_rep,
             agent.created_at
-        FROM fosterlink_dev.agency ag
+        FROM agency ag
         INNER JOIN user agent ON ag.agent = agent.id
         INNER JOIN location lo ON ag.address = lo.id
         INNER JOIN user approved_by ON ag.approved_by_id = approved_by.id
@@ -68,7 +68,7 @@ SELECT
     agent.faq_author,
     agent.verified_agency_rep,
     agent.created_at
-FROM fosterlink_dev.agency ag
+FROM agency ag
 INNER JOIN user agent ON ag.agent = agent.id
 INNER JOIN location lo ON ag.address = lo.id
 LEFT JOIN user approved_by ON ag.approved_by_id = approved_by.id

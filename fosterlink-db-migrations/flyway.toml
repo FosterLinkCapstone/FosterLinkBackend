@@ -26,3 +26,7 @@ ignoreNewlinesInTextObjects = "off"
 [environments.fosterlink-staging]
 url = "jdbc:mysql://fosterlink-staging.mysql.database.azure.com:3306/fosterlink_dev?useSSL=true"
 schemas = [ "fosterlink_dev" ]
+
+[environments.fosterlink-prod]
+url = "jdbc:mysql://fosterlink-prod.mysql.database.azure.com:3306/fosterlink_prod?useSSL=true"
+schemas = [ "fosterlink_prod" ]

@@ -8,19 +8,19 @@ SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,N
 -- Schema mydb
 -- -----------------------------------------------------
 -- -----------------------------------------------------
--- Schema fosterlink_dev
+-- Schema fosterlink_prod
 -- -----------------------------------------------------
 
 -- -----------------------------------------------------
--- Schema fosterlink_dev
+-- Schema fosterlink_prod
 -- -----------------------------------------------------
-CREATE SCHEMA IF NOT EXISTS `fosterlink_dev` DEFAULT CHARACTER SET utf8 ;
-USE `fosterlink_dev` ;
+CREATE SCHEMA IF NOT EXISTS `fosterlink_prod` DEFAULT CHARACTER SET utf8 ;
+USE `fosterlink_prod` ;
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`user`
+-- Table `fosterlink_prod`.`user`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`user` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`user` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `first_name` VARCHAR(255) NULL DEFAULT NULL,
   `last_name` VARCHAR(255) NULL DEFAULT NULL,
@@ -46,9 +46,9 @@ DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`location`
+-- Table `fosterlink_prod`.`location`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`location` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`location` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `city` VARCHAR(255) NULL DEFAULT NULL,
   `state` VARCHAR(255) NULL DEFAULT NULL,
@@ -62,9 +62,9 @@ DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`agency`
+-- Table `fosterlink_prod`.`agency`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`agency` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`agency` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(255) NULL DEFAULT NULL,
   `mission_statement` TEXT NOT NULL,
@@ -80,22 +80,22 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`agency` (
   INDEX `approved_by_id` (`approved_by_id` ASC),
   CONSTRAINT `agency_ibfk_1`
     FOREIGN KEY (`agent`)
-    REFERENCES `fosterlink_dev`.`user` (`id`),
+    REFERENCES `fosterlink_prod`.`user` (`id`),
   CONSTRAINT `agency_ibfk_2`
     FOREIGN KEY (`approved_by_id`)
-    REFERENCES `fosterlink_dev`.`user` (`id`),
+    REFERENCES `fosterlink_prod`.`user` (`id`),
   CONSTRAINT `fk_agency_location1`
     FOREIGN KEY (`address`)
-    REFERENCES `fosterlink_dev`.`location` (`id`))
+    REFERENCES `fosterlink_prod`.`location` (`id`))
 ENGINE = InnoDB
 AUTO_INCREMENT = 8
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`agency_deletion_request`
+-- Table `fosterlink_prod`.`agency_deletion_request`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`agency_deletion_request` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`agency_deletion_request` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `approved` TINYINT(1) NULL DEFAULT NULL,
   `created_at` DATETIME NULL DEFAULT NULL,
@@ -106,18 +106,18 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`agency_deletion_request` (
   INDEX `requested_by` (`requested_by` ASC),
   CONSTRAINT `agency_deletion_request_ibfk_1`
     FOREIGN KEY (`agency`)
-    REFERENCES `fosterlink_dev`.`agency` (`id`),
+    REFERENCES `fosterlink_prod`.`agency` (`id`),
   CONSTRAINT `agency_deletion_request_ibfk_2`
     FOREIGN KEY (`requested_by`)
-    REFERENCES `fosterlink_dev`.`agent` (`id`))
+    REFERENCES `fosterlink_prod`.`agent` (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`faq`
+-- Table `fosterlink_prod`.`faq`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`faq` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`faq` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `title` VARCHAR(255) NULL DEFAULT NULL,
   `content` TEXT NOT NULL,
@@ -129,16 +129,16 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`faq` (
   INDEX `author` (`author` ASC),
   CONSTRAINT `fk_FAQ_user1`
     FOREIGN KEY (`author`)
-    REFERENCES `fosterlink_dev`.`user` (`id`))
+    REFERENCES `fosterlink_prod`.`user` (`id`))
 ENGINE = InnoDB
 AUTO_INCREMENT = 25
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`faq_approval`
+-- Table `fosterlink_prod`.`faq_approval`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`faq_approval` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`faq_approval` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `faq_id` INT(11) NOT NULL,
   `approved` TINYINT(1) NOT NULL,
@@ -148,19 +148,19 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`faq_approval` (
   INDEX `approved_by_id` (`approved_by_id` ASC),
   CONSTRAINT `faq_approval_ibfk_1`
     FOREIGN KEY (`faq_id`)
-    REFERENCES `fosterlink_dev`.`faq` (`id`),
+    REFERENCES `fosterlink_prod`.`faq` (`id`),
   CONSTRAINT `faq_approval_ibfk_2`
     FOREIGN KEY (`approved_by_id`)
-    REFERENCES `fosterlink_dev`.`user` (`id`))
+    REFERENCES `fosterlink_prod`.`user` (`id`))
 ENGINE = InnoDB
 AUTO_INCREMENT = 23
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`faq_request`
+-- Table `fosterlink_prod`.`faq_request`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`faq_request` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`faq_request` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `requested_by` INT(11) NOT NULL COMMENT 'fk user.id',
   `suggested_topic` TEXT NOT NULL COMMENT 'effectively title',
@@ -169,16 +169,16 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`faq_request` (
   INDEX `fk_requested_by_id` (`requested_by` ASC),
   CONSTRAINT `fk_requested_by_id`
     FOREIGN KEY (`requested_by`)
-    REFERENCES `fosterlink_dev`.`user` (`id`))
+    REFERENCES `fosterlink_prod`.`user` (`id`))
 ENGINE = InnoDB
 AUTO_INCREMENT = 13
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`post_metadata`
+-- Table `fosterlink_prod`.`post_metadata`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`post_metadata` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`post_metadata` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `hidden` BIT(1) NOT NULL,
   `user_deleted` BIT(1) NOT NULL,
@@ -193,9 +193,9 @@ DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`thread`
+-- Table `fosterlink_prod`.`thread`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`thread` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `title` VARCHAR(255) NULL DEFAULT NULL,
   `content` TEXT NOT NULL,
@@ -211,19 +211,19 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread` (
   INDEX `idx_thread_title` (`title` ASC),
   CONSTRAINT `fk_thread_User1`
     FOREIGN KEY (`posted_by`)
-    REFERENCES `fosterlink_dev`.`user` (`id`),
+    REFERENCES `fosterlink_prod`.`user` (`id`),
   CONSTRAINT `fk_thread_post_metadata`
     FOREIGN KEY (`metadata`)
-    REFERENCES `fosterlink_dev`.`post_metadata` (`id`))
+    REFERENCES `fosterlink_prod`.`post_metadata` (`id`))
 ENGINE = InnoDB
 AUTO_INCREMENT = 37
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`thread_like`
+-- Table `fosterlink_prod`.`thread_like`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_like` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`thread_like` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `thread` INT(11) NOT NULL,
   `user` INT(11) NOT NULL,
@@ -234,19 +234,19 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_like` (
   INDEX `user` (`user` ASC),
   CONSTRAINT `fk_thread_like_User1`
     FOREIGN KEY (`user`)
-    REFERENCES `fosterlink_dev`.`user` (`id`),
+    REFERENCES `fosterlink_prod`.`user` (`id`),
   CONSTRAINT `fk_thread_like_thread1`
     FOREIGN KEY (`thread`)
-    REFERENCES `fosterlink_dev`.`thread` (`id`))
+    REFERENCES `fosterlink_prod`.`thread` (`id`))
 ENGINE = InnoDB
 AUTO_INCREMENT = 105
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`thread_reply`
+-- Table `fosterlink_prod`.`thread_reply`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_reply` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`thread_reply` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `content` TEXT NOT NULL,
   `created_at` DATETIME NOT NULL,
@@ -262,22 +262,22 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_reply` (
   INDEX `fk_thread_reply_thread_id` (`thread_id` ASC),
   CONSTRAINT `fk_thread_reply_User1`
     FOREIGN KEY (`posted_by`)
-    REFERENCES `fosterlink_dev`.`user` (`id`),
+    REFERENCES `fosterlink_prod`.`user` (`id`),
   CONSTRAINT `fk_thread_reply_post_metadata1`
     FOREIGN KEY (`metadata`)
-    REFERENCES `fosterlink_dev`.`post_metadata` (`id`),
+    REFERENCES `fosterlink_prod`.`post_metadata` (`id`),
   CONSTRAINT `fk_thread_reply_thread_id`
     FOREIGN KEY (`thread_id`)
-    REFERENCES `fosterlink_dev`.`thread` (`id`))
+    REFERENCES `fosterlink_prod`.`thread` (`id`))
 ENGINE = InnoDB
 AUTO_INCREMENT = 9
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`thread_reply_like`
+-- Table `fosterlink_prod`.`thread_reply_like`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_reply_like` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`thread_reply_like` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `thread` INT(11) NOT NULL,
   `user` INT(11) NOT NULL,
@@ -290,22 +290,22 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_reply_like` (
   INDEX `FKhxu4hwmeh5ywg2gc1pt9kftg4` (`thread_id` ASC),
   CONSTRAINT `FKhxu4hwmeh5ywg2gc1pt9kftg4`
     FOREIGN KEY (`thread_id`)
-    REFERENCES `fosterlink_dev`.`thread_reply` (`id`),
+    REFERENCES `fosterlink_prod`.`thread_reply` (`id`),
   CONSTRAINT `fk_thread_reply_like_User1`
     FOREIGN KEY (`user`)
-    REFERENCES `fosterlink_dev`.`user` (`id`),
+    REFERENCES `fosterlink_prod`.`user` (`id`),
   CONSTRAINT `fk_thread_reply_like_thread_reply1`
     FOREIGN KEY (`thread`)
-    REFERENCES `fosterlink_dev`.`thread_reply` (`id`))
+    REFERENCES `fosterlink_prod`.`thread_reply` (`id`))
 ENGINE = InnoDB
 AUTO_INCREMENT = 10
 DEFAULT CHARACTER SET = utf8;
 
 
 -- -----------------------------------------------------
--- Table `fosterlink_dev`.`thread_tag`
+-- Table `fosterlink_prod`.`thread_tag`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_tag` (
+CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`thread_tag` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(255) NULL DEFAULT NULL,
   `thread` INT(11) NOT NULL,
@@ -313,22 +313,22 @@ CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_tag` (
   INDEX `thread` (`thread` ASC),
   CONSTRAINT `fk_thread_tag_thread1`
     FOREIGN KEY (`thread`)
-    REFERENCES `fosterlink_dev`.`thread` (`id`))
+    REFERENCES `fosterlink_prod`.`thread` (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8;
 
-USE `fosterlink_dev` ;
+USE `fosterlink_prod` ;
 
 -- -----------------------------------------------------
 -- procedure describe_and_count
 -- -----------------------------------------------------
 
 DELIMITER $$
-USE `fosterlink_dev`$$
+USE `fosterlink_prod`$$
 CREATE DEFINER=`developer`@`%` PROCEDURE `describe_and_count`()
 BEGIN
-    SELECT COUNT(*) AS user_count FROM fosterlink_dev.`user`;
-    DESCRIBE fosterlink_dev.`user`;
+    SELECT COUNT(*) AS user_count FROM fosterlink_prod.`user`;
+    DESCRIBE fosterlink_prod.`user`;
 END$$
 
 DELIMITER ;
