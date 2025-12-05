@@ -23,6 +23,7 @@ jobs:
       SPRING_PASSWORD: ${{ secrets.SPRING_PASSWORD }}
       SPRING_USERNAME: ${{ secrets.SPRING_USERNAME }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4

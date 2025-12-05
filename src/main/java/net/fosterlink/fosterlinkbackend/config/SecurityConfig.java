@@ -36,10 +36,22 @@ public class SecurityConfig {
             "/swagger-resources/**",
             "/webjars/**",
             "/v1",
-            "/v1/threads/getAll"
+            "/v1/threads/getAll",
+            "/actuator/**",
+            "/v1/threads/rand",
+            "/v1/threads/search" /* TODO */,
+            "/v1/threads/replies",
+            "/v1/faq/all",
+            "/v1/faq/content",
+            "/v1/users/isAdmin",
+            "/v1/users/isFaqAuthor",
+            "/v1/faq/unapprovedCount",
+            "/v1/users/agentInfo",
+            "/v1/agencies/all"
     };
     private final String[] privateEndpoints = {
-        "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete", "/v1/users/getInfo"
+        "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete", "/v1/users/getInfo",
+            "/v1/threads/replies/like", "/v1/threads/create"
     };
 
     @Autowired private UserService userService;

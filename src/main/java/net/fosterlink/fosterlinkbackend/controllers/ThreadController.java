@@ -7,15 +7,13 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
-import net.fosterlink.fosterlinkbackend.entities.ThreadTagEntity;
+import net.fosterlink.fosterlinkbackend.entities.*;
+import net.fosterlink.fosterlinkbackend.models.rest.ThreadReplyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
-import net.fosterlink.fosterlinkbackend.models.web.thread.CreateThreadModel;
-import net.fosterlink.fosterlinkbackend.models.web.thread.UpdateThreadModel;
-import net.fosterlink.fosterlinkbackend.repositories.ThreadLikeRepository;
-import net.fosterlink.fosterlinkbackend.repositories.ThreadRepository;
-import net.fosterlink.fosterlinkbackend.repositories.ThreadTagRepository;
-import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import net.fosterlink.fosterlinkbackend.models.web.thread.*;
+import net.fosterlink.fosterlinkbackend.repositories.*;
+import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadMapper;
+import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadReplyMapper;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import net.fosterlink.fosterlinkbackend.util.StringUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +27,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/v1/threads/")
@@ -40,6 +39,16 @@ public class ThreadController {
     private UserRepository userRepository;
     @Autowired
     private ThreadLikeRepository threadLikeRepository;
+    @Autowired
+    private ThreadMapper threadMapper;
+    @Autowired
+    private ThreadReplyMapper threadReplyMapper;
+    @Autowired
+    private ThreadReplyLikeRepository threadReplyLikeRepository;
+    @Autowired
+    private PostMetadataRepository postMetadataRepository;
+    @Autowired
+    private ThreadReplyRepository threadReplyRepository;
 
     @Operation(
             summary = "Create a new thread",
@@ -62,29 +71,47 @@ public class ThreadController {
     )
     @PostMapping("/create")
     public ResponseEntity<?> create(@RequestBody CreateThreadModel model) {
-        // TODO allow only verified foster parents to create a thread?
 
-        ThreadEntity threadEntity = new ThreadEntity();
-        threadEntity.setCreatedAt(new Date());
-        threadEntity.setTitle(StringUtil.cleanString(model.getTitle()));
-        threadEntity.setContent(StringUtil.cleanString(model.getContent()));
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
 
-        ThreadEntity savedThread = threadRepository.save(threadEntity);
+        if (user != null) {
 
-        Set<ThreadTagEntity> entities = new HashSet<>();
+            // TODO allow only verified foster parents to create a thread?
 
-        for (String tag : model.getTags()) {
+            // TODO
+            PostMetadataEntity postMetadata = new PostMetadataEntity();
+            postMetadata.setHidden(false);
+            postMetadata.setLocked(false);
+            postMetadata.setVerified(false);
+            postMetadata.setUser_deleted(false);
+            PostMetadataEntity saved = postMetadataRepository.save(postMetadata);
 
-            ThreadTagEntity threadTagEntity = new ThreadTagEntity();
-            threadTagEntity.setName(tag);
-            threadTagEntity.setThread(savedThread);
-            entities.add(threadTagEntity);
+            ThreadEntity threadEntity = new ThreadEntity();
+            threadEntity.setCreatedAt(new Date());
+            threadEntity.setTitle(StringUtil.cleanString(model.getTitle()));
+            threadEntity.setContent(StringUtil.cleanString(model.getContent()));
+            threadEntity.setPostMetadata(saved);
+            threadEntity.setPostedBy(user);
+            ThreadEntity savedThread = threadRepository.save(threadEntity);
 
-        }
+            Set<ThreadTagEntity> entities = new HashSet<>();
 
-        threadTagRepository.saveAll(entities);
+            if (model.getTags() != null) {
+                for (String tag : model.getTags()) {
+                    ThreadTagEntity threadTagEntity = new ThreadTagEntity();
+                    threadTagEntity.setName(tag);
+                    threadTagEntity.setThread(savedThread);
+                    entities.add(threadTagEntity);
 
-        return ResponseEntity.ok().body(new ThreadResponse(savedThread, 0));
+                }
+            }
+
+
+            threadTagRepository.saveAll(entities);
+
+            return ResponseEntity.ok().body(new ThreadResponse(savedThread, 0));
+        } else return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+
     }
 
     @Operation(
@@ -158,13 +185,12 @@ public class ThreadController {
     )
     @GetMapping("/search-by-id")
     public ResponseEntity<?> searchById(@RequestParam int threadId) {
-
-        ThreadEntity t =  threadRepository.findById(threadId).orElse(null);
-        if (t == null) {
+        int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
+        ThreadResponse thread = threadMapper.findById(threadId, userId);
+        if (thread == null) {
             return ResponseEntity.notFound().build();
         }
-        int lc = threadLikeRepository.likeCountForThread(threadId);
-        return ResponseEntity.ok().body(new ThreadResponse(t, lc));
+        return ResponseEntity.ok().body(thread);
     }
 
     @Operation(
@@ -295,6 +321,105 @@ public class ThreadController {
     public ResponseEntity<?> getAll() {
         List<ThreadResponse> responses = toResponseModel(threadRepository.getAll());
         return ResponseEntity.ok(responses);
+    }
+    @PostMapping("/search") // taking a json body in a get request is bad practice
+    public ResponseEntity<?> search(@RequestBody SearchThreadModel search) {
+        switch (search.getSearchBy()) {
+            case USERNAME:
+                UserEntity user = userRepository.findByUsername(search.getSearchTerm());
+                if (user == null) {
+                    return ResponseEntity.notFound().build();
+                }
+                return ResponseEntity.ok(toResponseModel(user.getThreadsAuthored()));
+            case THREAD_TITLE:
+                List<ThreadEntity> threads = threadRepository.findByTitleContaining(search.getSearchTerm());
+                return ResponseEntity.ok(toResponseModel(threads));
+            case THREAD_CONTENT:
+                List<ThreadEntity> threads2 = threadRepository.findByContentContaining(search.getSearchTerm());
+                return ResponseEntity.ok(toResponseModel(threads2));
+            case TAGS:
+                List<ThreadEntity> threads3 = threadTagRepository.searchByName(search.getSearchTerm()).stream().map(ThreadTagEntity::getThread).collect(Collectors.toCollection(ArrayList::new));
+                return ResponseEntity.ok(toResponseModel(threads3));
+        }
+        return ResponseEntity.badRequest().build();
+    }
+
+    @GetMapping("/rand")
+    public ResponseEntity<?> rand(@RequestParam(required = false, defaultValue = "-1") int userId) {
+        if (userId != -1) {
+            return ResponseEntity.ok(threadMapper.findRandomWeightedThreadsForUser(userId));
+        }
+        return ResponseEntity.ok(threadMapper.findRandomWeightedThreads(-1));
+    }
+    @GetMapping("/replies")
+    public ResponseEntity<?> replies(@RequestParam int threadId) {
+        int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
+        return ResponseEntity.ok(threadReplyMapper.getRepliesForThread(threadId, userId));
+
+    }
+    @PostMapping("/replies")
+    public ResponseEntity<?> replyTo(@RequestBody ReplyToThreadModel reply) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+
+            // TODO
+            PostMetadataEntity postMetadata = new PostMetadataEntity();
+            postMetadata.setHidden(false);
+            postMetadata.setLocked(false);
+            postMetadata.setVerified(false);
+            postMetadata.setUser_deleted(false);
+
+            PostMetadataEntity saved = postMetadataRepository.save(postMetadata);
+
+            ThreadReplyEntity dbReply = new ThreadReplyEntity();
+            dbReply.setContent(reply.getContent());
+            dbReply.setCreatedAt(new Date());
+            dbReply.setMetadata(saved);
+            dbReply.setPostedBy(user);
+            dbReply.setThread_id(reply.getThreadId());
+
+            ThreadReplyEntity replyEntity = threadReplyRepository.save(dbReply);
+            return ResponseEntity.ok(new ThreadReplyResponse(replyEntity, 0));
+        } else {
+            return ResponseEntity.status(403).build();
+        }
+
+    }
+    @PostMapping("/replies/like")
+    public ResponseEntity<?> likeReply(@RequestBody LikeReplyModel likeReply) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (!threadReplyLikeRepository.existsByThreadAndUser(likeReply.getReplyId(), user)) {
+                ThreadReplyLikeEntity threadReplyLikeEntity = new ThreadReplyLikeEntity();
+                threadReplyLikeEntity.setThread(likeReply.getReplyId());
+                threadReplyLikeEntity.setUser(user);
+                threadReplyLikeRepository.save(threadReplyLikeEntity);
+                return ResponseEntity.ok(true);
+            } else {
+                threadReplyLikeRepository.deleteThreadReplyLikeEntitiesByThreadAndUser(likeReply.getReplyId(), user);
+                return ResponseEntity.ok(false);
+            }
+        } else {
+            return ResponseEntity.status(403).build();
+        }
+    }
+    @PostMapping("/like")
+    public ResponseEntity<?> likeThread (@RequestBody LikeThreadModel model) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (!threadLikeRepository.existsByThreadAndUser(model.getThreadId(), user)) {
+                ThreadLikeEntity threadLikeEntity = new ThreadLikeEntity();
+                threadLikeEntity.setThread(model.getThreadId());
+                threadLikeEntity.setUser(user);
+                threadLikeRepository.save(threadLikeEntity);
+                return ResponseEntity.ok(true);
+            } else {
+                threadLikeRepository.deleteThreadLikeEntityByThreadAndUser(model.getThreadId(), user);
+                return ResponseEntity.ok(false);
+            }
+        } else {
+            return ResponseEntity.status(403).build();
+        }
     }
 
     private List<ThreadResponse> toResponseModel(List<ThreadEntity> threads) {

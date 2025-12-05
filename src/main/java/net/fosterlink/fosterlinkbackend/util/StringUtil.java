@@ -3,7 +3,6 @@ package net.fosterlink.fosterlinkbackend.util;
 import org.apache.commons.text.StringEscapeUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
-import org.springframework.boot.autoconfigure.web.ErrorProperties;
 
 public class StringUtil {
 

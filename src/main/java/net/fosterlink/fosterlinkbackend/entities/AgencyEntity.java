@@ -12,12 +12,16 @@ public class AgencyEntity {
     private int id;
     private String name;
     private String missionStatement;
+    private String websiteUrl;
+    private Boolean approved;
+    private Integer approved_by_id;
+
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="address")
     private LocationEntity address;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="agent", nullable = false)
-    private AgentEntity agent;
+    private UserEntity agent;
 
 }

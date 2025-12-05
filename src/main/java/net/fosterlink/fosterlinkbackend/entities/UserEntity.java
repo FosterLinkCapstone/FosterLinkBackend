@@ -42,8 +42,4 @@ public class UserEntity {
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "postedBy")
     private List<ThreadEntity> threadsAuthored;
 
-    @OneToOne(mappedBy = "user")
-    @Nullable
-    private AgentEntity agent;
-
 }

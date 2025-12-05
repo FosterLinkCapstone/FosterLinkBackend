@@ -8,7 +8,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
+import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PrivilegesResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
@@ -18,7 +21,6 @@ import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/v1/users/")
@@ -103,13 +106,8 @@ public class UserController {
         UserEntity userEntity = new UserEntity();
         userEntity.setUsername(model.getUsername());
 
-        if (model.isRegisteredUsingEmail()) {
-            userEntity.setEmail(model.getEmail());
-        } else {
-            // TODO fix conflict
-            userEntity.setEmail(model.getPhoneNumber());
-            userEntity.setPhoneNumber((model.getPhoneNumber()));
-        }
+        userEntity.setEmail(model.getEmail());
+        userEntity.setPhoneNumber((model.getPhoneNumber()));
 
         userEntity.setPassword(passwordEncoder.encode(model.getPassword()));
         userEntity.setFirstName(model.getFirstName());
@@ -290,6 +288,65 @@ public class UserController {
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
+    }
+
+    @GetMapping("/privileges")
+    public ResponseEntity<?> getPrivileges() {
+        PrivilegesResponse res = new  PrivilegesResponse(false,false,false);
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            res.setAdmin(user.isAdministrator());
+            res.setFaqAuthor(user.isFaqAuthor());
+            res.setAgent(user.isVerifiedAgencyRep());
+        }
+        return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/isAdmin")
+    public ResponseEntity<?> isUserAdmin() {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            return ResponseEntity.ok(user.isAdministrator());
+        }
+        return ResponseEntity.ok(false);
+    }
+    @GetMapping("/isAgent")
+    public ResponseEntity<?> isAgent() {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            return ResponseEntity.ok(user.isVerifiedAgencyRep());
+        }
+        return ResponseEntity.ok(false);
+    }
+    @GetMapping("/isFaqAuthor")
+    public ResponseEntity<?> isUserFaqAuthor() {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            return ResponseEntity.ok(user.isFaqAuthor());
+        }
+        return ResponseEntity.ok(false);
+    }
+    @GetMapping("/agentInfo")
+    public ResponseEntity<?> getAgentInfo(@RequestParam("userId")int userId) {
+        Optional<UserEntity> user = userRepository.findById(userId);
+        if (user.isPresent()) {
+            if (user.get().isVerifiedAgencyRep()) {
+                return ResponseEntity.ok(new AgentInfoResponse(user.get().getId(), user.get().getEmail(), user.get().getPhoneNumber()));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            }
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletRequest request) {
+        SecurityContextHolder.clearContext();
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        return ResponseEntity.ok().build();
     }
 
     private String loginUser(String username, String password) throws BadCredentialsException {

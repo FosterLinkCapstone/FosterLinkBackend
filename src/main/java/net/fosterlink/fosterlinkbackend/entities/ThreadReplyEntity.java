@@ -2,6 +2,7 @@ package net.fosterlink.fosterlinkbackend.entities;
 
 import jakarta.annotation.Nullable;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.Date;
@@ -19,6 +20,7 @@ public class ThreadReplyEntity {
     private Date createdAt;
     @Nullable
     private Date updatedAt;
+    private int thread_id;
     @ManyToOne(cascade = CascadeType.ALL)
     @JoinColumn(name="metadata")
     private PostMetadataEntity metadata;

@@ -2,6 +2,7 @@ package net.fosterlink.fosterlinkbackend.models.rest;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 
 import java.util.Date;
@@ -9,6 +10,7 @@ import java.util.Date;
 @Data
 @Schema(description = "Details about an individual user."
         , requiredProperties = {"id", "fullName", "username", "profilePictureUrl", "createdAt"})
+@NoArgsConstructor
 public class UserResponse
 {
 
