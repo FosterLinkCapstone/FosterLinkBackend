@@ -10,8 +10,8 @@ public class FAQApprovalEntity {
     @Id
     @GeneratedValue(strategy= GenerationType.IDENTITY)
     private int id;
-    private int faq_id;
+    private int faqId;
     private boolean approved;
-    private int approved_by_id;
+    private int approvedById;
 
 }

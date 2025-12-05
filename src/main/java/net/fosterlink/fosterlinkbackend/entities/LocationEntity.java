@@ -23,6 +23,4 @@ public class LocationEntity {
 
     private int zipCode;
 
-    private String thumbnailUrl;
-
 }

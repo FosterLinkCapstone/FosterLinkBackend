@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`faq_request` ( `id` INT NOT NULL AUTO_INCREMENT , `requested_by` INT NOT NULL COMMENT 'fk user.id' , `suggested_topic` INT NOT NULL COMMENT 'effectively title' , `created_at` DATETIME NOT NULL , PRIMARY KEY (`id`)) ENGINE = InnoDB;

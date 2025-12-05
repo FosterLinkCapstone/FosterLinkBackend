@@ -16,5 +16,6 @@ public class PendingFaqResponse {
     private Date updatedAt;
     private UserResponse author;
     private ApprovalStatus approvalStatus;
+    private String deniedByUsername;
 
 }

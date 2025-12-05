@@ -2,7 +2,6 @@ package net.fosterlink.fosterlinkbackend.models.rest;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.lang.Nullable;
 
 import java.util.Date;
 @Data
@@ -16,7 +15,7 @@ public class FaqResponse {
     private Date updatedAt;
     private UserResponse author;
     private boolean approved;
-    private String approved_by_username;
+    private String approvedByUsername;
 
 
 }

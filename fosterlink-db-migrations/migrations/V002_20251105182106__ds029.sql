@@ -273,11 +273,10 @@ DEFAULT CHARACTER SET = utf8mb3;
 -- Table `fosterlink_dev`.`thread_tag`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`thread_tag` (
-  `my_row_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `id` BIGINT NOT NULL,
+  `id` INT NOT NULL,
   `name` VARCHAR(255) NULL DEFAULT NULL,
   `thread` INT NOT NULL,
-  PRIMARY KEY (`my_row_id`),
+  PRIMARY KEY (`id`),
   INDEX `fk_thread_tag_thread1_idx` (`thread` ASC),
   INDEX `thread` (`thread` ASC),
   CONSTRAINT `fk_thread_tag_thread1`

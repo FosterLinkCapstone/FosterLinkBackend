@@ -1,12 +1,18 @@
 package net.fosterlink.fosterlinkbackend.controllers;
 
 import net.fosterlink.fosterlinkbackend.entities.FAQApprovalEntity;
+import net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
-import net.fosterlink.fosterlinkbackend.models.rest.FaqResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.AnswerFaqSuggestionResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.ApprovalCheckResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.CreateFaqSuggestionModel;
+import net.fosterlink.fosterlinkbackend.models.rest.FaqRequestResponse;
 import net.fosterlink.fosterlinkbackend.models.web.faq.ApproveFaqModel;
+import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqModel;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
+import net.fosterlink.fosterlinkbackend.repositories.FAQRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.FaqMapper;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
@@ -14,8 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Date;
 import java.util.Optional;
 
 @RestController
@@ -28,6 +33,8 @@ public class FaqController {
     private UserRepository userRepository;
     @Autowired
     private FAQApprovalRepository fAQApprovalRepository;
+    @Autowired
+    private FAQRequestRepository fAQRequestRepository;
 
 
     @GetMapping("/all")
@@ -43,6 +50,26 @@ public class FaqController {
             return ResponseEntity.notFound().build();
         }
     }
+
+    @PostMapping("/create")
+    public ResponseEntity<?> create(@RequestBody CreateFaqModel createFaqModel) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (user.isFaqAuthor() || user.isAdministrator()) {
+                FaqEntity faqEntity = new FaqEntity();
+                faqEntity.setAuthor(user);
+                faqEntity.setContent(createFaqModel.getContent());
+                faqEntity.setTitle(createFaqModel.getTitle());
+                faqEntity.setSummary(createFaqModel.getSummary());
+                faqEntity.setCreatedAt(new Date());
+
+                FaqEntity saved = fAQRepository.save(faqEntity);
+                return ResponseEntity.ok(faqMapper.mapNewFaq(saved));
+            }
+        }
+        return ResponseEntity.status(403).build();
+    }
+
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingFaqs() {
         if (JwtUtil.isLoggedIn()) {
@@ -56,6 +83,14 @@ public class FaqController {
             return ResponseEntity.status(403).build();
         }
     }
+    @GetMapping("/checkApproval")
+    public ResponseEntity<?> getUnapprovedFaqCount() {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            return ResponseEntity.ok(faqMapper.checkApprovalStatusForUser(user.getId()));
+        }
+        return ResponseEntity.ok(new ApprovalCheckResponse(0,0));
+    }
     @PostMapping("/approve")
     public ResponseEntity<?> approveFaq(@RequestBody ApproveFaqModel faq) {
         if (JwtUtil.isLoggedIn()) {
@@ -63,10 +98,12 @@ public class FaqController {
             if (user.isAdministrator()) {
                 Optional<FaqEntity> faqEntity = fAQRepository.findById(faq.getId());
                 if (faqEntity.isPresent()) {
-                    FAQApprovalEntity entity = new FAQApprovalEntity();
+                    Optional<FAQApprovalEntity> approval = fAQApprovalRepository.findFAQApprovalEntityByFaqId(faq.getId());
+                    FAQApprovalEntity entity;
+                    entity = approval.orElseGet(FAQApprovalEntity::new);
                     entity.setApproved(faq.isApproved());
-                    entity.setApproved_by_id(user.getId());
-                    entity.setFaq_id(faqEntity.get().getId());
+                    entity.setApprovedById(user.getId());
+                    entity.setFaqId(faqEntity.get().getId());
                     fAQApprovalRepository.save(entity);
                     return ResponseEntity.ok().build();
                 } else {
@@ -79,4 +116,36 @@ public class FaqController {
             return ResponseEntity.status(403).build();
         }
     }
+    @GetMapping("/requests")
+    public ResponseEntity<?> getRequests() {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (user.isAdministrator() || user.isFaqAuthor()) {
+                return ResponseEntity.ok(faqMapper.getAllRequests());
+            }
+        }
+        return ResponseEntity.status(403).build();
+    }
+    @PostMapping("/requests/answer")
+    public ResponseEntity<?> answerRequest(@RequestBody AnswerFaqSuggestionResponse model) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (user.isAdministrator() || user.isFaqAuthor()) {
+                fAQRequestRepository.deleteById(model.getReqId());
+                return ResponseEntity.ok().build();
+            }
+        }
+        return ResponseEntity.status(403).build();
+    }
+    @PostMapping("/requests/create")
+    public ResponseEntity<?> createFaqRequest(@RequestBody CreateFaqSuggestionModel model) {
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        FAQRequestEntity faqRequestResponse = new FAQRequestEntity();
+        faqRequestResponse.setSuggestedTopic(model.getSuggested());
+        faqRequestResponse.setRequestedById(user.getId());
+        faqRequestResponse.setCreatedAt(new Date());
+        fAQRequestRepository.save(faqRequestResponse);
+        return ResponseEntity.ok().build();
+    }
+
 }

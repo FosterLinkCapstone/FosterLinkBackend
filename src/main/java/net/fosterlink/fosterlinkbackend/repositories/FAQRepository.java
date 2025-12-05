@@ -41,14 +41,19 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
     List<Object[]> allApprovedPreviews();
 
     @Query(value = """
-
-WITH faq_with_status AS (
-    SELECT fr.id,
+    SELECT
+        fr.id,
         fr.title,
         fr.summary,
         fr.created_at,
         fr.updated_at,
-        u.id as author_id,
+        CASE
+            WHEN fa.approved IS NULL THEN 3
+            WHEN fa.approved IS TRUE THEN 1
+            WHEN fa.approved IS FALSE THEN 2
+        END as approval_status,
+        fa.approved_by_username,
+        u.id,
         u.first_name,
         u.last_name,
         u.username,
@@ -56,25 +61,14 @@ WITH faq_with_status AS (
         u.verified_foster,
         u.faq_author,
         u.verified_agency_rep,
-        u.created_at as author_created_at,
-        CASE\s
-            WHEN approval.faq_id IS NULL THEN 3
-            WHEN approval.approved = true THEN 1
-            WHEN approval.approved = false THEN 2
-        END as approval_status
+        u.created_at
     FROM faq fr
     INNER JOIN user u ON fr.author = u.id
     LEFT JOIN (
-            SELECT faq_id, approved, author.username AS approved_by_username
-            FROM faq_approval fa
-            INNER JOIN user author ON fa.approved_by_id = author.id
-        ) approval ON approval.faq_id = fr.id
-    GROUP BY fr.id, fr.title, fr.summary, fr.created_at, fr.updated_at, approval.approved, approval.approved_by_username, u.id,
-             u.first_name, u.last_name, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_foster, u.created_at, approval.faq_id
-)
-SELECT * FROM faq_with_status
-WHERE approval_status != 1;
+            SELECT faq_id, approved, ab.username AS approved_by_username FROM faq_approval
+            INNER JOIN user ab ON ab.id = approved_by_id
+            ) fa ON fa.faq_id = fr.id
+    WHERE fa.approved IS NULL OR fa.approved = false
     """, nativeQuery = true)
     List<Object[]> allPendingPreviews();
 
