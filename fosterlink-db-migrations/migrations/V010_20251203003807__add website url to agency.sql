@@ -1,1 +1,0 @@
-ALTER TABLE `agency` ADD `website_url` VARCHAR(100) NOT NULL AFTER `agent`;

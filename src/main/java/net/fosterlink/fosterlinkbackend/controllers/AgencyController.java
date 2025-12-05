@@ -78,9 +78,6 @@ public class AgencyController {
 
             String locationString = model.getLocationAddrLine1() + " " +  model.getLocationAddrLine2() + ", " + model.getLocationCity() + " " + model.getLocationState() + ", " + model.getLocationZipCode();
 
-            try {
-                GeocodingResult[] results = GeocodingApi.geocode(geoApiContext, locationString).await();
-                if (results != null && results.length > 0) {
                     AgencyEntity agency =  new AgencyEntity();
                     agency.setName(model.getName());
                     agency.setWebsiteUrl(model.getWebsiteUrl());
@@ -111,12 +108,6 @@ public class AgencyController {
                     agencyResponse.setLocation(savedLocation);
 
                     return ResponseEntity.ok(agency);
-                } else {
-                    return ResponseEntity.badRequest().build();
-                }
-            } catch (ApiException | InterruptedException | IOException e) {
-                return ResponseEntity.status(502).build();
-            }
         } else {
             return ResponseEntity.status(403).build();
         }

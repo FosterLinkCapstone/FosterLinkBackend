@@ -106,13 +106,8 @@ public class UserController {
         UserEntity userEntity = new UserEntity();
         userEntity.setUsername(model.getUsername());
 
-        if (model.isRegisteredUsingEmail()) {
-            userEntity.setEmail(model.getEmail());
-        } else {
-            // TODO fix conflict
-            userEntity.setEmail(model.getPhoneNumber());
-            userEntity.setPhoneNumber((model.getPhoneNumber()));
-        }
+        userEntity.setEmail(model.getEmail());
+        userEntity.setPhoneNumber((model.getPhoneNumber()));
 
         userEntity.setPassword(passwordEncoder.encode(model.getPassword()));
         userEntity.setFirstName(model.getFirstName());
