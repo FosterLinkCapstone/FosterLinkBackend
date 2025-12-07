@@ -1,5 +1,12 @@
 package net.fosterlink.fosterlinkbackend.controllers;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import net.fosterlink.fosterlinkbackend.entities.FAQApprovalEntity;
 import net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
@@ -8,6 +15,8 @@ import net.fosterlink.fosterlinkbackend.models.rest.AnswerFaqSuggestionResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ApprovalCheckResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.CreateFaqSuggestionModel;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqRequestResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.FaqResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PendingFaqResponse;
 import net.fosterlink.fosterlinkbackend.models.web.faq.ApproveFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqModel;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
@@ -37,10 +46,47 @@ public class FaqController {
     private FAQRequestRepository fAQRequestRepository;
 
 
+    @Operation(
+            summary = "Get all approved FAQs",
+            description = "Retrieves a list of all FAQs that have been approved by an administrator",
+            tags = {"FAQ"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "List of all approved FAQs",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = FaqResponse.class))
+                            )
+                    )
+            }
+    )
     @GetMapping("/all")
     public ResponseEntity<?> getAllFaqs() {
         return ResponseEntity.ok(faqMapper.allApprovedPreviews());
     }
+    @Operation(
+            summary = "Get FAQ content by ID",
+            description = "Retrieves the full content of a specific FAQ by its ID",
+            tags = {"FAQ"},
+            parameters = {
+                    @Parameter(name = "id", description = "The internal ID of the FAQ", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The FAQ content",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "string", description = "The full content of the FAQ")
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The FAQ with the provided ID could not be found"
+                    )
+            }
+    )
     @GetMapping("/content")
     public ResponseEntity<?> getContentFor(@RequestParam int id) {
         Optional<FaqEntity> faq = fAQRepository.findById(id);
@@ -51,6 +97,26 @@ public class FaqController {
         }
     }
 
+    @Operation(
+            summary = "Create a new FAQ",
+            description = "Creates a new FAQ. Only accessible to FAQ authors or administrators. The FAQ will be created in a pending state and must be approved by an administrator.",
+            tags = {"FAQ", "FaqAuthor"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The FAQ was successfully created",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = FaqResponse.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access this endpoint without FAQ author or administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/create")
     public ResponseEntity<?> create(@RequestBody CreateFaqModel createFaqModel) {
         if (JwtUtil.isLoggedIn()) {
@@ -70,6 +136,26 @@ public class FaqController {
         return ResponseEntity.status(403).build();
     }
 
+    @Operation(
+            summary = "Get all pending FAQs",
+            description = "Retrieves a list of all FAQs that are pending approval. Only accessible to administrators.",
+            tags = {"FAQ", "Admin"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "List of all pending FAQs",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = PendingFaqResponse.class))
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingFaqs() {
         if (JwtUtil.isLoggedIn()) {
@@ -83,6 +169,21 @@ public class FaqController {
             return ResponseEntity.status(403).build();
         }
     }
+    @Operation(
+            summary = "Check approval status for logged-in user's FAQs",
+            description = "Returns the count of pending and denied FAQs created by the currently logged-in user. If not logged in, returns zero counts.",
+            tags = {"FAQ", "Admin", "FaqAuthor"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The approval status counts for the user's FAQs",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ApprovalCheckResponse.class)
+                            )
+                    )
+            }
+    )
     @GetMapping("/checkApproval")
     public ResponseEntity<?> getUnapprovedFaqCount() {
         if (JwtUtil.isLoggedIn()) {
@@ -91,6 +192,26 @@ public class FaqController {
         }
         return ResponseEntity.ok(new ApprovalCheckResponse(0,0));
     }
+    @Operation(
+            summary = "Approve or deny an FAQ",
+            description = "Allows an administrator to approve or deny a pending FAQ. The administrator who performs this action will be recorded as the approver.",
+            tags = {"FAQ", "Admin"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The FAQ was successfully approved or denied"
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The FAQ with the provided ID could not be found"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/approve")
     public ResponseEntity<?> approveFaq(@RequestBody ApproveFaqModel faq) {
         if (JwtUtil.isLoggedIn()) {
@@ -116,6 +237,26 @@ public class FaqController {
             return ResponseEntity.status(403).build();
         }
     }
+    @Operation(
+            summary = "Get all FAQ requests",
+            description = "Retrieves a list of all FAQ suggestion requests. Only accessible to FAQ authors or administrators.",
+            tags = {"FAQ", "FaqAuthor"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "List of all FAQ requests",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = FaqRequestResponse.class))
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access this endpoint without FAQ author or administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @GetMapping("/requests")
     public ResponseEntity<?> getRequests() {
         if (JwtUtil.isLoggedIn()) {
@@ -126,6 +267,22 @@ public class FaqController {
         }
         return ResponseEntity.status(403).build();
     }
+    @Operation(
+            summary = "Answer/delete an FAQ request",
+            description = "Deletes an FAQ suggestion request, typically after it has been addressed. Only accessible to FAQ authors or administrators.",
+            tags = {"FAQ", "FaqAuthor"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The FAQ request was successfully deleted"
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access this endpoint without FAQ author or administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/requests/answer")
     public ResponseEntity<?> answerRequest(@RequestBody AnswerFaqSuggestionResponse model) {
         if (JwtUtil.isLoggedIn()) {
@@ -137,6 +294,22 @@ public class FaqController {
         }
         return ResponseEntity.status(403).build();
     }
+    @Operation(
+            summary = "Create an FAQ suggestion request",
+            description = "Creates a new FAQ suggestion request. The request will be visible to FAQ authors and administrators who can then address it.",
+            tags = {"FAQ"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The FAQ request was successfully created"
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access this endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/requests/create")
     public ResponseEntity<?> createFaqRequest(@RequestBody CreateFaqSuggestionModel model) {
         UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());

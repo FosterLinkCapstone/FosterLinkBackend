@@ -5,6 +5,12 @@ import com.google.maps.GeoApiContext;
 import com.google.maps.GeocodingApi;
 import com.google.maps.errors.ApiException;
 import com.google.maps.model.GeocodingResult;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
 import net.fosterlink.fosterlinkbackend.entities.LocationEntity;
@@ -43,10 +49,45 @@ public class AgencyController {
         this.geoApiContext = geoApiContext;
     }
 
+    @Operation(
+            summary = "Get all approved agencies",
+            description = "Retrieves a list of all agencies that have been approved by an administrator",
+            tags = {"Agency"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "List of all approved agencies",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = AgencyResponse.class))
+                            )
+                    )
+            }
+    )
     @GetMapping("/all")
     public ResponseEntity<?> getAllAgencies() {
         return ResponseEntity.ok(agencyMapper.getAllApprovedAgencies());
     }
+    @Operation(
+            summary = "Get all pending agencies",
+            description = "Retrieves a list of all agencies that are pending approval. Only accessible to administrators.",
+            tags = {"Agency", "Admin"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "List of all pending agencies",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = AgencyResponse.class))
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingAgencies() {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
@@ -54,6 +95,26 @@ public class AgencyController {
             return ResponseEntity.ok(agencyMapper.getAllPendingAgencies());
         } else return ResponseEntity.status(403).build();
     }
+    @Operation(
+            summary = "Approve or deny an agency",
+            description = "Allows an administrator to approve or deny a pending agency. The administrator who performs this action will be recorded as the approver.",
+            tags = {"Agency", "Admin"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The agency was successfully approved or denied"
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The agency with the provided ID could not be found"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/approve")
     public ResponseEntity<?> approveAgency(@RequestBody ApproveAgencyResponse model) {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
@@ -71,6 +132,30 @@ public class AgencyController {
             return ResponseEntity.status(403).build();
         }
     }
+    @Operation(
+            summary = "Create a new agency",
+            description = "Creates a new agency. Only accessible to administrators or verified agency representatives. The agency will be created in a pending state and must be approved by an administrator.",
+            tags = {"Agency", "Admin", "Agent"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The agency was successfully created",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = AgencyEntity.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "The request body validation failed (e.g., missing required fields, invalid URL format, invalid zip code)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access this endpoint without administrator or verified agency representative privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/create")
     public ResponseEntity<?> createAgency(@Valid @RequestBody CreateAgencyModel model) {
         UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
@@ -112,6 +197,26 @@ public class AgencyController {
             return ResponseEntity.status(403).build();
         }
     }
+    @Operation(
+            summary = "Get count of pending agencies",
+            description = "Returns the number of agencies that are currently pending approval. Only accessible to administrators.",
+            tags = {"Agency", "Admin"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The count of pending agencies",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "integer", description = "The number of pending agencies")
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @GetMapping("/pending/count")
     public ResponseEntity<?> countPending() {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());

@@ -1,6 +1,7 @@
 package net.fosterlink.fosterlinkbackend.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -50,33 +51,6 @@ public class UserController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @Operation(
-            summary = "Get a summary of every registered user",
-            description = "TESTING PURPOSES ONLY",
-            tags={"User"},
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200",
-                            description = "Every user registered to the app",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    array = @ArraySchema(schema = @Schema(implementation = UserResponse.class))
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "403",
-                            description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
-                    )
-            },
-            security = @SecurityRequirement(
-                    name="bearerAuth"
-            )
-    )
-    @GetMapping("/get-all")
-    public ResponseEntity<List<UserResponse>> getAllUsers() {
-        List<UserEntity> users = userRepository.getAllUsers();
-        return ResponseEntity.ok(users.stream().map(UserResponse::new).toList());
-    }
     @Operation(
             summary = "Register a new user",
             tags={"User"},
@@ -290,6 +264,21 @@ public class UserController {
         }
     }
 
+    @Operation(
+            summary = "Get user privileges",
+            description = "Returns the privileges (administrator, FAQ author, agent) of the currently logged-in user. Returns all false if not logged in.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The privileges of the currently logged-in user",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = PrivilegesResponse.class)
+                            )
+                    )
+            }
+    )
     @GetMapping("/privileges")
     public ResponseEntity<?> getPrivileges() {
         PrivilegesResponse res = new  PrivilegesResponse(false,false,false);
@@ -302,6 +291,21 @@ public class UserController {
         return ResponseEntity.ok(res);
     }
 
+    @Operation(
+            summary = "Check if user is administrator",
+            description = "Returns whether the currently logged-in user is an administrator. Returns false if not logged in.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Whether the user is an administrator",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "boolean", description = "true if the user is an administrator, false otherwise")
+                            )
+                    )
+            }
+    )
     @GetMapping("/isAdmin")
     public ResponseEntity<?> isUserAdmin() {
         if (JwtUtil.isLoggedIn()) {
@@ -310,6 +314,21 @@ public class UserController {
         }
         return ResponseEntity.ok(false);
     }
+    @Operation(
+            summary = "Check if user is verified agency representative",
+            description = "Returns whether the currently logged-in user is a verified agency representative. Returns false if not logged in.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Whether the user is a verified agency representative",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "boolean", description = "true if the user is a verified agency representative, false otherwise")
+                            )
+                    )
+            }
+    )
     @GetMapping("/isAgent")
     public ResponseEntity<?> isAgent() {
         if (JwtUtil.isLoggedIn()) {
@@ -318,6 +337,21 @@ public class UserController {
         }
         return ResponseEntity.ok(false);
     }
+    @Operation(
+            summary = "Check if user is FAQ author",
+            description = "Returns whether the currently logged-in user is an FAQ author. Returns false if not logged in.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Whether the user is an FAQ author",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "boolean", description = "true if the user is an FAQ author, false otherwise")
+                            )
+                    )
+            }
+    )
     @GetMapping("/isFaqAuthor")
     public ResponseEntity<?> isUserFaqAuthor() {
         if (JwtUtil.isLoggedIn()) {
@@ -326,6 +360,32 @@ public class UserController {
         }
         return ResponseEntity.ok(false);
     }
+    @Operation(
+            summary = "Get agent information",
+            description = "Retrieves contact information (email and phone number) for a verified agency representative by their user ID.",
+            tags = {"User"},
+            parameters = {
+                    @Parameter(name = "userId", description = "The internal ID of the user", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The agent information",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = AgentInfoResponse.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "The user with the provided ID is not a verified agency representative"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The user with the provided ID could not be found"
+                    )
+            }
+    )
     @GetMapping("/agentInfo")
     public ResponseEntity<?> getAgentInfo(@RequestParam("userId")int userId) {
         Optional<UserEntity> user = userRepository.findById(userId);
@@ -339,6 +399,17 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
+    @Operation(
+            summary = "Logout the current user",
+            description = "Logs out the currently logged-in user by clearing the security context and invalidating the session.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The user was successfully logged out"
+                    )
+            }
+    )
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request) {
         SecurityContextHolder.clearContext();

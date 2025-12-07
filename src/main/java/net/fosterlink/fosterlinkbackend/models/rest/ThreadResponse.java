@@ -46,6 +46,7 @@ public class ThreadResponse implements Serializable {
     @Schema(description = "The number of likes that the thread had at the time of request")
     private int likeCount;
 
+    @Schema(description = "Whether the currently logged-in user has liked this thread. Always false if not logged in.")
     private boolean isLiked;
 
     @Schema(description = "A list of tags that the thread has")
