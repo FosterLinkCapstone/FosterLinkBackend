@@ -259,7 +259,7 @@ public class ThreadController {
 
     @Operation(
             description = "Delete a thread by its ID. Accessible to the user who created the thread as well as administrators.",
-            tags = {"Thread"},
+            tags = {"Thread", "Admin"},
             parameters = {
                     @Parameter(name="threadId", description = "The internal ID of the thread to delete")
             },
@@ -304,25 +304,28 @@ public class ThreadController {
         }
     }
     @Operation(
-            description = "Get all threads DEVELOPMENT ONLY",
+            description = "Search for threads using various criteria. Note: This endpoint uses POST for search, which is not ideal REST practice but is implemented for flexibility.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "A collection of every thread.",
+                            description = "A collection of threads matching the search criteria. Can be empty if no matches found.",
                             content = @Content(
                                     mediaType = "application/json",
                                     array = @ArraySchema(schema = @Schema(implementation = ThreadResponse.class))
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "The search criteria provided was invalid"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "When searching by username, the username could not be found"
                     )
             }
     )
-    @GetMapping("/getAll")
-    public ResponseEntity<?> getAll() {
-        List<ThreadResponse> responses = toResponseModel(threadRepository.getAll());
-        return ResponseEntity.ok(responses);
-    }
-    @PostMapping("/search") // taking a json body in a get request is bad practice
+    @PostMapping("/search")
     public ResponseEntity<?> search(@RequestBody SearchThreadModel search) {
         switch (search.getSearchBy()) {
             case USERNAME:
@@ -344,6 +347,23 @@ public class ThreadController {
         return ResponseEntity.badRequest().build();
     }
 
+    @Operation(
+            description = "Get random weighted threads. If a userId is provided, the threads will be weighted based on the user's preferences.",
+            tags = {"Thread"},
+            parameters = {
+                    @Parameter(name = "userId", description = "Optional user ID to weight threads based on user preferences. If not provided or -1, returns unweighted random threads.", required = false)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "A collection of random threads",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = ThreadResponse.class))
+                            )
+                    )
+            }
+    )
     @GetMapping("/rand")
     public ResponseEntity<?> rand(@RequestParam(required = false, defaultValue = "-1") int userId) {
         if (userId != -1) {
@@ -351,12 +371,50 @@ public class ThreadController {
         }
         return ResponseEntity.ok(threadMapper.findRandomWeightedThreads(-1));
     }
+    @Operation(
+            summary = "Get replies for a thread",
+            description = "Retrieves all replies for a specific thread. If a user is logged in, includes whether the user has liked each reply.",
+            tags = {"Thread"},
+            parameters = {
+                    @Parameter(name = "threadId", description = "The internal ID of the thread", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "List of replies for the thread",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = ThreadReplyResponse.class))
+                            )
+                    )
+            }
+    )
     @GetMapping("/replies")
     public ResponseEntity<?> replies(@RequestParam int threadId) {
         int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
         return ResponseEntity.ok(threadReplyMapper.getRepliesForThread(threadId, userId));
 
     }
+    @Operation(
+            summary = "Reply to a thread",
+            description = "Creates a new reply to a thread. Only accessible to logged-in users.",
+            tags = {"Thread"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The reply was successfully created",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ThreadReplyResponse.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/replies")
     public ResponseEntity<?> replyTo(@RequestBody ReplyToThreadModel reply) {
         if (JwtUtil.isLoggedIn()) {
@@ -385,6 +443,26 @@ public class ThreadController {
         }
 
     }
+    @Operation(
+            summary = "Like or unlike a reply",
+            description = "Toggles the like status for a reply. If the reply is not liked, it will be liked. If it is already liked, it will be unliked. Returns true if the reply is now liked, false if it is now unliked.",
+            tags = {"Thread"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The like status was toggled successfully",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "boolean", description = "true if the reply is now liked, false if it is now unliked")
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/replies/like")
     public ResponseEntity<?> likeReply(@RequestBody LikeReplyModel likeReply) {
         if (JwtUtil.isLoggedIn()) {
@@ -403,6 +481,26 @@ public class ThreadController {
             return ResponseEntity.status(403).build();
         }
     }
+    @Operation(
+            summary = "Like or unlike a thread",
+            description = "Toggles the like status for a thread. If the thread is not liked, it will be liked. If it is already liked, it will be unliked. Returns true if the thread is now liked, false if it is now unliked.",
+            tags = {"Thread"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The like status was toggled successfully",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "boolean", description = "true if the thread is now liked, false if it is now unliked")
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping("/like")
     public ResponseEntity<?> likeThread (@RequestBody LikeThreadModel model) {
         if (JwtUtil.isLoggedIn()) {
