@@ -25,7 +25,7 @@ class HomeControllerTest {
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals("Hello World <- changes reflected", response.getBody());
+        assertEquals("Hello World", response.getBody());
     }
 
     @Test

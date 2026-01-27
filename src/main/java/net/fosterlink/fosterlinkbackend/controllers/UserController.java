@@ -12,12 +12,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PrivilegesResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +52,8 @@ public class UserController {
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private UserMapper userMapper;
 
     @Operation(
             summary = "Register a new user",
@@ -418,6 +422,21 @@ public class UserController {
             session.invalidate();
         }
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/profileMetadata")
+    public ResponseEntity<?> getProfileMetadata(@RequestParam int userId) {
+
+        if (!userRepository.existsById(userId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        ProfileMetadataResponse res = userMapper.mapProfileMetadataResponse(userId);
+        if (res == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        return ResponseEntity.ok(res);
     }
 
     private String loginUser(String username, String password) throws BadCredentialsException {
