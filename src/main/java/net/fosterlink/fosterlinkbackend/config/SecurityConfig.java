@@ -51,7 +51,7 @@ public class SecurityConfig {
     };
     private final String[] privateEndpoints = {
         "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete", "/v1/users/getInfo",
-            "/v1/threads/replies/like", "/v1/threads/create"
+            "/v1/threads/replies/like", "/v1/threads/create", "/v1/threads/replies/update", "/v1/threads/replies/delete"
     };
 
     @Autowired private UserService userService;

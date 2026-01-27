@@ -11,10 +11,13 @@ import java.util.List;
 
 public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> {
 
-    List<ThreadEntity> findByTitleContaining(String title);
-    List<ThreadEntity> findByContentContaining(String content);
-    List<ThreadEntity> findByCreatedAtBetween(Date start, Date end);
-    @Query(value = "SELECT * FROM thread;", nativeQuery = true)
+    @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.title LIKE CONCAT('%', :title, '%')", nativeQuery = true)
+    List<ThreadEntity> findByTitleContaining(@Param("title") String title);
+    @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.content LIKE CONCAT('%', :content, '%')", nativeQuery = true)
+    List<ThreadEntity> findByContentContaining(@Param("content") String content);
+    @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.created_at BETWEEN :start AND :end", nativeQuery = true)
+    List<ThreadEntity> findByCreatedAtBetween(@Param("start") Date start, @Param("end") Date end);
+    @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false;", nativeQuery = true)
     List<ThreadEntity> getAll();
     @Query(value = """
     SELECT
@@ -37,6 +40,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
+    INNER JOIN post_metadata pm ON t.metadata = pm.id
     LEFT JOIN (
         SELECT thread, COUNT(*) as like_count
         FROM thread_like
@@ -45,7 +49,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
     LEFT JOIN thread_like user_like
         ON t.id = user_like.thread AND user_like.user = :userId
     LEFT JOIN thread_tag tt ON t.id = tt.thread
-    WHERE t.posted_by = :userId
+    WHERE t.posted_by = :userId AND pm.hidden = false
     GROUP BY t.id, t.title, t.content, t.created_at, t.updated_at,
              likes.like_count, u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
@@ -79,6 +83,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
+    INNER JOIN post_metadata pm ON t.metadata = pm.id
     LEFT JOIN (
         SELECT thread, COUNT(*) as like_count
         FROM thread_like
@@ -87,6 +92,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
     LEFT JOIN thread_like user_like
         ON t.id = user_like.thread AND user_like.user = :userId
     LEFT JOIN thread_tag tt ON t.id = tt.thread
+    WHERE pm.hidden = false
     GROUP BY t.id, t.title, t.content, t.created_at, t.updated_at,
              likes.like_count, u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
@@ -120,6 +126,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
+    INNER JOIN post_metadata pm ON t.metadata = pm.id
     LEFT JOIN (
         SELECT thread, COUNT(*) as like_count
         FROM thread_like
@@ -128,7 +135,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
     LEFT JOIN thread_like user_like
         ON t.id = user_like.thread AND user_like.user = :userId
     LEFT JOIN thread_tag tt ON t.id = tt.thread
-    WHERE t.id = :threadId
+    WHERE t.id = :threadId AND pm.hidden = false
     GROUP BY t.id, t.title, t.content, t.created_at, t.updated_at,
              likes.like_count, u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,

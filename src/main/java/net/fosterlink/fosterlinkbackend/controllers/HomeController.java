@@ -25,7 +25,7 @@ public class HomeController {
     )
     @GetMapping
     public ResponseEntity<String> helloWorld() {
-        return ResponseEntity.ok("Hello World <- changes reflected");
+        return ResponseEntity.ok("Hello World");
     }
 
 }

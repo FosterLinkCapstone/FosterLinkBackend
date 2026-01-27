@@ -295,9 +295,12 @@ public class ThreadController {
         }
 
         Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+        boolean isAdmin = authorities.stream().map(GrantedAuthority::getAuthority).anyMatch(s->s.equals("ADMINISTRATOR"));
         String email = JwtUtil.getLoggedInEmail();
-        if (t.getPostedBy().getEmail().equals(email) || authorities.stream().map(GrantedAuthority::getAuthority).anyMatch(s->s.equals("ADMINISTRATOR"))) {
-            threadRepository.deleteById(threadId);
+        if (t.getPostedBy().getEmail().equals(email) || isAdmin) {
+            t.getPostMetadata().setHidden(true);
+            if (!isAdmin) t.getPostMetadata().setUser_deleted(true);
+            threadRepository.save(t);
             return ResponseEntity.ok().build();
         } else {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -333,7 +336,11 @@ public class ThreadController {
                 if (user == null) {
                     return ResponseEntity.notFound().build();
                 }
-                return ResponseEntity.ok(toResponseModel(user.getThreadsAuthored()));
+                // Filter out hidden threads from user's authored threads
+                List<ThreadEntity> userThreads = user.getThreadsAuthored().stream()
+                    .filter(thread -> thread.getPostMetadata() != null && !thread.getPostMetadata().isHidden())
+                    .collect(Collectors.toList());
+                return ResponseEntity.ok(toResponseModel(userThreads));
             case THREAD_TITLE:
                 List<ThreadEntity> threads = threadRepository.findByTitleContaining(search.getSearchTerm());
                 return ResponseEntity.ok(toResponseModel(threads));
@@ -444,6 +451,104 @@ public class ThreadController {
 
     }
     @Operation(
+            summary = "Update a reply",
+            description = "Updates the content of a reply. Only accessible to the author of the reply.",
+            tags = {"Thread"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The reply was successfully updated",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ThreadReplyResponse.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "401",
+                            description = "The author of the reply did not match the logged in user"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The provided reply ID could not be matched to any replies."
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @PutMapping("/replies/update")
+    public ResponseEntity<?> updateReply(@RequestBody UpdateReplyModel model) {
+        ThreadReplyEntity reply = threadReplyRepository.findById(model.getReplyId()).orElse(null);
+        if (reply == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (Objects.equals(JwtUtil.getLoggedInEmail(), reply.getPostedBy().getEmail())) {
+            reply.setContent(StringUtil.cleanString(model.getContent()));
+            reply.setUpdatedAt(new Date());
+            ThreadReplyEntity saved = threadReplyRepository.save(reply);
+            int lc = threadReplyLikeRepository.likeCountForReply(saved.getId());
+
+            return ResponseEntity.ok().body(new ThreadReplyResponse(saved, lc));
+        } else {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+    @Operation(
+            description = "Delete a reply by its ID. Accessible to the user who created the reply as well as administrators.",
+            tags = {"Thread", "Admin"},
+            parameters = {
+                    @Parameter(name="replyId", description = "The internal ID of the reply to delete")
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The reply was successfully deleted. Returns true.",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "boolean")
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "401",
+                            description = "The logged in user was not the author of the reply, or an administrator"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The provided reply ID could not be matched to any replies."
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    )
+            },
+            security = {
+                    @SecurityRequirement(name = "bearerAuth")
+            }
+    )
+    @DeleteMapping("/replies/delete")
+    public ResponseEntity<?> deleteReplyById(@RequestParam int replyId) {
+        ThreadReplyEntity reply = threadReplyRepository.findById(replyId).orElse(null);
+
+        if (reply == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+        boolean isAdmin = authorities.stream().map(GrantedAuthority::getAuthority).anyMatch(s->s.equals("ADMINISTRATOR"));
+        String email = JwtUtil.getLoggedInEmail();
+        if (reply.getPostedBy().getEmail().equals(email) || isAdmin) {
+            reply.getMetadata().setHidden(true);
+            if (!isAdmin) reply.getMetadata().setUser_deleted(true);
+            threadReplyRepository.save(reply);
+            return ResponseEntity.ok().body(true);
+        } else {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+    @Operation(
             summary = "Like or unlike a reply",
             description = "Toggles the like status for a reply. If the reply is not liked, it will be liked. If it is already liked, it will be unliked. Returns true if the reply is now liked, false if it is now unliked.",
             tags = {"Thread"},
@@ -523,6 +628,10 @@ public class ThreadController {
     private List<ThreadResponse> toResponseModel(List<ThreadEntity> threads) {
         List<ThreadResponse> responses = new ArrayList<>();
         for (ThreadEntity thread : threads) {
+            // Filter out hidden threads
+            if (thread.getPostMetadata() != null && thread.getPostMetadata().isHidden()) {
+                continue;
+            }
             int lc = threadLikeRepository.likeCountForThread(thread.getId());
             responses.add(new ThreadResponse(thread, lc));
         }

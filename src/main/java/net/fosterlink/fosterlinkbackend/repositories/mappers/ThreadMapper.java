@@ -23,7 +23,11 @@ public class ThreadMapper {
         return results.stream().map(this::mapThread).collect(Collectors.toList());
     }
     public ThreadResponse findById(int threadId, int userId) {
-        Object[] result = threadRepository.findByIdResponse(threadId, userId).get(0);
+        List<Object[]> results = threadRepository.findByIdResponse(threadId, userId);
+        if (results == null || results.isEmpty()) {
+            return null;
+        }
+        Object[] result = results.get(0);
         return mapThread(result);
     }
     public List<ThreadResponse> findRandomWeightedThreadsForUser(int userId) {

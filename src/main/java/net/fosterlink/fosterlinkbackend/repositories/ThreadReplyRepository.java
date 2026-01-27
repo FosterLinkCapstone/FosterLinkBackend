@@ -28,6 +28,7 @@ public interface ThreadReplyRepository extends CrudRepository<ThreadReplyEntity,
     u.created_at as author_created_at
 FROM thread_reply t
 INNER JOIN user u ON t.posted_by = u.id
+INNER JOIN post_metadata pm ON t.metadata = pm.id
 LEFT JOIN (
     SELECT thread, COUNT(*) as like_count
     FROM thread_reply_like
@@ -35,7 +36,7 @@ LEFT JOIN (
 ) likes ON t.id = likes.thread
 LEFT JOIN thread_reply_like user_like
     ON t.id = user_like.thread AND user_like.user = :userId
-WHERE t.thread_id = :threadId
+WHERE t.thread_id = :threadId AND pm.hidden = false
 GROUP BY t.id, t.content, t.created_at, t.updated_at,
          likes.like_count, user_like.thread, u.id, u.first_name, u.last_name,
          u.username, u.profile_picture_url, u.verified_foster,
