@@ -78,7 +78,6 @@ public class ThreadController {
 
             // TODO allow only verified foster parents to create a thread?
 
-            // TODO
             PostMetadataEntity postMetadata = new PostMetadataEntity();
             postMetadata.setHidden(false);
             postMetadata.setLocked(false);
@@ -109,7 +108,9 @@ public class ThreadController {
 
             threadTagRepository.saveAll(entities);
 
-            return ResponseEntity.ok().body(new ThreadResponse(savedThread, 0));
+            int commentCount = threadReplyRepository.visibleReplyCountForThread(savedThread.getId());
+            int userPostCount = threadRepository.visibleThreadCountForUser(user.getId());
+            return ResponseEntity.ok().body(new ThreadResponse(savedThread, 0, commentCount, userPostCount));
         } else return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
 
     }
@@ -140,7 +141,7 @@ public class ThreadController {
     @PutMapping("/update")
     public ResponseEntity<?> update(@RequestBody UpdateThreadModel model) {
 
-        ThreadEntity thread = threadRepository.findById(model.getThreadId()).orElse(null);
+        ThreadEntity thread = threadRepository.findByIdWithRelations(model.getThreadId()).orElse(null);
         if (thread == null) {
             return ResponseEntity.notFound().build();
         }
@@ -156,7 +157,9 @@ public class ThreadController {
             ThreadEntity saved = threadRepository.save(thread);
             int lc = threadLikeRepository.likeCountForThread(saved.getId());
 
-            return ResponseEntity.ok().body(new ThreadResponse(saved, lc));
+            int commentCount = threadReplyRepository.visibleReplyCountForThread(saved.getId());
+            int userPostCount = threadRepository.visibleThreadCountForUser(saved.getPostedBy().getId());
+            return ResponseEntity.ok().body(new ThreadResponse(saved, lc, commentCount, userPostCount));
         } else {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -212,7 +215,7 @@ public class ThreadController {
     )
     @GetMapping("/search-by-title")
     public ResponseEntity<?> searchByTitle(@RequestParam String title) {
-        List<ThreadEntity> threads = threadRepository.findByTitleContaining(title);
+        List<ThreadEntity> threads = threadRepository.findByContentContaining(title);
         return ResponseEntity.ok(toResponseModel(threads));
     }
 
@@ -288,7 +291,7 @@ public class ThreadController {
     )
     @DeleteMapping("/delete")
     public ResponseEntity<?> deleteById(@RequestParam int threadId) {
-        ThreadEntity t =  threadRepository.findById(threadId).orElse(null);
+        ThreadEntity t =  threadRepository.findByIdWithRelations(threadId).orElse(null);
 
         if (t == null) {
             return ResponseEntity.notFound().build();
@@ -336,10 +339,8 @@ public class ThreadController {
                 if (user == null) {
                     return ResponseEntity.notFound().build();
                 }
-                // Filter out hidden threads from user's authored threads
-                List<ThreadEntity> userThreads = user.getThreadsAuthored().stream()
-                    .filter(thread -> thread.getPostMetadata() != null && !thread.getPostMetadata().isHidden())
-                    .collect(Collectors.toList());
+                // Use repository method to avoid lazy loading threadsAuthored collection
+                List<ThreadEntity> userThreads = threadRepository.findByPostedByAndPostMetadataHiddenFalseWithRelations(user.getId());
                 return ResponseEntity.ok(toResponseModel(userThreads));
             case THREAD_TITLE:
                 List<ThreadEntity> threads = threadRepository.findByTitleContaining(search.getSearchTerm());
@@ -348,7 +349,11 @@ public class ThreadController {
                 List<ThreadEntity> threads2 = threadRepository.findByContentContaining(search.getSearchTerm());
                 return ResponseEntity.ok(toResponseModel(threads2));
             case TAGS:
-                List<ThreadEntity> threads3 = threadTagRepository.searchByName(search.getSearchTerm()).stream().map(ThreadTagEntity::getThread).collect(Collectors.toCollection(ArrayList::new));
+                // Fetch threads directly from tags to avoid lazy loading
+                List<Integer> threadIds = threadTagRepository.findThreadIdsByName(search.getSearchTerm());
+                List<ThreadEntity> threads3 = threadIds.isEmpty()
+                    ? new ArrayList<>()
+                    : threadRepository.findAllByIdWithRelations(threadIds);
                 return ResponseEntity.ok(toResponseModel(threads3));
         }
         return ResponseEntity.badRequest().build();
@@ -377,6 +382,33 @@ public class ThreadController {
             return ResponseEntity.ok(threadMapper.findRandomWeightedThreadsForUser(userId));
         }
         return ResponseEntity.ok(threadMapper.findRandomWeightedThreads(-1));
+    }
+
+    @Operation(
+            description = "Get threads ordered by a specified strategy, limited to a count.",
+            tags = {"Thread"},
+            parameters = {
+                    @Parameter(name = "orderBy", description = "most liked | oldest | newest", required = true),
+                    @Parameter(name = "count", description = "Maximum number of threads to return", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "A collection of threads",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = ThreadResponse.class))
+                            )
+                    )
+            }
+    )
+    @GetMapping("/getThreads")
+    public ResponseEntity<?> getThreads(
+            @RequestParam String orderBy,
+            @RequestParam int count
+    ) {
+        int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
+        return ResponseEntity.ok(threadMapper.getThreads(orderBy, count, userId));
     }
     @Operation(
             summary = "Get replies for a thread",
@@ -427,7 +459,6 @@ public class ThreadController {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
 
-            // TODO
             PostMetadataEntity postMetadata = new PostMetadataEntity();
             postMetadata.setHidden(false);
             postMetadata.setLocked(false);
@@ -480,7 +511,7 @@ public class ThreadController {
     )
     @PutMapping("/replies/update")
     public ResponseEntity<?> updateReply(@RequestBody UpdateReplyModel model) {
-        ThreadReplyEntity reply = threadReplyRepository.findById(model.getReplyId()).orElse(null);
+        ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(model.getReplyId()).orElse(null);
         if (reply == null) {
             return ResponseEntity.notFound().build();
         }
@@ -530,7 +561,7 @@ public class ThreadController {
     )
     @DeleteMapping("/replies/delete")
     public ResponseEntity<?> deleteReplyById(@RequestParam int replyId) {
-        ThreadReplyEntity reply = threadReplyRepository.findById(replyId).orElse(null);
+        ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
 
         if (reply == null) {
             return ResponseEntity.notFound().build();
@@ -626,14 +657,75 @@ public class ThreadController {
     }
 
     private List<ThreadResponse> toResponseModel(List<ThreadEntity> threads) {
+        if (threads == null || threads.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Filter out hidden threads first
+        List<ThreadEntity> visibleThreads = threads.stream()
+            .filter(thread -> thread.getPostMetadata() != null && !thread.getPostMetadata().isHidden())
+            .collect(Collectors.toList());
+
+        if (visibleThreads.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Batch fetch all counts to avoid N+1 queries
+        List<Integer> threadIds = visibleThreads.stream()
+            .map(ThreadEntity::getId)
+            .collect(Collectors.toList());
+
+        // Batch fetch like counts
+        Map<Integer, Integer> likeCounts = threadLikeRepository.likeCountsForThreads(threadIds)
+            .stream()
+            .collect(Collectors.toMap(
+                arr -> (Integer) arr[0],
+                arr -> ((Number) arr[1]).intValue()
+            ));
+
+        // Batch fetch comment counts
+        Map<Integer, Integer> commentCounts = threadReplyRepository.visibleReplyCountsForThreads(threadIds)
+            .stream()
+            .collect(Collectors.toMap(
+                arr -> (Integer) arr[0],
+                arr -> ((Number) arr[1]).intValue()
+            ));
+
+        // Batch fetch user post counts
+        Set<Integer> userIds = visibleThreads.stream()
+            .map(thread -> thread.getPostedBy().getId())
+            .collect(Collectors.toSet());
+
+        Map<Integer, Integer> userPostCounts = threadRepository.visibleThreadCountsForUsers(new ArrayList<>(userIds))
+            .stream()
+            .collect(Collectors.toMap(
+                arr -> (Integer) arr[0],
+                arr -> ((Number) arr[1]).intValue()
+            ));
+
+        // Batch fetch tags for all threads
+        Map<Integer, List<String>> threadTags = threadTagRepository.findTagsByThreadIds(threadIds)
+            .stream()
+            .collect(Collectors.groupingBy(
+                arr -> (Integer) arr[0],
+                Collectors.mapping(
+                    arr -> (String) arr[1],
+                    Collectors.toList()
+                )
+            ));
+
+        // Build responses with pre-fetched data
         List<ThreadResponse> responses = new ArrayList<>();
-        for (ThreadEntity thread : threads) {
-            // Filter out hidden threads
-            if (thread.getPostMetadata() != null && thread.getPostMetadata().isHidden()) {
-                continue;
-            }
-            int lc = threadLikeRepository.likeCountForThread(thread.getId());
-            responses.add(new ThreadResponse(thread, lc));
+        for (ThreadEntity thread : visibleThreads) {
+            int threadId = thread.getId();
+            int lc = likeCounts.getOrDefault(threadId, 0);
+            int commentCount = commentCounts.getOrDefault(threadId, 0);
+            int userPostCount = userPostCounts.getOrDefault(thread.getPostedBy().getId(), 0);
+            List<String> tags = threadTags.getOrDefault(threadId, new ArrayList<>());
+
+            ThreadResponse response = new ThreadResponse(thread, lc, commentCount, userPostCount);
+            response.setTags(tags);
+            responses.add(response);
         }
         return responses;
     }

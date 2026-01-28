@@ -22,6 +22,31 @@ public class ThreadMapper {
         List<Object[]> results = threadRepository.findRandomWeightedThreads(userId);
         return results.stream().map(this::mapThread).collect(Collectors.toList());
     }
+    public List<ThreadResponse> getThreads(String orderBy, int count, int userId) {
+        if (count <= 0) {
+            return new ArrayList<>();
+        }
+
+        // Normalize frontend/backcompat values.
+        String normalized = orderBy == null ? "newest" : orderBy.trim().toLowerCase();
+        if (normalized.equals("likes")) normalized = "most liked";
+
+        List<Object[]> results;
+        switch (normalized) {
+            case "oldest":
+                results = threadRepository.findThreadsOldest(userId, count);
+                break;
+            case "most liked":
+                results = threadRepository.findThreadsMostLiked(userId, count);
+                break;
+            case "newest":
+            default:
+                results = threadRepository.findThreadsNewest(userId, count);
+                break;
+        }
+
+        return results.stream().map(this::mapThread).collect(Collectors.toList());
+    }
     public ThreadResponse findById(int threadId, int userId) {
         List<Object[]> results = threadRepository.findByIdResponse(threadId, userId);
         if (results == null || results.isEmpty()) {
@@ -44,11 +69,14 @@ public class ThreadMapper {
         response.setLikeCount(((Number) row[5]).intValue());
         response.setLiked((Integer) row[6] == 1);
 
-        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 7, 16));
+        response.setCommentCount(((Number) row[7]).intValue());
+        response.setUserPostCount(((Number) row[8]).intValue());
+
+        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 18));
 
         response.setAuthor(author);
 
-        String tagsString = (String) row[16];
+        String tagsString = (String) row[18];
         if (tagsString != null && !tagsString.isEmpty()) {
             response.setTags(Arrays.asList(tagsString.split(",")));
         } else {
