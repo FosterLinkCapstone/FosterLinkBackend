@@ -49,7 +49,8 @@ public class SecurityConfig {
             "/v1/users/agentInfo",
             "/v1/agencies/all",
             "/v1/users/profileMetadata",
-            "/v1/threads/getThreads"
+            "/v1/threads/getThreads",
+            "/v1/faq/allAuthor"
     };
     private final String[] privateEndpoints = {
         "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete", "/v1/users/getInfo",

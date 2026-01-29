@@ -31,19 +31,11 @@ public class ThreadMapper {
         String normalized = orderBy == null ? "newest" : orderBy.trim().toLowerCase();
         if (normalized.equals("likes")) normalized = "most liked";
 
-        List<Object[]> results;
-        switch (normalized) {
-            case "oldest":
-                results = threadRepository.findThreadsOldest(userId, count);
-                break;
-            case "most liked":
-                results = threadRepository.findThreadsMostLiked(userId, count);
-                break;
-            case "newest":
-            default:
-                results = threadRepository.findThreadsNewest(userId, count);
-                break;
-        }
+        List<Object[]> results = switch (normalized) {
+            case "oldest" -> threadRepository.findThreadsOldest(userId, count);
+            case "most liked" -> threadRepository.findThreadsMostLiked(userId, count);
+            default -> threadRepository.findThreadsNewest(userId, count);
+        };
 
         return results.stream().map(this::mapThread).collect(Collectors.toList());
     }
