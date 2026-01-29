@@ -664,7 +664,7 @@ public class ThreadController {
         // Filter out hidden threads first
         List<ThreadEntity> visibleThreads = threads.stream()
             .filter(thread -> thread.getPostMetadata() != null && !thread.getPostMetadata().isHidden())
-            .collect(Collectors.toList());
+            .toList();
 
         if (visibleThreads.isEmpty()) {
             return new ArrayList<>();

@@ -19,6 +19,11 @@ public class ProfileMetadataResponse {
     // nullable
     @Nullable
     private String agencyName;
+    // nullable - first agency name (for backward compatibility, same as agencyName)
+    @Nullable
+    private String firstAgencyName;
+    // number of agencies the user is an agent of (0 if none)
+    private int agencyCount;
     private UserResponse user;
 
 }

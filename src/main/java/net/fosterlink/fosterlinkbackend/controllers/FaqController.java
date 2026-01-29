@@ -30,6 +30,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -319,6 +320,19 @@ public class FaqController {
         faqRequestResponse.setCreatedAt(new Date());
         fAQRequestRepository.save(faqRequestResponse);
         return ResponseEntity.ok().build();
+    }
+    @GetMapping("/allAuthor")
+    public ResponseEntity<?> getAllAuthor(@RequestParam Integer userId) {
+
+        boolean userExists = userRepository.existsById(userId);
+
+        if (!userExists) return ResponseEntity.notFound().build();
+
+        List<FaqResponse> faqs = faqMapper.allApprovedPreviewsForUser(userId);
+
+        if (faqs.isEmpty()) return ResponseEntity.notFound().build();
+
+        return ResponseEntity.ok(faqs);
     }
 
 }
