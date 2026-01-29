@@ -57,7 +57,17 @@ public class UserMapper {
         }
 
         // Create UserResponse from the row data
-        UserResponse userResponse = mapUserResponse(row);
+        UserResponse userResponse = new UserResponse();
+        userResponse.setId((Integer) row[0]);
+        userResponse.setFullName(row[6] + " " + row[7]); // firstName + lastName
+        userResponse.setUsername((String) row[8]);
+        userResponse.setProfilePictureUrl((String) row[9]);
+        userResponse.setVerified(
+                (Boolean) row[10] || // verifiedFoster
+                        (Boolean) row[2] || // faqAuthor
+                        (Boolean) row[3]    // verifiedAgencyRep
+        );
+        userResponse.setCreatedAt((Date) row[11]);
         res.setUser(userResponse);
 
         return res;

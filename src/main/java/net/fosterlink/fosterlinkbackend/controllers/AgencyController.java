@@ -160,9 +160,6 @@ public class AgencyController {
     public ResponseEntity<?> createAgency(@Valid @RequestBody CreateAgencyModel model) {
         UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
         if (user.isAdministrator() || user.isVerifiedAgencyRep()) {
-
-            String locationString = model.getLocationAddrLine1() + " " +  model.getLocationAddrLine2() + ", " + model.getLocationCity() + " " + model.getLocationState() + ", " + model.getLocationZipCode();
-
                     AgencyEntity agency =  new AgencyEntity();
                     agency.setName(model.getName());
                     agency.setWebsiteUrl(model.getWebsiteUrl());
@@ -221,7 +218,7 @@ public class AgencyController {
     public ResponseEntity<?> countPending() {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
         if (userEntity.isAdministrator()) {
-            return ResponseEntity.ok(agencyRepository.countByApprovedNullOrApprovedFalse());
+            return ResponseEntity.ok(agencyRepository.countByApprovedNull());
         } else return ResponseEntity.status(403).build();
     }
 
