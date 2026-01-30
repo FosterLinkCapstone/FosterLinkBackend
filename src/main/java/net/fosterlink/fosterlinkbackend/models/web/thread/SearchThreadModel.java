@@ -14,5 +14,7 @@ public class SearchThreadModel {
     private SearchBy searchBy;
     @Schema(description = "The search term to match against", example = "foster care")
     private String searchTerm;
+    @Schema(description = "The page number to fetch. Pages are of size 10")
+    private int pageNumber;
 
 }

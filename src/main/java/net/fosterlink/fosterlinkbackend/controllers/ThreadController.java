@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import net.fosterlink.fosterlinkbackend.entities.*;
+import net.fosterlink.fosterlinkbackend.models.rest.GetThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadReplyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
 import net.fosterlink.fosterlinkbackend.models.web.thread.*;
@@ -15,8 +16,10 @@ import net.fosterlink.fosterlinkbackend.repositories.*;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadMapper;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadReplyMapper;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
+import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.util.StringUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.GrantedAuthority;
@@ -214,8 +217,8 @@ public class ThreadController {
             }
     )
     @GetMapping("/search-by-title")
-    public ResponseEntity<?> searchByTitle(@RequestParam String title) {
-        List<ThreadEntity> threads = threadRepository.findByContentContaining(title);
+    public ResponseEntity<?> searchByTitle(@RequestParam String title, @RequestParam int pageNumber) {
+        List<ThreadEntity> threads = threadRepository.findByContentContaining(title, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         return ResponseEntity.ok(toResponseModel(threads));
     }
 
@@ -258,6 +261,22 @@ public class ThreadController {
         } catch (ParseException e) {
             return ResponseEntity.badRequest().build();
         }
+    }
+
+    @GetMapping("/search-by-user")
+    public ResponseEntity<?> searchByUser(@RequestParam int userId, @RequestParam int pageNumber) {
+        boolean authorExists = userRepository.existsById(userId);
+
+        int sendingUserId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
+
+        if (!authorExists) {
+            return ResponseEntity.notFound().build();
+        }
+
+        var threads = threadMapper.searchByUser(sendingUserId, userId, pageNumber);
+        int totalCount = threadRepository.visibleThreadCountForUser(userId);
+        int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+        return ResponseEntity.ok(new GetThreadsResponse(threads, totalPages));
     }
 
     @Operation(
@@ -340,20 +359,20 @@ public class ThreadController {
                     return ResponseEntity.notFound().build();
                 }
                 // Use repository method to avoid lazy loading threadsAuthored collection
-                List<ThreadEntity> userThreads = threadRepository.findByPostedByAndPostMetadataHiddenFalseWithRelations(user.getId());
+                List<ThreadEntity> userThreads = threadRepository.findByPostedByAndPostMetadataHiddenFalseWithRelations(user.getId(), PageRequest.of(search.getPageNumber(), SqlUtil.ITEMS_PER_PAGE));
                 return ResponseEntity.ok(toResponseModel(userThreads));
             case THREAD_TITLE:
-                List<ThreadEntity> threads = threadRepository.findByTitleContaining(search.getSearchTerm());
+                List<ThreadEntity> threads = threadRepository.findByTitleContaining(search.getSearchTerm(), PageRequest.of(search.getPageNumber(), SqlUtil.ITEMS_PER_PAGE));
                 return ResponseEntity.ok(toResponseModel(threads));
             case THREAD_CONTENT:
-                List<ThreadEntity> threads2 = threadRepository.findByContentContaining(search.getSearchTerm());
+                List<ThreadEntity> threads2 = threadRepository.findByContentContaining(search.getSearchTerm(), PageRequest.of(search.getPageNumber(), SqlUtil.ITEMS_PER_PAGE));
                 return ResponseEntity.ok(toResponseModel(threads2));
             case TAGS:
                 // Fetch threads directly from tags to avoid lazy loading
                 List<Integer> threadIds = threadTagRepository.findThreadIdsByName(search.getSearchTerm());
                 List<ThreadEntity> threads3 = threadIds.isEmpty()
                     ? new ArrayList<>()
-                    : threadRepository.findAllByIdWithRelations(threadIds);
+                    : threadRepository.findAllByIdWithRelations(threadIds, PageRequest.of(search.getPageNumber(), SqlUtil.ITEMS_PER_PAGE));
                 return ResponseEntity.ok(toResponseModel(threads3));
         }
         return ResponseEntity.badRequest().build();
@@ -383,21 +402,20 @@ public class ThreadController {
         }
         return ResponseEntity.ok(threadMapper.findRandomWeightedThreads(-1));
     }
-
     @Operation(
             description = "Get threads ordered by a specified strategy, limited to a count.",
             tags = {"Thread"},
             parameters = {
                     @Parameter(name = "orderBy", description = "most liked | oldest | newest", required = true),
-                    @Parameter(name = "count", description = "Maximum number of threads to return", required = true)
+                    @Parameter(name = "pageNumber", description = "Zero-based page index", required = true)
             },
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "A collection of threads",
+                            description = "A collection of threads with total page count",
                             content = @Content(
                                     mediaType = "application/json",
-                                    array = @ArraySchema(schema = @Schema(implementation = ThreadResponse.class))
+                                    schema = @Schema(implementation = GetThreadsResponse.class)
                             )
                     )
             }
@@ -405,10 +423,13 @@ public class ThreadController {
     @GetMapping("/getThreads")
     public ResponseEntity<?> getThreads(
             @RequestParam String orderBy,
-            @RequestParam int count
+            @RequestParam int pageNumber
     ) {
         int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
-        return ResponseEntity.ok(threadMapper.getThreads(orderBy, count, userId));
+        var threads = threadMapper.getThreads(orderBy, userId, pageNumber);
+        int totalCount = threadRepository.countVisible();
+        int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+        return ResponseEntity.ok(new GetThreadsResponse(threads, totalPages));
     }
     @Operation(
             summary = "Get replies for a thread",

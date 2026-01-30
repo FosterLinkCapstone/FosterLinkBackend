@@ -3,7 +3,9 @@ package net.fosterlink.fosterlinkbackend.repositories.mappers;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.repositories.ThreadRepository;
+import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -22,23 +24,28 @@ public class ThreadMapper {
         List<Object[]> results = threadRepository.findRandomWeightedThreads(userId);
         return results.stream().map(this::mapThread).collect(Collectors.toList());
     }
-    public List<ThreadResponse> getThreads(String orderBy, int count, int userId) {
-        if (count <= 0) {
-            return new ArrayList<>();
-        }
+    public List<ThreadResponse> getThreads(String orderBy, int userId, int pageNumber) {
 
         // Normalize frontend/backcompat values.
         String normalized = orderBy == null ? "newest" : orderBy.trim().toLowerCase();
         if (normalized.equals("likes")) normalized = "most liked";
 
         List<Object[]> results = switch (normalized) {
-            case "oldest" -> threadRepository.findThreadsOldest(userId, count);
-            case "most liked" -> threadRepository.findThreadsMostLiked(userId, count);
-            default -> threadRepository.findThreadsNewest(userId, count);
+            case "oldest" -> threadRepository.findThreadsOldest(userId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+            case "most liked" -> threadRepository.findThreadsMostLiked(userId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+            default -> threadRepository.findThreadsNewest(userId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         };
 
         return results.stream().map(this::mapThread).collect(Collectors.toList());
     }
+
+    public List<ThreadResponse> searchByUser(int userId, int authorId, int pageNumber) {
+
+        List<Object[]> results = threadRepository.findThreadsForUser(userId, authorId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+        return results.stream().map(this::mapThread).collect(Collectors.toList());
+
+    }
+
     public ThreadResponse findById(int threadId, int userId) {
         List<Object[]> results = threadRepository.findByIdResponse(threadId, userId);
         if (results == null || results.isEmpty()) {
