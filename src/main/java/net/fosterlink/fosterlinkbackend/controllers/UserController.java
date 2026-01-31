@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
@@ -57,6 +58,7 @@ public class UserController {
 
     @Operation(
             summary = "Register a new user",
+            description = "Registers a new user account and returns a JWT token. Rate limit: 5 requests per 60 seconds per IP, with burst limit of 1 request per 30 seconds.",
             tags={"User"},
             responses = {
                     @ApiResponse(
@@ -66,15 +68,16 @@ public class UserController {
                                     schema = @Schema(type="string", name = "token", description = "The logged-in JWT of the user"))
                     ),
                     @ApiResponse(
-                            responseCode = "429",
-                            description = "You have already created a user in the last 10 minutes, and need to wait to create the next one."
-                    ),
-                    @ApiResponse(
                             responseCode = "409",
                             description = "A user with that email or username already exists. Both properties must be unique."
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 5 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 30)
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody UserRegisterModel model) {
 
@@ -105,6 +108,7 @@ public class UserController {
     }
     @Operation(
             summary = "Login as a user using an email and password",
+            description = "Authenticates a user and returns a JWT token. Rate limit: 5 requests per 60 seconds per IP, with burst limit of 2 requests per 10 seconds.",
             tags = {"User"},
             responses = {
                     @ApiResponse(
@@ -120,9 +124,14 @@ public class UserController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "The email could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 5 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 10)
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody UserLoginModelEmail model) {
         try {
@@ -138,6 +147,7 @@ public class UserController {
 
      @Operation(
              summary = "Update specific info about a user",
+             description = "Updates user profile information. If password, email, or phone number are changed, the user will be logged out. Rate limit: 10 requests per 60 seconds per user.",
              tags={"User"},
              responses = {
                      @ApiResponse(
@@ -157,12 +167,17 @@ public class UserController {
                      @ApiResponse(
                              responseCode = "403",
                              description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                     ),
+                     @ApiResponse(
+                             responseCode = "429",
+                             description = "Rate limit exceeded. Maximum 10 requests per 60 seconds per user."
                      )
              },
              security = {
                      @SecurityRequirement(name = "bearerAuth")
              }
      )
+     @RateLimit(requests = 10, keyType = "USER")
     @PutMapping("/update")
     public ResponseEntity<?> updateUser(@RequestBody UpdateUserModel model, HttpServletRequest req) {
         String email = JwtUtil.getLoggedInEmail();
@@ -209,7 +224,8 @@ public class UserController {
         }
     }
     @Operation(summary = "Delete a user",
-            description = "Deletes the user that is currently logged in. The user that makes the request will be the user that is deleted.",
+            description = "Deletes the user that is currently logged in. The user that makes the request will be the user that is deleted. Rate limit: 5 requests per 60 seconds per user.",
+            tags={"User"},
             responses = {
                 @ApiResponse(
                         responseCode = "200",
@@ -222,12 +238,17 @@ public class UserController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 5 requests per 60 seconds per user."
                     )
             },
             security = {
             @SecurityRequirement(name="bearerAuth")
             }
     )
+    @RateLimit(requests = 5, keyType = "USER")
     @DeleteMapping("/delete")
     public ResponseEntity<?> deleteUser() {
             String email = JwtUtil.getLoggedInEmail();
@@ -242,6 +263,7 @@ public class UserController {
     }
     @Operation(
             summary = "Get the information of the currently logged in user",
+            description = "Returns the profile information of the currently authenticated user. Rate limit: 60 requests per 60 seconds per IP.",
             tags = {"User"},
             responses = {
                     @ApiResponse(
@@ -253,11 +275,16 @@ public class UserController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 60 requests per 60 seconds per IP."
                     )
             }, security = {
                     @SecurityRequirement(name="bearerAuth")
             }
     )
+    @RateLimit(requests = 60)
     @GetMapping("/getInfo")
     public ResponseEntity<?> getUserInfo() {
         String email = JwtUtil.getLoggedInEmail();
@@ -271,7 +298,7 @@ public class UserController {
 
     @Operation(
             summary = "Get user privileges",
-            description = "Returns the privileges (administrator, FAQ author, agent) of the currently logged-in user. Returns all false if not logged in.",
+            description = "Returns the privileges (administrator, FAQ author, agent) of the currently logged-in user. Returns all false if not logged in. Rate limit: 60 requests per 60 seconds per IP.",
             tags = {"User"},
             responses = {
                     @ApiResponse(
@@ -281,9 +308,14 @@ public class UserController {
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = PrivilegesResponse.class)
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 60 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 60)
     @GetMapping("/privileges")
     public ResponseEntity<?> getPrivileges() {
         PrivilegesResponse res = new  PrivilegesResponse(false,false,false);
@@ -298,7 +330,7 @@ public class UserController {
 
     @Operation(
             summary = "Check if user is administrator",
-            description = "Returns whether the currently logged-in user is an administrator. Returns false if not logged in.",
+            description = "Returns whether the currently logged-in user is an administrator. Returns false if not logged in. Rate limit: 60 requests per 60 seconds per IP.",
             tags = {"User"},
             responses = {
                     @ApiResponse(
@@ -308,9 +340,14 @@ public class UserController {
                                     mediaType = "application/json",
                                     schema = @Schema(type = "boolean", description = "true if the user is an administrator, false otherwise")
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 60 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 60)
     @GetMapping("/isAdmin")
     public ResponseEntity<?> isUserAdmin() {
         if (JwtUtil.isLoggedIn()) {
@@ -321,7 +358,7 @@ public class UserController {
     }
     @Operation(
             summary = "Check if user is verified agency representative",
-            description = "Returns whether the currently logged-in user is a verified agency representative. Returns false if not logged in.",
+            description = "Returns whether the currently logged-in user is a verified agency representative. Returns false if not logged in. Rate limit: 60 requests per 60 seconds per IP.",
             tags = {"User"},
             responses = {
                     @ApiResponse(
@@ -331,9 +368,14 @@ public class UserController {
                                     mediaType = "application/json",
                                     schema = @Schema(type = "boolean", description = "true if the user is a verified agency representative, false otherwise")
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 60 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 60)
     @GetMapping("/isAgent")
     public ResponseEntity<?> isAgent() {
         if (JwtUtil.isLoggedIn()) {
@@ -344,7 +386,7 @@ public class UserController {
     }
     @Operation(
             summary = "Check if user is FAQ author",
-            description = "Returns whether the currently logged-in user is an FAQ author. Returns false if not logged in.",
+            description = "Returns whether the currently logged-in user is an FAQ author. Returns false if not logged in. Rate limit: 60 requests per 60 seconds per IP.",
             tags = {"User"},
             responses = {
                     @ApiResponse(
@@ -354,9 +396,14 @@ public class UserController {
                                     mediaType = "application/json",
                                     schema = @Schema(type = "boolean", description = "true if the user is an FAQ author, false otherwise")
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 60 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 60)
     @GetMapping("/isFaqAuthor")
     public ResponseEntity<?> isUserFaqAuthor() {
         if (JwtUtil.isLoggedIn()) {
@@ -367,7 +414,7 @@ public class UserController {
     }
     @Operation(
             summary = "Get agent information",
-            description = "Retrieves contact information (email and phone number) for a verified agency representative by their user ID.",
+            description = "Retrieves contact information (email and phone number) for a verified agency representative by their user ID. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"User"},
             parameters = {
                     @Parameter(name = "userId", description = "The internal ID of the user", required = true)
@@ -388,9 +435,14 @@ public class UserController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "The user with the provided ID could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit
     @GetMapping("/agentInfo")
     public ResponseEntity<?> getAgentInfo(@RequestParam("userId")int userId) {
         Optional<UserEntity> user = userRepository.findById(userId);
@@ -406,15 +458,20 @@ public class UserController {
     }
     @Operation(
             summary = "Logout the current user",
-            description = "Logs out the currently logged-in user by clearing the security context and invalidating the session.",
+            description = "Logs out the currently logged-in user by clearing the security context and invalidating the session. Rate limit: 15 requests per 60 seconds per IP.",
             tags = {"User"},
             responses = {
                     @ApiResponse(
                             responseCode = "200",
                             description = "The user was successfully logged out"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 15)
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request) {
         SecurityContextHolder.clearContext();
@@ -427,7 +484,7 @@ public class UserController {
 
     @Operation(
             summary = "Get profile metadata for a user",
-            description = "Retrieves profile summary for a user by ID (thread count, FAQ count, agency info, privileges). Does not require authentication.",
+            description = "Retrieves profile summary for a user by ID (thread count, FAQ count, agency info, privileges). Does not require authentication. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"User"},
             parameters = {
                     @Parameter(name = "userId", description = "The internal ID of the user", required = true)
@@ -444,9 +501,14 @@ public class UserController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "The user with the provided ID could not be found, or the user has no profile data"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit
     @GetMapping("/profileMetadata")
     public ResponseEntity<?> getProfileMetadata(@RequestParam int userId) {
 

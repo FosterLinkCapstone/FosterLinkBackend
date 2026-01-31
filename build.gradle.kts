@@ -34,6 +34,7 @@ dependencies {
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     implementation("io.jsonwebtoken:jjwt-jackson:0.12.6")
     implementation("org.apache.commons:commons-text:1.14.0")
+    implementation("com.bucket4j:bucket4j_jdk17-core:8.16.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14")
     implementation("org.jsoup:jsoup:1.21.2")
     implementation("io.micrometer:micrometer-registry-prometheus")

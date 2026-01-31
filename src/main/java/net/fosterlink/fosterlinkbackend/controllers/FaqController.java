@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.FAQApprovalEntity;
 import net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
@@ -49,7 +50,7 @@ public class FaqController {
 
     @Operation(
             summary = "Get all approved FAQs",
-            description = "Retrieves a list of all FAQs that have been approved by an administrator",
+            description = "Retrieves a list of all FAQs that have been approved by an administrator. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ"},
             responses = {
                     @ApiResponse(
@@ -59,16 +60,21 @@ public class FaqController {
                                     mediaType = "application/json",
                                     array = @ArraySchema(schema = @Schema(implementation = FaqResponse.class))
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
     @GetMapping("/all")
+    @RateLimit
     public ResponseEntity<?> getAllFaqs() {
         return ResponseEntity.ok(faqMapper.allApprovedPreviews());
     }
     @Operation(
             summary = "Get FAQ content by ID",
-            description = "Retrieves the full content of a specific FAQ by its ID",
+            description = "Retrieves the full content of a specific FAQ by its ID. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ"},
             parameters = {
                     @Parameter(name = "id", description = "The internal ID of the FAQ", required = true)
@@ -85,9 +91,14 @@ public class FaqController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "The FAQ with the provided ID could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit
     @GetMapping("/content")
     public ResponseEntity<?> getContentFor(@RequestParam int id) {
         Optional<FaqEntity> faq = fAQRepository.findById(id);
@@ -100,7 +111,7 @@ public class FaqController {
 
     @Operation(
             summary = "Create a new FAQ",
-            description = "Creates a new FAQ. Only accessible to FAQ authors or administrators. The FAQ will be created in a pending state and must be approved by an administrator.",
+            description = "Creates a new FAQ. Only accessible to FAQ authors or administrators. The FAQ will be created in a pending state and must be approved by an administrator. Rate limit: 5 requests per 60 seconds per user, with burst limit of 2 requests per 15 seconds.",
             tags = {"FAQ", "FaqAuthor"},
             responses = {
                     @ApiResponse(
@@ -114,10 +125,15 @@ public class FaqController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access this endpoint without FAQ author or administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 5 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 15, keyType = "USER")
     @PostMapping("/create")
     public ResponseEntity<?> create(@RequestBody CreateFaqModel createFaqModel) {
         if (JwtUtil.isLoggedIn()) {
@@ -139,7 +155,7 @@ public class FaqController {
 
     @Operation(
             summary = "Get all pending FAQs",
-            description = "Retrieves a list of all FAQs that are pending approval. Only accessible to administrators.",
+            description = "Retrieves a list of all FAQs that are pending approval. Only accessible to administrators. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ", "Admin"},
             responses = {
                     @ApiResponse(
@@ -153,10 +169,15 @@ public class FaqController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingFaqs() {
         if (JwtUtil.isLoggedIn()) {
@@ -172,7 +193,7 @@ public class FaqController {
     }
     @Operation(
             summary = "Check approval status for logged-in user's FAQs",
-            description = "Returns the count of pending and denied FAQs created by the currently logged-in user. If not logged in, returns zero counts.",
+            description = "Returns the count of pending and denied FAQs created by the currently logged-in user. If not logged in, returns zero counts. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ", "Admin", "FaqAuthor"},
             responses = {
                     @ApiResponse(
@@ -182,9 +203,14 @@ public class FaqController {
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = ApprovalCheckResponse.class)
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit
     @GetMapping("/checkApproval")
     public ResponseEntity<?> getUnapprovedFaqCount() {
         if (JwtUtil.isLoggedIn()) {
@@ -195,7 +221,7 @@ public class FaqController {
     }
     @Operation(
             summary = "Approve or deny an FAQ",
-            description = "Allows an administrator to approve or deny a pending FAQ. The administrator who performs this action will be recorded as the approver.",
+            description = "Allows an administrator to approve or deny a pending FAQ. The administrator who performs this action will be recorded as the approver. Rate limit: 15 requests per 60 seconds per user.",
             tags = {"FAQ", "Admin"},
             responses = {
                     @ApiResponse(
@@ -209,10 +235,15 @@ public class FaqController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "The FAQ with the provided ID could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/approve")
     public ResponseEntity<?> approveFaq(@RequestBody ApproveFaqModel faq) {
         if (JwtUtil.isLoggedIn()) {
@@ -240,7 +271,7 @@ public class FaqController {
     }
     @Operation(
             summary = "Get all FAQ requests",
-            description = "Retrieves a list of all FAQ suggestion requests. Only accessible to FAQ authors or administrators.",
+            description = "Retrieves a list of all FAQ suggestion requests. Only accessible to FAQ authors or administrators. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ", "FaqAuthor"},
             responses = {
                     @ApiResponse(
@@ -254,10 +285,15 @@ public class FaqController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access this endpoint without FAQ author or administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit
     @GetMapping("/requests")
     public ResponseEntity<?> getRequests() {
         if (JwtUtil.isLoggedIn()) {
@@ -270,7 +306,7 @@ public class FaqController {
     }
     @Operation(
             summary = "Answer/delete an FAQ request",
-            description = "Deletes an FAQ suggestion request, typically after it has been addressed. Only accessible to FAQ authors or administrators.",
+            description = "Deletes an FAQ suggestion request, typically after it has been addressed. Only accessible to FAQ authors or administrators. Rate limit: 15 requests per 60 seconds per user.",
             tags = {"FAQ", "FaqAuthor"},
             responses = {
                     @ApiResponse(
@@ -280,10 +316,15 @@ public class FaqController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access this endpoint without FAQ author or administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/requests/answer")
     public ResponseEntity<?> answerRequest(@RequestBody AnswerFaqSuggestionResponse model) {
         if (JwtUtil.isLoggedIn()) {
@@ -297,7 +338,7 @@ public class FaqController {
     }
     @Operation(
             summary = "Create an FAQ suggestion request",
-            description = "Creates a new FAQ suggestion request. The request will be visible to FAQ authors and administrators who can then address it.",
+            description = "Creates a new FAQ suggestion request. The request will be visible to FAQ authors and administrators who can then address it. Rate limit: 10 requests per 60 seconds per IP, with burst limit of 2 requests per 15 seconds.",
             tags = {"FAQ"},
             responses = {
                     @ApiResponse(
@@ -307,10 +348,15 @@ public class FaqController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access this endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 10 requests per 60 seconds per IP."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 10, burstRequests = 2, burstDurationSeconds = 15)
     @PostMapping("/requests/create")
     public ResponseEntity<?> createFaqRequest(@RequestBody CreateFaqSuggestionModel model) {
         UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
@@ -323,7 +369,7 @@ public class FaqController {
     }
     @Operation(
             summary = "Get all approved FAQs by author",
-            description = "Retrieves all approved FAQs created by a specific user. Returns 404 if the user does not exist or has no approved FAQs.",
+            description = "Retrieves all approved FAQs created by a specific user. Returns 404 if the user does not exist or has no approved FAQs. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ"},
             parameters = {
                     @Parameter(name = "userId", description = "The internal ID of the FAQ author", required = true)
@@ -340,9 +386,14 @@ public class FaqController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "The user with the provided ID could not be found, or the user has no approved FAQs"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit
     @GetMapping("/allAuthor")
     public ResponseEntity<?> getAllAuthor(@RequestParam Integer userId) {
 

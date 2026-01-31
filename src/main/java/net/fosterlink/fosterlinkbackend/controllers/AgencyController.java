@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
 import net.fosterlink.fosterlinkbackend.entities.LocationEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
@@ -51,7 +52,7 @@ public class AgencyController {
 
     @Operation(
             summary = "Get all approved agencies",
-            description = "Retrieves a list of all agencies that have been approved by an administrator",
+            description = "Retrieves a list of all agencies that have been approved by an administrator. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Agency"},
             responses = {
                     @ApiResponse(
@@ -61,16 +62,21 @@ public class AgencyController {
                                     mediaType = "application/json",
                                     array = @ArraySchema(schema = @Schema(implementation = AgencyResponse.class))
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
     @GetMapping("/all")
+    @RateLimit
     public ResponseEntity<?> getAllAgencies() {
         return ResponseEntity.ok(agencyMapper.getAllApprovedAgencies());
     }
     @Operation(
             summary = "Get all pending agencies",
-            description = "Retrieves a list of all agencies that are pending approval. Only accessible to administrators.",
+            description = "Retrieves a list of all agencies that are pending approval. Only accessible to administrators. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Agency", "Admin"},
             responses = {
                     @ApiResponse(
@@ -84,10 +90,15 @@ public class AgencyController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingAgencies() {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
@@ -97,7 +108,7 @@ public class AgencyController {
     }
     @Operation(
             summary = "Approve or deny an agency",
-            description = "Allows an administrator to approve or deny a pending agency. The administrator who performs this action will be recorded as the approver.",
+            description = "Allows an administrator to approve or deny a pending agency. The administrator who performs this action will be recorded as the approver. Rate limit: 15 requests per 60 seconds per user.",
             tags = {"Agency", "Admin"},
             responses = {
                     @ApiResponse(
@@ -111,10 +122,15 @@ public class AgencyController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "The agency with the provided ID could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/approve")
     public ResponseEntity<?> approveAgency(@RequestBody ApproveAgencyResponse model) {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
@@ -134,7 +150,7 @@ public class AgencyController {
     }
     @Operation(
             summary = "Create a new agency",
-            description = "Creates a new agency. Only accessible to administrators or verified agency representatives. The agency will be created in a pending state and must be approved by an administrator.",
+            description = "Creates a new agency. Only accessible to administrators or verified agency representatives. The agency will be created in a pending state and must be approved by an administrator. Rate limit: 5 requests per 60 seconds per user, with burst limit of 1 request per 30 seconds.",
             tags = {"Agency", "Admin", "Agent"},
             responses = {
                     @ApiResponse(
@@ -152,10 +168,15 @@ public class AgencyController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access this endpoint without administrator or verified agency representative privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 5 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 30, keyType = "USER")
     @PostMapping("/create")
     public ResponseEntity<?> createAgency(@Valid @RequestBody CreateAgencyModel model) {
         UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
@@ -196,7 +217,7 @@ public class AgencyController {
     }
     @Operation(
             summary = "Get count of pending agencies",
-            description = "Returns the number of agencies that are currently pending approval. Only accessible to administrators.",
+            description = "Returns the number of agencies that are currently pending approval. Only accessible to administrators. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Agency", "Admin"},
             responses = {
                     @ApiResponse(
@@ -210,10 +231,15 @@ public class AgencyController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit
     @GetMapping("/pending/count")
     public ResponseEntity<?> countPending() {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());

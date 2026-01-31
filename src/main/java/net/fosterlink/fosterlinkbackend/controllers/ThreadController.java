@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.*;
 import net.fosterlink.fosterlinkbackend.models.rest.GetThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadReplyResponse;
@@ -55,11 +56,12 @@ public class ThreadController {
 
     @Operation(
             summary = "Create a new thread",
+            description = "Creates a new forum thread. Rate limit: 5 requests per 60 seconds per user, with burst limit of 2 requests per 15 seconds.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "The successfully created schema",
+                            description = "The successfully created thread",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = ThreadResponse.class)
@@ -68,10 +70,15 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 5 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 15, keyType = "USER")
     @PostMapping("/create")
     public ResponseEntity<?> create(@RequestBody CreateThreadModel model) {
 
@@ -120,6 +127,7 @@ public class ThreadController {
 
     @Operation(
             summary="Update a thread",
+            description = "Updates an existing thread. Only the thread author can update their thread. Rate limit: 10 requests per 60 seconds per user.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
@@ -137,10 +145,15 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 10 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 10, keyType = "USER")
     @PutMapping("/update")
     public ResponseEntity<?> update(@RequestBody UpdateThreadModel model) {
 
@@ -169,7 +182,8 @@ public class ThreadController {
 
     }
     @Operation(
-            description = "Search for a thread by it's internal ID",
+            summary = "Search thread by ID",
+            description = "Search for a thread by its internal ID. Rate limit: 30 requests per 60 seconds per IP.",
             tags = {"Thread"},
             parameters = {
                     @Parameter(name="threadId", description = "The internal ID of the thread to search for.")
@@ -186,9 +200,14 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "A thread by that ID could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 30)
     @GetMapping("/search-by-id")
     public ResponseEntity<?> searchById(@RequestParam int threadId) {
         int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
@@ -200,10 +219,12 @@ public class ThreadController {
     }
 
     @Operation(
-            description = "Search for a thread by it's title, including non-complete matches.",
+            summary = "Search threads by title",
+            description = "Search for threads by title, including partial matches. Rate limit: 30 requests per 60 seconds per IP.",
             tags = {"Thread"},
             parameters = {
-                    @Parameter(name="title", description = "The title, or a portion of the title, that should be searched.")
+                    @Parameter(name="title", description = "The title, or a portion of the title, that should be searched."),
+                    @Parameter(name="pageNumber", description = "Zero-based page index")
             },
             responses = {
                     @ApiResponse(
@@ -213,9 +234,14 @@ public class ThreadController {
                                     mediaType = "application/json",
                                     array = @ArraySchema(schema = @Schema(implementation = ThreadResponse.class))
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 30)
     @GetMapping("/search-by-title")
     public ResponseEntity<?> searchByTitle(@RequestParam String title, @RequestParam int pageNumber) {
         List<ThreadEntity> threads = threadRepository.findByContentContaining(title, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
@@ -223,7 +249,8 @@ public class ThreadController {
     }
 
     @Operation(
-            description = "Search for threads by the day they were created on.",
+            summary = "Search threads by date",
+            description = "Search for threads by the day they were created on. Rate limit: 30 requests per 60 seconds per IP.",
             tags = {"Thread"},
             parameters = {
                     @Parameter(name="date", description = "The day on which to search. Must be formatted as MM-dd-yyyy", example = "01-01-2026")
@@ -231,14 +258,19 @@ public class ThreadController {
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "A collection of threads made on the specified date. "
+                            description = "A collection of threads made on the specified date."
                     ),
                     @ApiResponse(
                             responseCode = "400",
-                            description = "The date provided was not in the proper format. must be MM-dd-yyyy"
+                            description = "The date provided was not in the proper format. Must be MM-dd-yyyy"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 30)
     // REQUIRED FORMAT mm-dd-yyyy
     @GetMapping("/search-by-date")
     public ResponseEntity<?> searchByDate(@RequestParam String date) {
@@ -265,7 +297,7 @@ public class ThreadController {
 
     @Operation(
             summary = "Search threads by author",
-            description = "Retrieves threads created by a specific user, paginated. Returns 404 if the user does not exist.",
+            description = "Retrieves threads created by a specific user, paginated. Returns 404 if the user does not exist. Rate limit: 30 requests per 60 seconds per IP.",
             tags = {"Thread"},
             parameters = {
                     @Parameter(name = "userId", description = "The internal ID of the thread author", required = true),
@@ -283,9 +315,14 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "The user with the provided ID could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit(requests = 30)
     @GetMapping("/search-by-user")
     public ResponseEntity<?> searchByUser(@RequestParam int userId, @RequestParam int pageNumber) {
         boolean authorExists = userRepository.existsById(userId);
@@ -303,7 +340,8 @@ public class ThreadController {
     }
 
     @Operation(
-            description = "Delete a thread by its ID. Accessible to the user who created the thread as well as administrators.",
+            summary = "Delete a thread",
+            description = "Delete a thread by its ID. Accessible to the user who created the thread as well as administrators. Rate limit: 5 requests per 60 seconds per user.",
             tags = {"Thread", "Admin"},
             parameters = {
                     @Parameter(name="threadId", description = "The internal ID of the thread to delete")
@@ -324,6 +362,10 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 5 requests per 60 seconds per user."
                     )
             },
             security = {
@@ -331,6 +373,7 @@ public class ThreadController {
             }
 
     )
+    @RateLimit(requests = 5, keyType = "USER")
     @DeleteMapping("/delete")
     public ResponseEntity<?> deleteById(@RequestParam int threadId) {
         ThreadEntity t =  threadRepository.findByIdWithRelations(threadId).orElse(null);
@@ -352,7 +395,8 @@ public class ThreadController {
         }
     }
     @Operation(
-            description = "Search for threads using various criteria. Note: This endpoint uses POST for search, which is not ideal REST practice but is implemented for flexibility.",
+            summary = "Search threads",
+            description = "Search for threads using various criteria (username, title, content, tags). Rate limit: 30 requests per 60 seconds per user.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
@@ -370,9 +414,14 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "404",
                             description = "When searching by username, the username could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per user."
                     )
             }
     )
+    @RateLimit(requests = 30, keyType = "USER")
     @PostMapping("/search")
     public ResponseEntity<?> search(@RequestBody SearchThreadModel search) {
         switch (search.getSearchBy()) {
@@ -402,7 +451,8 @@ public class ThreadController {
     }
 
     @Operation(
-            description = "Get random weighted threads. If a userId is provided, the threads will be weighted based on the user's preferences.",
+            summary = "Get random threads",
+            description = "Get random weighted threads. If a userId is provided, the threads will be weighted based on the user's preferences. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Thread"},
             parameters = {
                     @Parameter(name = "userId", description = "Optional user ID to weight threads based on user preferences. If not provided or -1, returns unweighted random threads.", required = false)
@@ -415,9 +465,14 @@ public class ThreadController {
                                     mediaType = "application/json",
                                     array = @ArraySchema(schema = @Schema(implementation = ThreadResponse.class))
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit
     @GetMapping("/rand")
     public ResponseEntity<?> rand(@RequestParam(required = false, defaultValue = "-1") int userId) {
         if (userId != -1) {
@@ -426,7 +481,8 @@ public class ThreadController {
         return ResponseEntity.ok(threadMapper.findRandomWeightedThreads(-1));
     }
     @Operation(
-            description = "Get threads ordered by a specified strategy, limited to a count.",
+            summary = "Get threads",
+            description = "Get threads ordered by a specified strategy (most liked, oldest, newest), paginated. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Thread"},
             parameters = {
                     @Parameter(name = "orderBy", description = "most liked | oldest | newest", required = true),
@@ -440,9 +496,14 @@ public class ThreadController {
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = GetThreadsResponse.class)
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit
     @GetMapping("/getThreads")
     public ResponseEntity<?> getThreads(
             @RequestParam String orderBy,
@@ -456,7 +517,7 @@ public class ThreadController {
     }
     @Operation(
             summary = "Get replies for a thread",
-            description = "Retrieves all replies for a specific thread. If a user is logged in, includes whether the user has liked each reply.",
+            description = "Retrieves all replies for a specific thread. If a user is logged in, includes whether the user has liked each reply. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Thread"},
             parameters = {
                     @Parameter(name = "threadId", description = "The internal ID of the thread", required = true)
@@ -469,9 +530,14 @@ public class ThreadController {
                                     mediaType = "application/json",
                                     array = @ArraySchema(schema = @Schema(implementation = ThreadReplyResponse.class))
                             )
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 50 requests per 60 seconds per IP."
                     )
             }
     )
+    @RateLimit
     @GetMapping("/replies")
     public ResponseEntity<?> replies(@RequestParam int threadId) {
         int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
@@ -480,7 +546,7 @@ public class ThreadController {
     }
     @Operation(
             summary = "Reply to a thread",
-            description = "Creates a new reply to a thread. Only accessible to logged-in users.",
+            description = "Creates a new reply to a thread. Only accessible to logged-in users. Rate limit: 15 requests per 60 seconds per user, with burst limit of 3 requests per 10 seconds.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
@@ -494,10 +560,15 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 15, burstRequests = 3, burstDurationSeconds = 10, keyType = "USER")
     @PostMapping("/replies")
     public ResponseEntity<?> replyTo(@RequestBody ReplyToThreadModel reply) {
         if (JwtUtil.isLoggedIn()) {
@@ -527,7 +598,7 @@ public class ThreadController {
     }
     @Operation(
             summary = "Update a reply",
-            description = "Updates the content of a reply. Only accessible to the author of the reply.",
+            description = "Updates the content of a reply. Only accessible to the author of the reply. Rate limit: 10 requests per 60 seconds per user.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
@@ -549,10 +620,15 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 10 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 10, keyType = "USER")
     @PutMapping("/replies/update")
     public ResponseEntity<?> updateReply(@RequestBody UpdateReplyModel model) {
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(model.getReplyId()).orElse(null);
@@ -572,7 +648,8 @@ public class ThreadController {
         }
     }
     @Operation(
-            description = "Delete a reply by its ID. Accessible to the user who created the reply as well as administrators.",
+            summary = "Delete a reply",
+            description = "Delete a reply by its ID. Accessible to the user who created the reply as well as administrators. Rate limit: 5 requests per 60 seconds per user.",
             tags = {"Thread", "Admin"},
             parameters = {
                     @Parameter(name="replyId", description = "The internal ID of the reply to delete")
@@ -597,12 +674,17 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 5 requests per 60 seconds per user."
                     )
             },
             security = {
                     @SecurityRequirement(name = "bearerAuth")
             }
     )
+    @RateLimit(requests = 5, keyType = "USER")
     @DeleteMapping("/replies/delete")
     public ResponseEntity<?> deleteReplyById(@RequestParam int replyId) {
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
@@ -625,7 +707,7 @@ public class ThreadController {
     }
     @Operation(
             summary = "Like or unlike a reply",
-            description = "Toggles the like status for a reply. If the reply is not liked, it will be liked. If it is already liked, it will be unliked. Returns true if the reply is now liked, false if it is now unliked.",
+            description = "Toggles the like status for a reply. If the reply is not liked, it will be liked. If it is already liked, it will be unliked. Returns true if the reply is now liked, false if it is now unliked. Rate limit: 30 requests per 60 seconds per user, with burst limit of 5 requests per 5 seconds.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
@@ -639,10 +721,15 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
     @PostMapping("/replies/like")
     public ResponseEntity<?> likeReply(@RequestBody LikeReplyModel likeReply) {
         if (JwtUtil.isLoggedIn()) {
@@ -663,7 +750,7 @@ public class ThreadController {
     }
     @Operation(
             summary = "Like or unlike a thread",
-            description = "Toggles the like status for a thread. If the thread is not liked, it will be liked. If it is already liked, it will be unliked. Returns true if the thread is now liked, false if it is now unliked.",
+            description = "Toggles the like status for a thread. If the thread is not liked, it will be liked. If it is already liked, it will be unliked. Returns true if the thread is now liked, false if it is now unliked. Rate limit: 30 requests per 60 seconds per user, with burst limit of 5 requests per 5 seconds.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
@@ -677,10 +764,15 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per user."
                     )
             },
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
     @PostMapping("/like")
     public ResponseEntity<?> likeThread (@RequestBody LikeThreadModel model) {
         if (JwtUtil.isLoggedIn()) {
