@@ -12,12 +12,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PrivilegesResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +52,8 @@ public class UserController {
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private UserMapper userMapper;
 
     @Operation(
             summary = "Register a new user",
@@ -238,6 +242,7 @@ public class UserController {
     }
     @Operation(
             summary = "Get the information of the currently logged in user",
+            tags = {"User"},
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -418,6 +423,43 @@ public class UserController {
             session.invalidate();
         }
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Get profile metadata for a user",
+            description = "Retrieves profile summary for a user by ID (thread count, FAQ count, agency info, privileges). Does not require authentication.",
+            tags = {"User"},
+            parameters = {
+                    @Parameter(name = "userId", description = "The internal ID of the user", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The profile metadata for the user",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ProfileMetadataResponse.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The user with the provided ID could not be found, or the user has no profile data"
+                    )
+            }
+    )
+    @GetMapping("/profileMetadata")
+    public ResponseEntity<?> getProfileMetadata(@RequestParam int userId) {
+
+        if (!userRepository.existsById(userId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        ProfileMetadataResponse res = userMapper.mapProfileMetadataResponse(userId);
+        if (res == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        return ResponseEntity.ok(res);
     }
 
     private String loginUser(String username, String password) throws BadCredentialsException {

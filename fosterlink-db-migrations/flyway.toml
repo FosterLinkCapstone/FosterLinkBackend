@@ -30,3 +30,7 @@ schemas = [ "fosterlink_dev" ]
 [environments.fosterlink-prod]
 url = "jdbc:mysql://fosterlink-prod.mysql.database.azure.com:3306/fosterlink_prod?useSSL=true"
 schemas = [ "fosterlink_prod" ]
+
+[environments.fosterlinkdev]
+url = "jdbc:mysql://localhost:8889"
+schemas = [ "fosterlink_dev" ]

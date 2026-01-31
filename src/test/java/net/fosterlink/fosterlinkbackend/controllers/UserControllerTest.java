@@ -3,11 +3,13 @@ package net.fosterlink.fosterlinkbackend.controllers;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PrivilegesResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +58,9 @@ class UserControllerTest {
 
     @Mock
     private HttpSession httpSession;
+
+    @Mock
+    private UserMapper userMapper;
 
     @InjectMocks
     private UserController userController;
@@ -408,6 +413,50 @@ class UserControllerTest {
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    void testGetProfileMetadata_UserExists_ReturnsProfileMetadata() {
+        // Arrange
+        ProfileMetadataResponse metadata = new ProfileMetadataResponse();
+        metadata.setUserId(1);
+        when(userRepository.existsById(1)).thenReturn(true);
+        when(userMapper.mapProfileMetadataResponse(1)).thenReturn(metadata);
+
+        // Act
+        ResponseEntity<?> response = userController.getProfileMetadata(1);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertInstanceOf(ProfileMetadataResponse.class, response.getBody());
+        assertEquals(1, ((ProfileMetadataResponse) response.getBody()).getUserId());
+    }
+
+    @Test
+    void testGetProfileMetadata_UserNotFound_ReturnsNotFound() {
+        // Arrange
+        when(userRepository.existsById(999)).thenReturn(false);
+
+        // Act
+        ResponseEntity<?> response = userController.getProfileMetadata(999);
+
+        // Assert
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        verify(userMapper, never()).mapProfileMetadataResponse(anyInt());
+    }
+
+    @Test
+    void testGetProfileMetadata_UserExistsButNoProfileData_ReturnsNotFound() {
+        // Arrange
+        when(userRepository.existsById(1)).thenReturn(true);
+        when(userMapper.mapProfileMetadataResponse(1)).thenReturn(null);
+
+        // Act
+        ResponseEntity<?> response = userController.getProfileMetadata(1);
+
+        // Assert
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
 }
 

@@ -39,7 +39,7 @@ public class SecurityConfig {
             "/v1/threads/getAll",
             "/actuator/**",
             "/v1/threads/rand",
-            "/v1/threads/search" /* TODO */,
+            "/v1/threads/search",
             "/v1/threads/replies",
             "/v1/faq/all",
             "/v1/faq/content",
@@ -47,11 +47,15 @@ public class SecurityConfig {
             "/v1/users/isFaqAuthor",
             "/v1/faq/unapprovedCount",
             "/v1/users/agentInfo",
-            "/v1/agencies/all"
+            "/v1/agencies/all",
+            "/v1/users/profileMetadata",
+            "/v1/threads/getThreads",
+            "/v1/faq/allAuthor",
+            "/v1/threads/search-by-user"
     };
     private final String[] privateEndpoints = {
         "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete", "/v1/users/getInfo",
-            "/v1/threads/replies/like", "/v1/threads/create"
+            "/v1/threads/replies/like", "/v1/threads/create", "/v1/threads/replies/update", "/v1/threads/replies/delete"
     };
 
     @Autowired private UserService userService;

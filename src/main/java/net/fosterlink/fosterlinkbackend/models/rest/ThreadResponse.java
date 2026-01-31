@@ -7,16 +7,17 @@ import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
 import net.fosterlink.fosterlinkbackend.entities.ThreadTagEntity;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 @Data
 @Schema(description = "Details about an individual thread."
-        , requiredProperties = {"id", "title", "content", "createdAt", "author", "likeCount", "tags"})
+        , requiredProperties = {"id", "title", "content", "createdAt", "author", "likeCount", "commentCount", "userPostCount", "tags"})
 @NoArgsConstructor
 public class ThreadResponse implements Serializable {
 
-    public ThreadResponse(ThreadEntity threadEntity, int likeCount) {
+    public ThreadResponse(ThreadEntity threadEntity, int likeCount, int commentCount, int userPostCount) {
         this.id = threadEntity.getId();
         this.title = threadEntity.getTitle();
         this.content = threadEntity.getContent();
@@ -24,11 +25,24 @@ public class ThreadResponse implements Serializable {
         this.updatedAt = threadEntity.getUpdatedAt();
         this.author = new UserResponse(threadEntity.getPostedBy());
         this.likeCount = likeCount;
-        if (threadEntity.getTags() != null) {
-            for (ThreadTagEntity tag : threadEntity.getTags()) {
-                tags.add(tag.getName());
-            }
+        this.commentCount = commentCount;
+        this.userPostCount = userPostCount;
+        // Tags should be set separately to avoid accessing lazy-loaded collection
+        // Caller should use setTags() method after fetching tags via batch query
+        if (this.tags == null) {
+            this.tags = new ArrayList<>();
         }
+    }
+
+    /**
+     * Backwards-compatible constructor. Defaults:
+     * - commentCount: 0
+     * - userPostCount: 0
+     *
+     * Prefer using {@link #ThreadResponse(ThreadEntity, int, int, int)} so callers can populate the computed fields.
+     */
+    public ThreadResponse(ThreadEntity threadEntity, int likeCount) {
+        this(threadEntity, likeCount, 0, 0);
     }
     @Schema(description = "The internal ID of the thread")
     private int id;
@@ -45,6 +59,12 @@ public class ThreadResponse implements Serializable {
 
     @Schema(description = "The number of likes that the thread had at the time of request")
     private int likeCount;
+
+    @Schema(description = "The number of visible comments/replies on this thread at the time of request")
+    private int commentCount;
+
+    @Schema(description = "The number of visible threads posted by this thread's author at the time of request")
+    private int userPostCount;
 
     @Schema(description = "Whether the currently logged-in user has liked this thread. Always false if not logged in.")
     private boolean isLiked;

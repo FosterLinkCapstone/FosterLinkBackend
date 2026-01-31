@@ -44,10 +44,14 @@ public class FaqMapper {
         return faqResponse;
     }
 
-    public List<FaqResponse> allApprovedPreviews() {
+    public List<FaqResponse> allApprovedPreviewsForUser(int userId) {
         List<FaqResponse> faqResponseList = new ArrayList<>();
-        List<Object[]> map = fAQRepository.allApprovedPreviews();
+        List<Object[]> map = fAQRepository.allApprovedPreviewsForUser(userId);
 
+        return mapFaqResponses(faqResponseList, map);
+    }
+
+    private List<FaqResponse> mapFaqResponses(List<FaqResponse> faqResponseList, List<Object[]> map) {
         for (Object[] obj : map) {
             FaqResponse faqResponse = new FaqResponse();
             faqResponse.setId((Integer)obj[0]);
@@ -61,6 +65,13 @@ public class FaqMapper {
             faqResponseList.add(faqResponse);
         }
         return faqResponseList;
+    }
+
+    public List<FaqResponse> allApprovedPreviews() {
+        List<FaqResponse> faqResponseList = new ArrayList<>();
+        List<Object[]> map = fAQRepository.allApprovedPreviews();
+
+        return mapFaqResponses(faqResponseList, map);
     }
     public List<PendingFaqResponse> allPendingPreviews() {
         List<PendingFaqResponse> faqResponseList = new ArrayList<>();

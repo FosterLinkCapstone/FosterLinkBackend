@@ -4,6 +4,7 @@ import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
 import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -76,6 +77,9 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
     """, nativeQuery = true)
     List<Object[]> allPendingAgencies();
 
-    Long countByApprovedNullOrApprovedFalse();
+    Long countByApprovedNull();
+
+    @Query("SELECT a FROM AgencyEntity a WHERE a.agent.id = :agentId")
+    List<AgencyEntity> findByAgentId(@Param("agentId") int agentId);
 
 }
