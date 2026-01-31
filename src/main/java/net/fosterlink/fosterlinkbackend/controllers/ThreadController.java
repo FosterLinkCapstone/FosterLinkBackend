@@ -263,6 +263,29 @@ public class ThreadController {
         }
     }
 
+    @Operation(
+            summary = "Search threads by author",
+            description = "Retrieves threads created by a specific user, paginated. Returns 404 if the user does not exist.",
+            tags = {"Thread"},
+            parameters = {
+                    @Parameter(name = "userId", description = "The internal ID of the thread author", required = true),
+                    @Parameter(name = "pageNumber", description = "Zero-based page index", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Paginated threads by the user",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = GetThreadsResponse.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The user with the provided ID could not be found"
+                    )
+            }
+    )
     @GetMapping("/search-by-user")
     public ResponseEntity<?> searchByUser(@RequestParam int userId, @RequestParam int pageNumber) {
         boolean authorExists = userRepository.existsById(userId);

@@ -321,6 +321,28 @@ public class FaqController {
         fAQRequestRepository.save(faqRequestResponse);
         return ResponseEntity.ok().build();
     }
+    @Operation(
+            summary = "Get all approved FAQs by author",
+            description = "Retrieves all approved FAQs created by a specific user. Returns 404 if the user does not exist or has no approved FAQs.",
+            tags = {"FAQ"},
+            parameters = {
+                    @Parameter(name = "userId", description = "The internal ID of the FAQ author", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "List of approved FAQs by the user",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    array = @ArraySchema(schema = @Schema(implementation = FaqResponse.class))
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The user with the provided ID could not be found, or the user has no approved FAQs"
+                    )
+            }
+    )
     @GetMapping("/allAuthor")
     public ResponseEntity<?> getAllAuthor(@RequestParam Integer userId) {
 

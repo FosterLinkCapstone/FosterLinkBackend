@@ -242,6 +242,7 @@ public class UserController {
     }
     @Operation(
             summary = "Get the information of the currently logged in user",
+            tags = {"User"},
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -424,6 +425,28 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(
+            summary = "Get profile metadata for a user",
+            description = "Retrieves profile summary for a user by ID (thread count, FAQ count, agency info, privileges). Does not require authentication.",
+            tags = {"User"},
+            parameters = {
+                    @Parameter(name = "userId", description = "The internal ID of the user", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The profile metadata for the user",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ProfileMetadataResponse.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The user with the provided ID could not be found, or the user has no profile data"
+                    )
+            }
+    )
     @GetMapping("/profileMetadata")
     public ResponseEntity<?> getProfileMetadata(@RequestParam int userId) {
 
