@@ -132,7 +132,7 @@ public class AgencyController {
     )
     @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/approve")
-    public ResponseEntity<?> approveAgency(@RequestBody ApproveAgencyResponse model) {
+    public ResponseEntity<?> approveAgency(@Valid @RequestBody ApproveAgencyResponse model) {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
         if (userEntity.isAdministrator()) {
             Optional<AgencyEntity> agency = agencyRepository.findById(model.getId());

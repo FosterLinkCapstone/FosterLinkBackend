@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.FAQApprovalEntity;
 import net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity;
@@ -14,7 +15,7 @@ import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AnswerFaqSuggestionResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ApprovalCheckResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.CreateFaqSuggestionModel;
+import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqSuggestionModel;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqRequestResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PendingFaqResponse;
@@ -135,7 +136,7 @@ public class FaqController {
     )
     @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 15, keyType = "USER")
     @PostMapping("/create")
-    public ResponseEntity<?> create(@RequestBody CreateFaqModel createFaqModel) {
+    public ResponseEntity<?> create(@Valid @RequestBody CreateFaqModel createFaqModel) {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
             if (user.isFaqAuthor() || user.isAdministrator()) {
@@ -245,7 +246,7 @@ public class FaqController {
     )
     @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/approve")
-    public ResponseEntity<?> approveFaq(@RequestBody ApproveFaqModel faq) {
+    public ResponseEntity<?> approveFaq(@Valid @RequestBody ApproveFaqModel faq) {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
             if (user.isAdministrator()) {
@@ -326,7 +327,7 @@ public class FaqController {
     )
     @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/requests/answer")
-    public ResponseEntity<?> answerRequest(@RequestBody AnswerFaqSuggestionResponse model) {
+    public ResponseEntity<?> answerRequest(@Valid @RequestBody AnswerFaqSuggestionResponse model) {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
             if (user.isAdministrator() || user.isFaqAuthor()) {
@@ -358,7 +359,7 @@ public class FaqController {
     )
     @RateLimit(requests = 10, burstRequests = 2, burstDurationSeconds = 15)
     @PostMapping("/requests/create")
-    public ResponseEntity<?> createFaqRequest(@RequestBody CreateFaqSuggestionModel model) {
+    public ResponseEntity<?> createFaqRequest(@Valid @RequestBody CreateFaqSuggestionModel model) {
         UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
         FAQRequestEntity faqRequestResponse = new FAQRequestEntity();
         faqRequestResponse.setSuggestedTopic(model.getSuggested());

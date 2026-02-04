@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
@@ -79,7 +80,7 @@ public class UserController {
     )
     @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 30)
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody UserRegisterModel model) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegisterModel model) {
 
         if (userRepository.existsByUsernameOrEmail(model.getUsername(), model.getEmail())) {
             return ResponseEntity.status(409).build();
@@ -133,7 +134,7 @@ public class UserController {
     )
     @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 10)
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody UserLoginModelEmail model) {
+    public ResponseEntity<?> loginUser(@Valid @RequestBody UserLoginModelEmail model) {
         try {
             String jwt = loginUser(model.getEmail(), model.getPassword());
             return ResponseEntity.ok(Map.of("token", jwt));
@@ -179,7 +180,7 @@ public class UserController {
      )
      @RateLimit(requests = 10, keyType = "USER")
     @PutMapping("/update")
-    public ResponseEntity<?> updateUser(@RequestBody UpdateUserModel model, HttpServletRequest req) {
+    public ResponseEntity<?> updateUser(@Valid @RequestBody UpdateUserModel model, HttpServletRequest req) {
         String email = JwtUtil.getLoggedInEmail();
         UserEntity user = email != null ? userRepository.findByEmail(email) : null;
         boolean logout = false;
