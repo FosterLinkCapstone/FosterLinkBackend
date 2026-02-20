@@ -18,7 +18,10 @@ import net.fosterlink.fosterlinkbackend.models.rest.ApprovalCheckResponse;
 import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqSuggestionModel;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqRequestResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetFaqsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetPendingFaqsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PendingFaqResponse;
+import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.models.web.faq.ApproveFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqModel;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
@@ -51,15 +54,18 @@ public class FaqController {
 
     @Operation(
             summary = "Get all approved FAQs",
-            description = "Retrieves a list of all FAQs that have been approved by an administrator. Rate limit: 50 requests per 60 seconds per IP.",
+            description = "Retrieves a paginated list of all FAQs that have been approved by an administrator. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ"},
+            parameters = {
+                    @Parameter(name = "pageNumber", description = "Zero-based page number", required = true)
+            },
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "List of all approved FAQs",
+                            description = "Paginated list of approved FAQs",
                             content = @Content(
                                     mediaType = "application/json",
-                                    array = @ArraySchema(schema = @Schema(implementation = FaqResponse.class))
+                                    schema = @Schema(implementation = GetFaqsResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -70,8 +76,10 @@ public class FaqController {
     )
     @GetMapping("/all")
     @RateLimit
-    public ResponseEntity<?> getAllFaqs() {
-        return ResponseEntity.ok(faqMapper.allApprovedPreviews());
+    public ResponseEntity<?> getAllFaqs(@RequestParam int pageNumber) {
+        int totalCount = fAQRepository.countApproved();
+        int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+        return ResponseEntity.ok(new GetFaqsResponse(faqMapper.allApprovedPreviews(pageNumber), totalPages));
     }
     @Operation(
             summary = "Get FAQ content by ID",
@@ -156,15 +164,18 @@ public class FaqController {
 
     @Operation(
             summary = "Get all pending FAQs",
-            description = "Retrieves a list of all FAQs that are pending approval. Only accessible to administrators. Rate limit: 50 requests per 60 seconds per IP.",
+            description = "Retrieves a paginated list of all FAQs that are pending approval. Only accessible to administrators. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ", "Admin"},
+            parameters = {
+                    @Parameter(name = "pageNumber", description = "Zero-based page number", required = true)
+            },
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "List of all pending FAQs",
+                            description = "Paginated list of pending FAQs",
                             content = @Content(
                                     mediaType = "application/json",
-                                    array = @ArraySchema(schema = @Schema(implementation = PendingFaqResponse.class))
+                                    schema = @Schema(implementation = GetPendingFaqsResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -180,11 +191,13 @@ public class FaqController {
     )
     @RateLimit
     @GetMapping("/pending")
-    public ResponseEntity<?> getPendingFaqs() {
+    public ResponseEntity<?> getPendingFaqs(@RequestParam int pageNumber) {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
             if (user.isAdministrator()) {
-                return ResponseEntity.ok(faqMapper.allPendingPreviews());
+                int totalCount = fAQRepository.countPending();
+                int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+                return ResponseEntity.ok(new GetPendingFaqsResponse(faqMapper.allPendingPreviews(pageNumber), totalPages));
             } else {
                 return ResponseEntity.status(403).build();
             }
@@ -396,13 +409,13 @@ public class FaqController {
     )
     @RateLimit
     @GetMapping("/allAuthor")
-    public ResponseEntity<?> getAllAuthor(@RequestParam Integer userId) {
+    public ResponseEntity<?> getAllAuthor(@RequestParam Integer userId, @RequestParam int pageNumber) {
 
         boolean userExists = userRepository.existsById(userId);
 
         if (!userExists) return ResponseEntity.notFound().build();
 
-        List<FaqResponse> faqs = faqMapper.allApprovedPreviewsForUser(userId);
+        List<FaqResponse> faqs = faqMapper.allApprovedPreviewsForUser(userId, pageNumber);
 
         if (faqs.isEmpty()) return ResponseEntity.notFound().build();
 

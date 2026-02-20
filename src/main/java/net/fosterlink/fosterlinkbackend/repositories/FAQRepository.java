@@ -1,13 +1,19 @@
 package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
-import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 
 import java.util.List;
 
 public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
+
+    @Query(value = "SELECT COUNT(*) FROM faq fr INNER JOIN faq_approval fa ON fa.faq_id = fr.id WHERE fa.approved = true", nativeQuery = true)
+    int countApproved();
+
+    @Query(value = "SELECT COUNT(*) FROM faq fr LEFT JOIN faq_approval fa ON fa.faq_id = fr.id WHERE fa.approved IS NULL OR fa.approved = false", nativeQuery = true)
+    int countPending();
 
     @Query(value = """
             SELECT fr.id,
@@ -38,7 +44,7 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
                      u.first_name, u.last_name, u.profile_picture_url, u.verified_foster,\s
                      u.faq_author, u.verified_foster, u.created_at;
     """, nativeQuery = true)
-    List<Object[]> allApprovedPreviews();
+    List<Object[]> allApprovedPreviews(Pageable pageable);
 
     @Query(value = """
             SELECT fr.id,
@@ -69,7 +75,7 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
                      u.first_name, u.last_name, u.profile_picture_url, u.verified_foster,\s
                      u.faq_author, u.verified_foster, u.created_at;
     """, nativeQuery = true)
-    List<Object[]> allApprovedPreviewsForUser(int userId);
+    List<Object[]> allApprovedPreviewsForUser(int userId, Pageable pageable);
 
     @Query(value = """
     SELECT
@@ -101,6 +107,6 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
             ) fa ON fa.faq_id = fr.id
     WHERE fa.approved IS NULL OR fa.approved = false
     """, nativeQuery = true)
-    List<Object[]> allPendingPreviews();
+    List<Object[]> allPendingPreviews(Pageable pageable);
 
 }

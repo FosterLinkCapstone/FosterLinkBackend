@@ -6,7 +6,6 @@ import com.google.maps.GeocodingApi;
 import com.google.maps.errors.ApiException;
 import com.google.maps.model.GeocodingResult;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -19,7 +18,9 @@ import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ApproveAgencyResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetAgenciesResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
+import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.models.web.agency.CreateAgencyModel;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
 import net.fosterlink.fosterlinkbackend.repositories.LocationRepository;
@@ -52,15 +53,18 @@ public class AgencyController {
 
     @Operation(
             summary = "Get all approved agencies",
-            description = "Retrieves a list of all agencies that have been approved by an administrator. Rate limit: 50 requests per 60 seconds per IP.",
+            description = "Retrieves a paginated list of all agencies that have been approved by an administrator. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Agency"},
+            parameters = {
+                    @io.swagger.v3.oas.annotations.Parameter(name = "pageNumber", description = "Zero-based page number", required = true)
+            },
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "List of all approved agencies",
+                            description = "Paginated list of approved agencies",
                             content = @Content(
                                     mediaType = "application/json",
-                                    array = @ArraySchema(schema = @Schema(implementation = AgencyResponse.class))
+                                    schema = @Schema(implementation = GetAgenciesResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -71,20 +75,25 @@ public class AgencyController {
     )
     @GetMapping("/all")
     @RateLimit
-    public ResponseEntity<?> getAllAgencies() {
-        return ResponseEntity.ok(agencyMapper.getAllApprovedAgencies());
+    public ResponseEntity<?> getAllAgencies(@RequestParam int pageNumber) {
+        int totalCount = agencyRepository.countApproved();
+        int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+        return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllApprovedAgencies(pageNumber), totalPages));
     }
     @Operation(
             summary = "Get all pending agencies",
-            description = "Retrieves a list of all agencies that are pending approval. Only accessible to administrators. Rate limit: 50 requests per 60 seconds per IP.",
+            description = "Retrieves a paginated list of all agencies that are pending approval. Only accessible to administrators. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Agency", "Admin"},
+            parameters = {
+                    @io.swagger.v3.oas.annotations.Parameter(name = "pageNumber", description = "Zero-based page number", required = true)
+            },
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "List of all pending agencies",
+                            description = "Paginated list of pending agencies",
                             content = @Content(
                                     mediaType = "application/json",
-                                    array = @ArraySchema(schema = @Schema(implementation = AgencyResponse.class))
+                                    schema = @Schema(implementation = GetAgenciesResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -100,10 +109,12 @@ public class AgencyController {
     )
     @RateLimit
     @GetMapping("/pending")
-    public ResponseEntity<?> getPendingAgencies() {
+    public ResponseEntity<?> getPendingAgencies(@RequestParam int pageNumber) {
         UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
         if (userEntity.isAdministrator()) {
-            return ResponseEntity.ok(agencyMapper.getAllPendingAgencies());
+            int totalCount = agencyRepository.countPendingOrDenied();
+            int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+            return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllPendingAgencies(pageNumber), totalPages));
         } else return ResponseEntity.status(403).build();
     }
     @Operation(
