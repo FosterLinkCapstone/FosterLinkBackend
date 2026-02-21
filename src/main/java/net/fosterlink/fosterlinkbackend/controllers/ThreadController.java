@@ -7,9 +7,11 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.*;
 import net.fosterlink.fosterlinkbackend.models.rest.GetThreadsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.HiddenThreadResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadReplyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
 import net.fosterlink.fosterlinkbackend.models.web.thread.*;
@@ -25,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.text.DateFormat;
@@ -33,6 +36,10 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * REST API for forum threads and replies: create, update, delete, search, like, and reply to threads.
+ * Base path: /v1/threads/
+ */
 @RestController
 @RequestMapping("/v1/threads/")
 public class ThreadController {
@@ -80,7 +87,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 15, keyType = "USER")
     @PostMapping("/create")
-    public ResponseEntity<?> create(@RequestBody CreateThreadModel model) {
+    public ResponseEntity<?> create(@Valid @RequestBody CreateThreadModel model) {
 
         UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
 
@@ -155,7 +162,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 10, keyType = "USER")
     @PutMapping("/update")
-    public ResponseEntity<?> update(@RequestBody UpdateThreadModel model) {
+    public ResponseEntity<?> update(@Valid @RequestBody UpdateThreadModel model) {
 
         ThreadEntity thread = threadRepository.findByIdWithRelations(model.getThreadId()).orElse(null);
         if (thread == null) {
@@ -423,7 +430,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 30, keyType = "USER")
     @PostMapping("/search")
-    public ResponseEntity<?> search(@RequestBody SearchThreadModel search) {
+    public ResponseEntity<?> search(@Valid @RequestBody SearchThreadModel search) {
         switch (search.getSearchBy()) {
             case USERNAME:
                 UserEntity user = userRepository.findByUsername(search.getSearchTerm());
@@ -540,9 +547,14 @@ public class ThreadController {
     @RateLimit
     @GetMapping("/replies")
     public ResponseEntity<?> replies(@RequestParam int threadId) {
-        int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
-        return ResponseEntity.ok(threadReplyMapper.getRepliesForThread(threadId, userId));
-
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (user.isAdministrator()) {
+                return ResponseEntity.ok(threadReplyMapper.getAllRepliesForThreadAdmin(threadId, user.getId()));
+            }
+            return ResponseEntity.ok(threadReplyMapper.getRepliesForThread(threadId, user.getId()));
+        }
+        return ResponseEntity.ok(threadReplyMapper.getRepliesForThread(threadId, -1));
     }
     @Operation(
             summary = "Reply to a thread",
@@ -570,7 +582,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 15, burstRequests = 3, burstDurationSeconds = 10, keyType = "USER")
     @PostMapping("/replies")
-    public ResponseEntity<?> replyTo(@RequestBody ReplyToThreadModel reply) {
+    public ResponseEntity<?> replyTo(@Valid @RequestBody ReplyToThreadModel reply) {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
 
@@ -630,7 +642,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 10, keyType = "USER")
     @PutMapping("/replies/update")
-    public ResponseEntity<?> updateReply(@RequestBody UpdateReplyModel model) {
+    public ResponseEntity<?> updateReply(@Valid @RequestBody UpdateReplyModel model) {
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(model.getReplyId()).orElse(null);
         if (reply == null) {
             return ResponseEntity.notFound().build();
@@ -698,12 +710,64 @@ public class ThreadController {
         String email = JwtUtil.getLoggedInEmail();
         if (reply.getPostedBy().getEmail().equals(email) || isAdmin) {
             reply.getMetadata().setHidden(true);
-            if (!isAdmin) reply.getMetadata().setUser_deleted(true);
+            if (!isAdmin) {
+                reply.getMetadata().setUser_deleted(true);
+            } else {
+                UserEntity admin = userRepository.findByEmail(email);
+                reply.getMetadata().setHidden_by(admin.getUsername());
+            }
             threadReplyRepository.save(reply);
             return ResponseEntity.ok().body(true);
         } else {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+    }
+
+    @RateLimit(requests = 10, burstRequests = 3, burstDurationSeconds = 30, keyType = "USER")
+    @PostMapping("/replies/hide")
+    public ResponseEntity<?> hideReply(@RequestParam int replyId, @RequestParam boolean hidden) {
+        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
+
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
+        if (reply == null) return ResponseEntity.status(404).build();
+
+        boolean hiddenByAuthor = reply.getPostedBy().getId() == user.getId();
+        if (user.isAdministrator() || (hiddenByAuthor && hidden)) {
+            if (hidden) {
+                reply.getMetadata().setUser_deleted(hiddenByAuthor);
+                if (!hiddenByAuthor) {
+                    reply.getMetadata().setHidden_by(user.getUsername());
+                }
+            } else {
+                reply.getMetadata().setUser_deleted(false);
+                reply.getMetadata().setHidden_by(null);
+            }
+            reply.getMetadata().setHidden(hidden);
+            threadReplyRepository.save(reply);
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.status(403).build();
+        }
+    }
+
+    @RateLimit(requests = 5, burstRequests = 2, keyType = "USER")
+    @DeleteMapping("/replies/hidden/delete")
+    @Transactional
+    public ResponseEntity<?> fullDeleteHiddenReply(@RequestParam int replyId) {
+        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
+
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+
+        ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
+        if (reply == null) return ResponseEntity.status(404).build();
+
+        int metadataId = reply.getMetadata().getId();
+        threadReplyLikeRepository.deleteByThreadIn(List.of(replyId));
+        threadReplyRepository.deleteById(replyId);
+        postMetadataRepository.deleteById(metadataId);
+        return ResponseEntity.ok().build();
     }
     @Operation(
             summary = "Like or unlike a reply",
@@ -731,7 +795,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
     @PostMapping("/replies/like")
-    public ResponseEntity<?> likeReply(@RequestBody LikeReplyModel likeReply) {
+    public ResponseEntity<?> likeReply(@Valid @RequestBody LikeReplyModel likeReply) {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
             if (!threadReplyLikeRepository.existsByThreadAndUser(likeReply.getReplyId(), user)) {
@@ -774,7 +838,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
     @PostMapping("/like")
-    public ResponseEntity<?> likeThread (@RequestBody LikeThreadModel model) {
+    public ResponseEntity<?> likeThread(@Valid @RequestBody LikeThreadModel model) {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
             if (!threadLikeRepository.existsByThreadAndUser(model.getThreadId(), user)) {
@@ -786,6 +850,109 @@ public class ThreadController {
             } else {
                 threadLikeRepository.deleteThreadLikeEntityByThreadAndUser(model.getThreadId(), user);
                 return ResponseEntity.ok(false);
+            }
+        } else {
+            return ResponseEntity.status(403).build();
+        }
+    }
+    @RateLimit
+    @GetMapping("/hidden")
+    public ResponseEntity<?> getHiddenThread(@RequestParam int threadId) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (user.isAdministrator()) {
+                HiddenThreadResponse  hiddenThreadResponse = threadMapper.findHiddenThreadById(threadId, user.getId());
+                if (hiddenThreadResponse != null) {
+                    return ResponseEntity.ok(hiddenThreadResponse);
+                } else {
+                    return ResponseEntity.notFound().build();
+                }
+            } else {
+                return ResponseEntity.status(403).build();
+            }
+        } else {
+            return ResponseEntity.status(403).build();
+        }
+    }
+
+    @RateLimit(requests = 10, burstRequests = 3, burstDurationSeconds = 30, keyType = "USER")
+    @PostMapping("/hide")
+    public ResponseEntity<?> hideThread(@RequestParam int threadId, @RequestParam boolean hidden) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            Optional<ThreadEntity> thread = threadRepository.findByIdWithRelations(threadId);
+            if (thread.isEmpty()) return ResponseEntity.status(404).build();
+            boolean hiddenByAuthor = (thread.get().getPostedBy().getId() == user.getId()) && !user.isAdministrator();
+            if (user.isAdministrator() || (hiddenByAuthor && hidden)) {
+                if (hidden) {
+                    thread.get().getPostMetadata().setUser_deleted(hiddenByAuthor);
+                    thread.get().getPostMetadata().setHidden_by(user.getUsername());
+                } else {
+                    thread.get().getPostMetadata().setUser_deleted(false);
+                    thread.get().getPostMetadata().setHidden_by(null);
+                }
+                thread.get().getPostMetadata().setHidden(hidden);
+                postMetadataRepository.save(thread.get().getPostMetadata());
+                threadRepository.save(thread.get());
+                return ResponseEntity.ok().build();
+            } else {
+                return ResponseEntity.status(403).build();
+            }
+        } else {
+            return ResponseEntity.status(403).build();
+        }
+    }
+
+    @RateLimit
+    @PostMapping("/getHidden")
+    public ResponseEntity<?> getHiddenThreads(@RequestParam HiddenThreadType hiddenThreadType, @RequestParam int pageNumber) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (user.isAdministrator()) {
+                if (hiddenThreadType == HiddenThreadType.ADMIN) {
+                    return ResponseEntity.ok(threadMapper.getHiddenThreadsAdminDeleted(pageNumber, user.getId()));
+                } else {
+                    return ResponseEntity.ok(threadMapper.getHiddenThreadsUserDeleted(pageNumber, user.getId()));
+                }
+            } else {
+                return ResponseEntity.status(403).build();
+            }
+        } else {
+            return ResponseEntity.status(403).build();
+        }
+    }
+
+    @RateLimit(requests = 5, burstRequests = 2, keyType = "USER")
+    @DeleteMapping("/hidden/delete")
+    @Transactional
+    public ResponseEntity<?> fullDeleteHiddenThread(@RequestParam int threadId) {
+        if (JwtUtil.isLoggedIn()) {
+            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+            if (user.isAdministrator()) {
+                var threadOpt = threadRepository.findByIdWithRelations(threadId);
+                if (threadOpt.isEmpty()) {
+                    return ResponseEntity.status(404).build();
+                }
+                ThreadEntity thread = threadOpt.get();
+                int metadataId = thread.getPostMetadata().getId();
+                // Delete in order: reply likes (for all replies), replies, reply metadata, thread likes, thread tags, thread, thread metadata
+                List<ThreadReplyEntity> replies = threadReplyRepository.findByThreadId(threadId);
+                List<Integer> replyMetadataIds = replies.stream()
+                        .map(r -> r.getMetadata().getId())
+                        .toList();
+                if (!replies.isEmpty()) {
+                    List<Integer> replyIds = replies.stream().map(ThreadReplyEntity::getId).toList();
+                    threadReplyLikeRepository.deleteByThreadIn(replyIds);
+                }
+                threadReplyRepository.deleteByThreadId(threadId);
+                replyMetadataIds.forEach(postMetadataRepository::deleteById);
+                threadLikeRepository.deleteByThread(threadId);
+                threadTagRepository.deleteByThread_Id(threadId);
+                threadRepository.deleteById(threadId);
+                postMetadataRepository.deleteById(metadataId);
+                return ResponseEntity.ok().build();
+            } else {
+                return ResponseEntity.status(403).build();
             }
         } else {
             return ResponseEntity.status(403).build();

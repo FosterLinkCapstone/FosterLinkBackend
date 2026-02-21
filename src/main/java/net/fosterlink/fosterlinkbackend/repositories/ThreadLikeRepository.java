@@ -21,4 +21,7 @@ public interface ThreadLikeRepository extends CrudRepository<ThreadLikeEntity, I
     void deleteThreadLikeEntityByThreadAndUser(int id, UserEntity user);
 
     boolean existsByThreadAndUser(int thread, UserEntity user);
+
+    @Transactional
+    void deleteByThread(int thread);
 }

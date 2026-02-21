@@ -12,6 +12,9 @@ import java.util.Optional;
 public interface FAQApprovalRepository extends CrudRepository<FAQApprovalEntity, Integer> {
 
     Optional<FAQApprovalEntity> findFAQApprovalEntityByFaqId(Integer faq_id);
+
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByFaqId(int faqId);
     @Query(value = """
     SELECT
         SUM(CASE WHEN appr.approved IS NULL THEN 1 ELSE 0 END) as countPending,
