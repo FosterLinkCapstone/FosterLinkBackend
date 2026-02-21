@@ -4,6 +4,8 @@ import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.ApprovalCheckResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetFaqsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetPendingFaqsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PendingFaqResponse;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
@@ -69,16 +71,20 @@ class FaqControllerTest {
     }
 
     @Test
-    void testGetAllFaqs_ReturnsOkWithList() {
+    void testGetAllFaqs_ReturnsOkWithGetFaqsResponse() {
         List<FaqResponse> faqs = Collections.singletonList(new FaqResponse());
-        when(faqMapper.allApprovedPreviews()).thenReturn(faqs);
+        when(faqMapper.allApprovedPreviews(0)).thenReturn(faqs);
+        when(fAQRepository.countApproved()).thenReturn(25);
 
-        ResponseEntity<?> response = faqController.getAllFaqs();
+        ResponseEntity<?> response = faqController.getAllFaqs(0);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(faqs, response.getBody());
-        verify(faqMapper, times(1)).allApprovedPreviews();
+        assertInstanceOf(GetFaqsResponse.class, response.getBody());
+        GetFaqsResponse body = (GetFaqsResponse) response.getBody();
+        assertEquals(faqs, body.getFaqs());
+        // Pagination: 25 total items, 10 per page -> 3 pages
+        assertEquals(3, body.getTotalPages());
+        verify(faqMapper, times(1)).allApprovedPreviews(0);
     }
 
     @Test
@@ -106,21 +112,25 @@ class FaqControllerTest {
     }
 
     @Test
-    void testGetPendingFaqs_Admin_ReturnsOkWithList() {
+    void testGetPendingFaqs_Admin_ReturnsOkWithGetPendingFaqsResponse() {
         List<PendingFaqResponse> pending = Collections.singletonList(new PendingFaqResponse());
-        when(faqMapper.allPendingPreviews()).thenReturn(pending);
+        when(faqMapper.allPendingPreviews(0)).thenReturn(pending);
+        when(fAQRepository.countPending()).thenReturn(5);
 
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
             when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
             jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
 
-            ResponseEntity<?> response = faqController.getPendingFaqs();
+            ResponseEntity<?> response = faqController.getPendingFaqs(0);
 
             assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertEquals(pending, response.getBody());
-            verify(faqMapper, times(1)).allPendingPreviews();
+            assertInstanceOf(GetPendingFaqsResponse.class, response.getBody());
+            GetPendingFaqsResponse body = (GetPendingFaqsResponse) response.getBody();
+            assertEquals(pending, body.getFaqs());
+            // Pagination: 5 items, 10 per page -> 1 page
+            assertEquals(1, body.getTotalPages());
+            verify(faqMapper, times(1)).allPendingPreviews(0);
         }
     }
 
@@ -131,10 +141,10 @@ class FaqControllerTest {
             when(userRepository.findByEmail("user@example.com")).thenReturn(faqAuthorUser);
             jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("user@example.com");
 
-            ResponseEntity<?> response = faqController.getPendingFaqs();
+            ResponseEntity<?> response = faqController.getPendingFaqs(0);
 
             assertEquals(403, response.getStatusCode().value());
-            verify(faqMapper, never()).allPendingPreviews();
+            verify(faqMapper, never()).allPendingPreviews(anyInt());
         }
     }
 
@@ -178,32 +188,32 @@ class FaqControllerTest {
     void testGetAllAuthor_UserExistsWithFaqs_ReturnsOkWithList() {
         List<FaqResponse> faqs = Collections.singletonList(new FaqResponse());
         when(userRepository.existsById(1)).thenReturn(true);
-        when(faqMapper.allApprovedPreviewsForUser(1)).thenReturn(faqs);
+        when(faqMapper.allApprovedPreviewsForUser(1, 0)).thenReturn(faqs);
 
-        ResponseEntity<?> response = faqController.getAllAuthor(1);
+        ResponseEntity<?> response = faqController.getAllAuthor(1, 0);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(faqs, response.getBody());
-        verify(faqMapper, times(1)).allApprovedPreviewsForUser(1);
+        verify(faqMapper, times(1)).allApprovedPreviewsForUser(1, 0);
     }
 
     @Test
     void testGetAllAuthor_UserNotFound_ReturnsNotFound() {
         when(userRepository.existsById(999)).thenReturn(false);
 
-        ResponseEntity<?> response = faqController.getAllAuthor(999);
+        ResponseEntity<?> response = faqController.getAllAuthor(999, 0);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        verify(faqMapper, never()).allApprovedPreviewsForUser(anyInt());
+        verify(faqMapper, never()).allApprovedPreviewsForUser(anyInt(), anyInt());
     }
 
     @Test
     void testGetAllAuthor_UserExistsButNoFaqs_ReturnsNotFound() {
         when(userRepository.existsById(1)).thenReturn(true);
-        when(faqMapper.allApprovedPreviewsForUser(1)).thenReturn(Collections.emptyList());
+        when(faqMapper.allApprovedPreviewsForUser(1, 0)).thenReturn(Collections.emptyList());
 
-        ResponseEntity<?> response = faqController.getAllAuthor(1);
+        ResponseEntity<?> response = faqController.getAllAuthor(1, 0);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
