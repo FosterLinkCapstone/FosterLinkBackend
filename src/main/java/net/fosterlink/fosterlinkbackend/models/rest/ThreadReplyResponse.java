@@ -1,6 +1,7 @@
 package net.fosterlink.fosterlinkbackend.models.rest;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.annotation.Nullable;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import net.fosterlink.fosterlinkbackend.entities.ThreadReplyEntity;
@@ -37,5 +38,8 @@ public class ThreadReplyResponse {
     private UserResponse author;
     @Schema(description = "The number of likes this reply has received")
     private int likeCount;
+    @Nullable
+    @Schema(description = "Post metadata, only populated for admin users viewing hidden replies. Null for regular visible replies.")
+    private PostMetadataResponse postMetadata;
 
 }

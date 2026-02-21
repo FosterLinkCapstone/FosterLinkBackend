@@ -1,0 +1,1 @@
+ALTER TABLE post_metadata ADD COLUMN hidden_by VARCHAR(100) NULL;

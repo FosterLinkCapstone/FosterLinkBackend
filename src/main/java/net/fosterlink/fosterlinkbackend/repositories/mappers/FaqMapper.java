@@ -5,6 +5,8 @@ import net.fosterlink.fosterlinkbackend.models.rest.*;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRequestRepository;
+import net.fosterlink.fosterlinkbackend.util.SqlUtil;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -44,9 +46,9 @@ public class FaqMapper {
         return faqResponse;
     }
 
-    public List<FaqResponse> allApprovedPreviewsForUser(int userId) {
+    public List<FaqResponse> allApprovedPreviewsForUser(int userId, int pageNumber) {
         List<FaqResponse> faqResponseList = new ArrayList<>();
-        List<Object[]> map = fAQRepository.allApprovedPreviewsForUser(userId);
+        List<Object[]> map = fAQRepository.allApprovedPreviewsForUser(userId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
 
         return mapFaqResponses(faqResponseList, map);
     }
@@ -67,15 +69,15 @@ public class FaqMapper {
         return faqResponseList;
     }
 
-    public List<FaqResponse> allApprovedPreviews() {
+    public List<FaqResponse> allApprovedPreviews(int pageNumber) {
         List<FaqResponse> faqResponseList = new ArrayList<>();
-        List<Object[]> map = fAQRepository.allApprovedPreviews();
+        List<Object[]> map = fAQRepository.allApprovedPreviews(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
 
         return mapFaqResponses(faqResponseList, map);
     }
-    public List<PendingFaqResponse> allPendingPreviews() {
+    public List<PendingFaqResponse> allPendingPreviews(int pageNumber) {
         List<PendingFaqResponse> faqResponseList = new ArrayList<>();
-        List<Object[]> map = fAQRepository.allPendingPreviews();
+        List<Object[]> map = fAQRepository.allPendingPreviews(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         for (Object[] obj : map) {
             PendingFaqResponse faqResponse = new PendingFaqResponse();
             faqResponse.setId((Integer)obj[0]);
