@@ -32,6 +32,7 @@ import net.fosterlink.fosterlinkbackend.repositories.mappers.FaqMapper;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -349,6 +350,52 @@ public class FaqController {
             }
         }
         return ResponseEntity.status(403).build();
+    }
+
+    @Operation(
+            summary = "Delete an FAQ",
+            description = "Permanently deletes an FAQ and its approval record. Only accessible to administrators. Rate limit: 15 requests per 60 seconds per user.",
+            tags = {"FAQ", "Admin"},
+            parameters = {
+                    @Parameter(name = "id", description = "The internal ID of the FAQ to delete", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The FAQ was successfully deleted"
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The FAQ with the provided ID could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user."
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @DeleteMapping("/delete")
+    @Transactional
+    public ResponseEntity<?> deleteFaq(@RequestParam int id) {
+        if (!JwtUtil.isLoggedIn()) {
+            return ResponseEntity.status(403).build();
+        }
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        if (!user.isAdministrator()) {
+            return ResponseEntity.status(403).build();
+        }
+        if (!fAQRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        fAQApprovalRepository.deleteByFaqId(id);
+        fAQRepository.deleteById(id);
+        return ResponseEntity.ok().build();
     }
     @Operation(
             summary = "Create an FAQ suggestion request",

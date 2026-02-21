@@ -78,7 +78,7 @@ public class UserController {
                     )
             }
     )
-    @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 30)
+    @RateLimit(requests = 5, burstRequests = 4, burstDurationSeconds = 30)
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegisterModel model) {
 

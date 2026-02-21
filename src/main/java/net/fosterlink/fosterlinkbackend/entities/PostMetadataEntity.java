@@ -1,5 +1,6 @@
 package net.fosterlink.fosterlinkbackend.entities;
 
+import jakarta.annotation.Nullable;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -17,5 +18,7 @@ public class PostMetadataEntity {
     private boolean user_deleted;
     private boolean locked;
     private boolean verified;
+    @Nullable
+    private String hidden_by;
 
 }

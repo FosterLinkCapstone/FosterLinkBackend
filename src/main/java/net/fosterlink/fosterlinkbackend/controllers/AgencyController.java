@@ -28,6 +28,7 @@ import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AgencyMapper;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -257,6 +258,55 @@ public class AgencyController {
         if (userEntity.isAdministrator()) {
             return ResponseEntity.ok(agencyRepository.countByApprovedNull());
         } else return ResponseEntity.status(403).build();
+    }
+
+    @Operation(
+            summary = "Delete an agency",
+            description = "Permanently deletes an agency, its deletion requests (if any), and its address. Only accessible to administrators. Rate limit: 15 requests per 60 seconds per user.",
+            tags = {"Agency", "Admin"},
+            parameters = {
+                    @io.swagger.v3.oas.annotations.Parameter(name = "id", description = "The internal ID of the agency to delete", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The agency was successfully deleted"
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "The user attempted to access an administrator-only endpoint without administrator privileges, or without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The agency with the provided ID could not be found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user."
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @DeleteMapping("/delete")
+    @Transactional
+    public ResponseEntity<?> deleteAgency(@RequestParam int id) {
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        if (user == null || !user.isAdministrator()) {
+            return ResponseEntity.status(403).build();
+        }
+        Optional<AgencyEntity> agencyOpt = agencyRepository.findById(id);
+        if (agencyOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        AgencyEntity agency = agencyOpt.get();
+        LocationEntity address = agency.getAddress();
+        agencyRepository.deleteDeletionRequestsByAgencyId(id);
+        agencyRepository.deleteById(id);
+        if (address != null) {
+            locationRepository.deleteById(address.getId());
+        }
+        return ResponseEntity.ok().build();
     }
 
 }

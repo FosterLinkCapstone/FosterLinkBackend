@@ -2,9 +2,11 @@ package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -87,5 +89,10 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
 
     @Query("SELECT a FROM AgencyEntity a WHERE a.agent.id = :agentId")
     List<AgencyEntity> findByAgentId(@Param("agentId") int agentId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM agency_deletion_request WHERE agency = :agencyId", nativeQuery = true)
+    void deleteDeletionRequestsByAgencyId(@Param("agencyId") int agencyId);
 
 }

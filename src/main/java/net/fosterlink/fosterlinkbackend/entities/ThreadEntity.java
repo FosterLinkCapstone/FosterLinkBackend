@@ -26,7 +26,7 @@ public class ThreadEntity {
     @ManyToOne(cascade = CascadeType.ALL)
     @JoinColumn(name="metadata")
     private PostMetadataEntity postMetadata;
-    @ManyToOne(cascade = CascadeType.ALL)
+    @ManyToOne
     @JoinColumn(name="posted_by")
     private UserEntity postedBy;
 
