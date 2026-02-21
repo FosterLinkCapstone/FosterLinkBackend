@@ -21,7 +21,7 @@ public interface FAQApprovalRepository extends CrudRepository<FAQApprovalEntity,
         SUM(CASE WHEN appr.approved = FALSE THEN 1 ELSE 0 END) as countDenied
     FROM faq fa
     LEFT JOIN faq_approval appr ON appr.faq_id = fa.id
-    WHERE fa.author = :userId
+    WHERE fa.author = :userId AND (appr.hidden_by IS NULL)
     LIMIT 1
     """, nativeQuery = true)
     List<Object[]> getApprovalCountsForUser(@Param("userId") int userId);

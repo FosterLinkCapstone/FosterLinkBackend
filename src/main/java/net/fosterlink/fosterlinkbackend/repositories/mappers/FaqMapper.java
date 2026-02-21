@@ -112,4 +112,31 @@ public class FaqMapper {
         }
         return faqRequestResponseList;
     }
+
+    public List<HiddenFaqResponse> allHiddenByAdminPreviews(int pageNumber) {
+        List<Object[]> rows = fAQRepository.allHiddenByAdminPreviews(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+        return mapHiddenFaqResponses(rows);
+    }
+
+    public List<HiddenFaqResponse> allHiddenByUserPreviews(int pageNumber) {
+        List<Object[]> rows = fAQRepository.allHiddenByUserPreviews(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+        return mapHiddenFaqResponses(rows);
+    }
+
+    private List<HiddenFaqResponse> mapHiddenFaqResponses(List<Object[]> rows) {
+        List<HiddenFaqResponse> result = new ArrayList<>();
+        for (Object[] obj : rows) {
+            HiddenFaqResponse r = new HiddenFaqResponse();
+            r.setId((Integer) obj[0]);
+            r.setTitle((String) obj[1]);
+            r.setSummary((String) obj[2]);
+            r.setCreatedAt((Date) obj[3]);
+            r.setUpdatedAt((Date) obj[4]);
+            r.setHiddenBy((String) obj[5]);
+            r.setHiddenByAuthor(Boolean.TRUE.equals(obj[6]));
+            r.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7, 16)));
+            result.add(r);
+        }
+        return result;
+    }
 }

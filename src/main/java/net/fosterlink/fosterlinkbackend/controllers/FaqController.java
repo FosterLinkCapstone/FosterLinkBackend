@@ -19,11 +19,13 @@ import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqSuggestionModel;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqRequestResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.GetFaqsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetHiddenFaqsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.GetPendingFaqsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PendingFaqResponse;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.models.web.faq.ApproveFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqModel;
+import net.fosterlink.fosterlinkbackend.models.web.faq.HiddenFaqType;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRequestRepository;
@@ -471,6 +473,120 @@ public class FaqController {
         if (faqs.isEmpty()) return ResponseEntity.notFound().build();
 
         return ResponseEntity.ok(faqs);
+    }
+
+    @Operation(
+            summary = "Hide or restore an FAQ",
+            description = "Allows an FAQ author to hide (soft-delete) their own FAQ, or an administrator to hide any FAQ. Administrators can also restore hidden FAQs. Rate limit: 10 requests per 60 seconds per user.",
+            tags = {"FAQ", "Admin", "FaqAuthor"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The FAQ was successfully hidden or restored"),
+                    @ApiResponse(responseCode = "403", description = "The user does not have permission to perform this action"),
+                    @ApiResponse(responseCode = "404", description = "The FAQ was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 10, keyType = "USER")
+    @PostMapping("/hide")
+    public ResponseEntity<?> hideFaq(@RequestParam int faqId, @RequestParam boolean hidden) {
+        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
+
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        Optional<FaqEntity> faqOpt = fAQRepository.findById(faqId);
+        if (faqOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        Optional<FAQApprovalEntity> approvalOpt = fAQApprovalRepository.findFAQApprovalEntityByFaqId(faqId);
+        boolean isAuthor = faqOpt.get().getAuthor().getId() == user.getId();
+        boolean hiddenByAuthor = isAuthor && !user.isAdministrator();
+
+        FAQApprovalEntity approval;
+        if (approvalOpt.isEmpty()) {
+            if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+            approval = new FAQApprovalEntity();
+            approval.setFaqId(faqId);
+        } else {
+            approval = approvalOpt.get();
+        }
+
+        if (user.isAdministrator() || (hiddenByAuthor && hidden)) {
+            if (hidden) {
+                approval.setHiddenByAuthor(hiddenByAuthor);
+                approval.setHiddenBy(user.getUsername());
+            } else {
+                approval.setHiddenByAuthor(false);
+                approval.setHiddenBy(null);
+            }
+            fAQApprovalRepository.save(approval);
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.status(403).build();
+        }
+    }
+
+    @Operation(
+            summary = "Get hidden FAQs",
+            description = "Retrieves a paginated list of hidden FAQs filtered by who hid them. Only accessible to administrators. Rate limit: 50 requests per 60 seconds per IP.",
+            tags = {"FAQ", "Admin"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Paginated list of hidden FAQs",
+                            content = @Content(mediaType = "application/json",
+                                    schema = @Schema(implementation = GetHiddenFaqsResponse.class))),
+                    @ApiResponse(responseCode = "403", description = "Administrator privileges required"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit
+    @PostMapping("/getHidden")
+    public ResponseEntity<?> getHiddenFaqs(@RequestParam HiddenFaqType type, @RequestParam int pageNumber) {
+        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
+
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+
+        int totalCount;
+        var faqs = type == HiddenFaqType.ADMIN
+                ? faqMapper.allHiddenByAdminPreviews(pageNumber)
+                : faqMapper.allHiddenByUserPreviews(pageNumber);
+        totalCount = type == HiddenFaqType.ADMIN
+                ? fAQRepository.countHiddenByAdmin()
+                : fAQRepository.countHiddenByUser();
+        int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+        return ResponseEntity.ok(new GetHiddenFaqsResponse(faqs, totalPages));
+    }
+
+    @Operation(
+            summary = "Permanently delete a hidden FAQ",
+            description = "Permanently deletes a hidden FAQ and its approval record. Only accessible to administrators. Rate limit: 5 requests per 60 seconds per user.",
+            tags = {"FAQ", "Admin"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The FAQ was permanently deleted"),
+                    @ApiResponse(responseCode = "403", description = "Administrator privileges required"),
+                    @ApiResponse(responseCode = "404", description = "The FAQ was not found or is not hidden"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 5, keyType = "USER")
+    @DeleteMapping("/hidden/delete")
+    @Transactional
+    public ResponseEntity<?> deleteHiddenFaq(@RequestParam int id) {
+        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
+
+        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+
+        if (!fAQRepository.existsById(id)) return ResponseEntity.notFound().build();
+
+        Optional<FAQApprovalEntity> approvalOpt = fAQApprovalRepository.findFAQApprovalEntityByFaqId(id);
+        if (approvalOpt.isEmpty() || approvalOpt.get().getHiddenBy() == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        fAQApprovalRepository.deleteByFaqId(id);
+        fAQRepository.deleteById(id);
+        return ResponseEntity.ok().build();
     }
 
 }

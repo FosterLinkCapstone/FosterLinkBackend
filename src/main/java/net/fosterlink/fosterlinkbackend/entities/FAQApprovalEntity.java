@@ -19,7 +19,9 @@ public class FAQApprovalEntity {
     private int faqId;
     /** true if approved, false if denied. */
     private boolean approved;
-    /** ID of the user (administrator) who performed the approval/denial. */
-    private int approvedById;
+    /** ID of the user (administrator) who performed the approval/denial. NULL if no admin has acted yet. */
+    private Integer approvedById;
+    private boolean hiddenByAuthor;
+    private String hiddenBy;
 
 }
