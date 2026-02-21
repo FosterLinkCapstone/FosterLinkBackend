@@ -40,6 +40,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * REST API for user operations: registration, login, profile updates, privilege checks, and profile metadata.
+ * Base path: /v1/users/
+ */
 @RestController
 @RequestMapping("/v1/users/")
 public class UserController {

@@ -39,6 +39,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * REST API for FAQ management: list approved/pending FAQs, create, approve/deny, delete, and FAQ suggestion requests.
+ * Base path: /v1/faq/
+ */
 @RestController
 @RequestMapping("/v1/faq/")
 public class FaqController {

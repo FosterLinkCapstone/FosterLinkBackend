@@ -36,6 +36,10 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * REST API for forum threads and replies: create, update, delete, search, like, and reply to threads.
+ * Base path: /v1/threads/
+ */
 @RestController
 @RequestMapping("/v1/threads/")
 public class ThreadController {

@@ -34,6 +34,10 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.util.Optional;
 
+/**
+ * REST API for agency management: list approved/pending agencies, create, approve/deny, and delete agencies.
+ * Base path: /v1/agencies/
+ */
 @RestController
 @RequestMapping("/v1/agencies/")
 public class AgencyController {
