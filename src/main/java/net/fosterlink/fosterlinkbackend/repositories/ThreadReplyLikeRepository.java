@@ -15,4 +15,7 @@ public interface ThreadReplyLikeRepository extends CrudRepository<ThreadReplyLik
     @Transactional
     void deleteThreadReplyLikeEntitiesByThreadAndUser(int thread, UserEntity user);
 
+    @Transactional
+    void deleteByThreadIn(java.util.Collection<Integer> replyIds);
+
 }

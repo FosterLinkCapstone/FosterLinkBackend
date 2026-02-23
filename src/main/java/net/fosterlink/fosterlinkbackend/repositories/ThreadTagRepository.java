@@ -18,4 +18,7 @@ public interface ThreadTagRepository extends CrudRepository<ThreadTagEntity, Int
     @Query("SELECT DISTINCT tt.thread.id FROM ThreadTagEntity tt WHERE tt.name LIKE CONCAT('%', :name, '%')")
     List<Integer> findThreadIdsByName(@Param("name") String name);
 
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByThread_Id(int threadId);
+
 }

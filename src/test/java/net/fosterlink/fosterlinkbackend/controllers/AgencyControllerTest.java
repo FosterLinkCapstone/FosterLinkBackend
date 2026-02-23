@@ -5,6 +5,7 @@ import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ApproveAgencyResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetAgenciesResponse;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
 import net.fosterlink.fosterlinkbackend.repositories.LocationRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -66,39 +68,47 @@ class AgencyControllerTest {
     }
 
     @Test
-    void testGetAllAgencies_ReturnsOkWithList() {
+    void testGetAllAgencies_ReturnsOkWithGetAgenciesResponse() {
         // Arrange
         List<AgencyResponse> agencies = Collections.singletonList(new AgencyResponse());
-        when(agencyMapper.getAllApprovedAgencies()).thenReturn(agencies);
+        when(agencyMapper.getAllApprovedAgencies(0)).thenReturn(agencies);
+        when(agencyRepository.countApproved()).thenReturn(25);
 
         // Act
-        ResponseEntity<?> response = agencyController.getAllAgencies();
+        ResponseEntity<?> response = agencyController.getAllAgencies(0);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(agencies, response.getBody());
-        verify(agencyMapper, times(1)).getAllApprovedAgencies();
+        assertInstanceOf(GetAgenciesResponse.class, response.getBody());
+        GetAgenciesResponse body = (GetAgenciesResponse) response.getBody();
+        assertEquals(agencies, body.getAgencies());
+        // Pagination: 25 total items, 10 per page -> 3 pages
+        assertEquals(3, body.getTotalPages());
+        verify(agencyMapper, times(1)).getAllApprovedAgencies(0);
     }
 
     @Test
-    void testGetPendingAgencies_Admin_ReturnsOkWithList() {
+    void testGetPendingAgencies_Admin_ReturnsOkWithGetAgenciesResponse() {
         // Arrange
         List<AgencyResponse> pending = Collections.singletonList(new AgencyResponse());
-        when(agencyMapper.getAllPendingAgencies()).thenReturn(pending);
+        when(agencyMapper.getAllPendingAgencies(0)).thenReturn(pending);
+        when(agencyRepository.countPendingOrDenied()).thenReturn(5);
 
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
             when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
 
             // Act
-            ResponseEntity<?> response = agencyController.getPendingAgencies();
+            ResponseEntity<?> response = agencyController.getPendingAgencies(0);
 
             // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertEquals(pending, response.getBody());
-            verify(agencyMapper, times(1)).getAllPendingAgencies();
+            assertInstanceOf(GetAgenciesResponse.class, response.getBody());
+            GetAgenciesResponse body = (GetAgenciesResponse) response.getBody();
+            assertEquals(pending, body.getAgencies());
+            // Pagination: 5 items, 10 per page -> 1 page
+            assertEquals(1, body.getTotalPages());
+            verify(agencyMapper, times(1)).getAllPendingAgencies(0);
         }
     }
 
@@ -109,11 +119,11 @@ class AgencyControllerTest {
             when(userRepository.findByEmail("user@example.com")).thenReturn(nonAdminUser);
 
             // Act
-            ResponseEntity<?> response = agencyController.getPendingAgencies();
+            ResponseEntity<?> response = agencyController.getPendingAgencies(0);
 
             // Assert
             assertEquals(403, response.getStatusCode().value());
-            verify(agencyMapper, never()).getAllPendingAgencies();
+            verify(agencyMapper, never()).getAllPendingAgencies(anyInt());
         }
     }
 

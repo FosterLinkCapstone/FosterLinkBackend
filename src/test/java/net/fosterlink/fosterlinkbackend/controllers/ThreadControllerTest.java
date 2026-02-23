@@ -115,7 +115,8 @@ class ThreadControllerTest {
             GetThreadsResponse body = (GetThreadsResponse) response.getBody();
             assertNotNull(body.getThreads());
             assertEquals(1, body.getThreads().size());
-            assertTrue(body.getTotalPages() >= 1);
+            // Pagination: 25 total items, 10 per page -> 3 pages
+            assertEquals(3, body.getTotalPages());
         }
     }
 
@@ -161,6 +162,8 @@ class ThreadControllerTest {
             assertInstanceOf(GetThreadsResponse.class, response.getBody());
             GetThreadsResponse body = (GetThreadsResponse) response.getBody();
             assertEquals(threads, body.getThreads());
+            // Pagination: 5 items, 10 per page -> 1 page
+            assertEquals(1, body.getTotalPages());
         }
     }
 

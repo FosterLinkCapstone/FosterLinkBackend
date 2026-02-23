@@ -4,7 +4,9 @@ import net.fosterlink.fosterlinkbackend.entities.LocationEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
+import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -17,14 +19,14 @@ public class AgencyMapper {
     private @Autowired AgencyRepository agencyRepository;
     private @Autowired UserMapper userMapper;
 
-    public List<AgencyResponse> getAllApprovedAgencies() {
+    public List<AgencyResponse> getAllApprovedAgencies(int pageNumber) {
         List<AgencyResponse> agencies = new ArrayList<>();
-        List<Object[]> toMap = agencyRepository.allApprovedAgencies();
+        List<Object[]> toMap = agencyRepository.allApprovedAgencies(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         return getAgencyResponses(agencies, toMap);
     }
-    public List<AgencyResponse> getAllPendingAgencies() {
+    public List<AgencyResponse> getAllPendingAgencies(int pageNumber) {
         List<AgencyResponse> agencies = new ArrayList<>();
-        List<Object[]> toMap = agencyRepository.allPendingAgencies();
+        List<Object[]> toMap = agencyRepository.allPendingAgencies(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         return getAgencyResponses(agencies, toMap);
     }
 

@@ -1,5 +1,6 @@
 package net.fosterlink.fosterlinkbackend.repositories.mappers;
 
+import net.fosterlink.fosterlinkbackend.models.rest.PostMetadataResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadReplyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.repositories.ThreadReplyRepository;
@@ -33,10 +34,32 @@ public class ThreadReplyMapper {
 
         return response;
     }
+
+    private ThreadReplyResponse mapThreadReplyWithMetadata(Object[] row) {
+        ThreadReplyResponse response = mapThreadReply(row);
+
+        // row[15] = pm.id, [16] = pm.hidden, [17] = pm.user_deleted, [18] = pm.locked, [19] = pm.verified, [20] = pm.hidden_by
+        PostMetadataResponse metadata = new PostMetadataResponse(
+            ((Number) row[15]).intValue(),
+            (Boolean) row[16],
+            (Boolean) row[17],
+            (Boolean) row[18],
+            (Boolean) row[19],
+            (String) row[20]
+        );
+        response.setPostMetadata(metadata);
+
+        return response;
+    }
+
     public List<ThreadReplyResponse> getRepliesForThread(int threadId, int userId) {
-        List<Object[]> results =  threadReplyRepository.getRepliesForThread(threadId, userId);
+        List<Object[]> results = threadReplyRepository.getRepliesForThread(threadId, userId);
         return results.stream().map(this::mapThreadReply).collect(Collectors.toCollection(ArrayList::new));
     }
 
+    public List<ThreadReplyResponse> getAllRepliesForThreadAdmin(int threadId, int userId) {
+        List<Object[]> results = threadReplyRepository.getAllRepliesForThreadAdmin(threadId, userId);
+        return results.stream().map(this::mapThreadReplyWithMetadata).collect(Collectors.toCollection(ArrayList::new));
+    }
 
 }

@@ -1,6 +1,7 @@
 package net.fosterlink.fosterlinkbackend.models.web.faq;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 @Data
@@ -9,6 +10,7 @@ import lombok.Data;
 public class ApproveFaqModel {
 
     @Schema(description = "The internal ID of the FAQ to approve or deny")
+    @Positive
     private int id;
     @Schema(description = "true to approve the FAQ, false to deny it")
     private boolean approved;
