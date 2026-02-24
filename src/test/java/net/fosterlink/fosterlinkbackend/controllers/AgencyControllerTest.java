@@ -27,7 +27,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,22 +69,62 @@ class AgencyControllerTest {
 
     @Test
     void testGetAllAgencies_ReturnsOkWithGetAgenciesResponse() {
-        // Arrange
+        // Arrange (not logged in: no deletion request info, no current user)
         List<AgencyResponse> agencies = Collections.singletonList(new AgencyResponse());
-        when(agencyMapper.getAllApprovedAgencies(0)).thenReturn(agencies);
+        when(agencyMapper.getAllApprovedAgencies(eq(0), eq(false), eq(null))).thenReturn(agencies);
         when(agencyRepository.countApproved()).thenReturn(25);
 
-        // Act
-        ResponseEntity<?> response = agencyController.getAllAgencies(0);
+        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
+            jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(false);
 
-        // Assert
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertInstanceOf(GetAgenciesResponse.class, response.getBody());
-        GetAgenciesResponse body = (GetAgenciesResponse) response.getBody();
-        assertEquals(agencies, body.getAgencies());
-        // Pagination: 25 total items, 10 per page -> 3 pages
-        assertEquals(3, body.getTotalPages());
-        verify(agencyMapper, times(1)).getAllApprovedAgencies(0);
+            // Act
+            ResponseEntity<?> response = agencyController.getAllAgencies(0);
+
+            // Assert
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            assertInstanceOf(GetAgenciesResponse.class, response.getBody());
+            GetAgenciesResponse body = (GetAgenciesResponse) response.getBody();
+            assertEquals(agencies, body.getAgencies());
+            assertEquals(3, body.getTotalPages());
+            verify(agencyMapper, times(1)).getAllApprovedAgencies(0, false, null);
+        }
+    }
+
+    @Test
+    void testGetAllAgencies_Admin_IncludesDeletionRequestInfo() {
+        List<AgencyResponse> agencies = Collections.singletonList(new AgencyResponse());
+        when(agencyMapper.getAllApprovedAgencies(eq(0), eq(true), eq(1))).thenReturn(agencies);
+        when(agencyRepository.countApproved()).thenReturn(25);
+
+        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
+            jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
+            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
+            when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
+
+            ResponseEntity<?> response = agencyController.getAllAgencies(0);
+
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            verify(agencyMapper, times(1)).getAllApprovedAgencies(0, true, 1);
+        }
+    }
+
+    @Test
+    void testGetAllAgencies_Owner_ReceivesCurrentUserIdForOwnAgencies() {
+        // Non-admin owner: includeDeletionRequestForAdmin=false, currentUserId so they see deletion request on their own agencies
+        List<AgencyResponse> agencies = Collections.singletonList(new AgencyResponse());
+        when(agencyMapper.getAllApprovedAgencies(eq(0), eq(false), eq(2))).thenReturn(agencies);
+        when(agencyRepository.countApproved()).thenReturn(25);
+
+        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
+            jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
+            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("user@example.com");
+            when(userRepository.findByEmail("user@example.com")).thenReturn(nonAdminUser);
+
+            ResponseEntity<?> response = agencyController.getAllAgencies(0);
+
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            verify(agencyMapper, times(1)).getAllApprovedAgencies(0, false, 2);
+        }
     }
 
     @Test
@@ -132,7 +172,7 @@ class AgencyControllerTest {
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
             when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
-            when(agencyRepository.countByApprovedNull()).thenReturn(5L);
+            when(agencyRepository.countPending()).thenReturn(5L);
 
             // Act
             ResponseEntity<?> response = agencyController.countPending();
@@ -140,7 +180,7 @@ class AgencyControllerTest {
             // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertEquals(5L, response.getBody());
-            verify(agencyRepository, times(1)).countByApprovedNull();
+            verify(agencyRepository, times(1)).countPending();
         }
     }
 
@@ -155,7 +195,7 @@ class AgencyControllerTest {
 
             // Assert
             assertEquals(403, response.getStatusCode().value());
-            verify(agencyRepository, never()).countByApprovedNull();
+            verify(agencyRepository, never()).countPending();
         }
     }
 

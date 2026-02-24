@@ -1,0 +1,2 @@
+ALTER TABLE agency ADD hidden BOOLEAN DEFAULT FALSE; 
+ALTER TABLE agency ADD hidden_by_username VARCHAR(50) NULL;

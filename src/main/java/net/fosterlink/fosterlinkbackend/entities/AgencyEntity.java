@@ -25,6 +25,8 @@ public class AgencyEntity {
     private Boolean approved;
     /** ID of the user (administrator) who approved or denied. */
     private Integer approved_by_id;
+    private boolean hidden;
+    private String hiddenByUsername;
 
     /** Physical address of the agency. */
     @OneToOne(fetch = FetchType.LAZY)
