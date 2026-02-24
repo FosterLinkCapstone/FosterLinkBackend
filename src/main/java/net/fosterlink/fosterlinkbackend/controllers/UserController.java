@@ -20,6 +20,7 @@ import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
+import net.fosterlink.fosterlinkbackend.mail.RegistrationMailService;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
@@ -60,6 +61,8 @@ public class UserController {
     private PasswordEncoder passwordEncoder;
     @Autowired
     private UserMapper userMapper;
+    @Autowired(required = false)
+    private RegistrationMailService registrationMailService;
 
     @Operation(
             summary = "Register a new user",
@@ -102,6 +105,9 @@ public class UserController {
         userEntity.setProfilePictureUrl(DEFAULT_PROFILE_PIC);
 
         UserEntity dbEntity = userRepository.save(userEntity);
+        /*if (registrationMailService != null) { TODO: uncomment once email server is configured
+            registrationMailService.sendThankYouForRegistering(dbEntity.getEmail(), dbEntity.getFirstName());
+        }*/
         try {
             String jwt = loginUser(dbEntity.getEmail(), model.getPassword());
             return ResponseEntity.ok(Map.of("token", jwt));

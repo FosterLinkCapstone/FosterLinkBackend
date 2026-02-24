@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.*;
 import net.fosterlink.fosterlinkbackend.models.rest.GetThreadsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetHiddenThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.HiddenThreadResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadReplyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
@@ -723,6 +724,22 @@ public class ThreadController {
         }
     }
 
+    @Operation(
+            summary = "Hide or restore a reply",
+            description = "Hides or restores a reply. Authors can hide their own reply (soft delete); administrators can hide any reply or restore hidden replies. Rate limit: 10 requests per 60 seconds per user, with burst limit of 3 requests per 30 seconds.",
+            tags = {"Thread", "Admin"},
+            parameters = {
+                    @Parameter(name = "replyId", description = "The internal ID of the reply to hide or restore", required = true),
+                    @Parameter(name = "hidden", description = "true to hide, false to restore", required = true)
+            },
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The reply was successfully hidden or restored"),
+                    @ApiResponse(responseCode = "403", description = "Not logged in, or insufficient permission (author can only hide own reply; admin can hide/restore any)"),
+                    @ApiResponse(responseCode = "404", description = "The reply was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @RateLimit(requests = 10, burstRequests = 3, burstDurationSeconds = 30, keyType = "USER")
     @PostMapping("/replies/hide")
     public ResponseEntity<?> hideReply(@RequestParam int replyId, @RequestParam boolean hidden) {
@@ -751,6 +768,21 @@ public class ThreadController {
         }
     }
 
+    @Operation(
+            summary = "Permanently delete a hidden reply",
+            description = "Permanently deletes a hidden reply and its metadata. Administrator only. Rate limit: 5 requests per 60 seconds per user, with burst limit of 2.",
+            tags = {"Thread", "Admin"},
+            parameters = {
+                    @Parameter(name = "replyId", description = "The internal ID of the hidden reply to permanently delete", required = true)
+            },
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The reply was permanently deleted"),
+                    @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
+                    @ApiResponse(responseCode = "404", description = "The reply was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @RateLimit(requests = 5, burstRequests = 2, keyType = "USER")
     @DeleteMapping("/replies/hidden/delete")
     @Transactional
@@ -855,6 +887,28 @@ public class ThreadController {
             return ResponseEntity.status(403).build();
         }
     }
+    @Operation(
+            summary = "Get a single hidden thread by ID",
+            description = "Retrieves one hidden thread by ID, including full post metadata. Administrator only. Rate limit: default per IP.",
+            tags = {"Thread", "Admin"},
+            parameters = {
+                    @Parameter(name = "threadId", description = "The internal ID of the hidden thread", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The hidden thread",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = HiddenThreadResponse.class)
+                            )
+                    ),
+                    @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
+                    @ApiResponse(responseCode = "404", description = "The thread was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @RateLimit
     @GetMapping("/hidden")
     public ResponseEntity<?> getHiddenThread(@RequestParam int threadId) {
@@ -875,6 +929,22 @@ public class ThreadController {
         }
     }
 
+    @Operation(
+            summary = "Hide or restore a thread",
+            description = "Hides or restores a thread. Authors can hide their own thread (soft delete); administrators can hide any thread or restore hidden threads. Rate limit: 10 requests per 60 seconds per user, with burst limit of 3 requests per 30 seconds.",
+            tags = {"Thread", "Admin"},
+            parameters = {
+                    @Parameter(name = "threadId", description = "The internal ID of the thread to hide or restore", required = true),
+                    @Parameter(name = "hidden", description = "true to hide, false to restore", required = true)
+            },
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The thread was successfully hidden or restored"),
+                    @ApiResponse(responseCode = "403", description = "Not logged in, or insufficient permission (author can only hide own thread; admin can hide/restore any)"),
+                    @ApiResponse(responseCode = "404", description = "The thread was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @RateLimit(requests = 10, burstRequests = 3, burstDurationSeconds = 30, keyType = "USER")
     @PostMapping("/hide")
     public ResponseEntity<?> hideThread(@RequestParam int threadId, @RequestParam boolean hidden) {
@@ -903,6 +973,28 @@ public class ThreadController {
         }
     }
 
+    @Operation(
+            summary = "Get paginated hidden threads",
+            description = "Retrieves a paginated list of hidden threads, filtered by who hid them (admin or user). Administrator only. Rate limit: default per IP.",
+            tags = {"Thread", "Admin"},
+            parameters = {
+                    @Parameter(name = "hiddenThreadType", description = "ADMIN for threads hidden by admins, USER for threads hidden by their author", required = true),
+                    @Parameter(name = "pageNumber", description = "Zero-based page index", required = true)
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Paginated list of hidden threads",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = GetHiddenThreadsResponse.class)
+                            )
+                    ),
+                    @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @RateLimit
     @PostMapping("/getHidden")
     public ResponseEntity<?> getHiddenThreads(@RequestParam HiddenThreadType hiddenThreadType, @RequestParam int pageNumber) {
@@ -922,6 +1014,21 @@ public class ThreadController {
         }
     }
 
+    @Operation(
+            summary = "Permanently delete a hidden thread",
+            description = "Permanently deletes a hidden thread and all its replies, likes, and metadata. Administrator only. Rate limit: 5 requests per 60 seconds per user, with burst limit of 2.",
+            tags = {"Thread", "Admin"},
+            parameters = {
+                    @Parameter(name = "threadId", description = "The internal ID of the hidden thread to permanently delete", required = true)
+            },
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The thread was permanently deleted"),
+                    @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
+                    @ApiResponse(responseCode = "404", description = "The thread was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
     @RateLimit(requests = 5, burstRequests = 2, keyType = "USER")
     @DeleteMapping("/hidden/delete")
     @Transactional

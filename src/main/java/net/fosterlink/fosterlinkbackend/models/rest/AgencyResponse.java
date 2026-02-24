@@ -28,4 +28,16 @@ public class AgencyResponse {
     @Schema(description = "The username of the administrator who approved/denied the agency. Can be null if pending.")
     private String approvedByUsername;
 
+    @Schema(description = "The username of the administrator who hid this agency. Null if not hidden.")
+    private String hiddenByUsername;
+
+    @Schema(description = "If the owner has requested deletion, the date the request was created. Null otherwise.")
+    private java.util.Date deletionRequestedAt;
+
+    @Schema(description = "If the owner has requested deletion, the username of the requester. Null otherwise.")
+    private String deletionRequestedByUsername;
+
+    @Schema(description = "If the owner has requested deletion, the ID of the pending deletion request. Null otherwise.")
+    private Integer deletionRequestId;
+
 }
