@@ -33,4 +33,4 @@ schemas = [ "fosterlink_prod" ]
 
 [environments.fosterlinkdev]
 url = "jdbc:mysql://localhost:8889"
-schemas = [ "fosterlink_dev" ]
+schemas = [ "fosterlink_prod" ]

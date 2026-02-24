@@ -368,34 +368,6 @@ public class UserController {
         return ResponseEntity.ok(false);
     }
     @Operation(
-            summary = "Check if user is verified agency representative",
-            description = "Returns whether the currently logged-in user is a verified agency representative. Returns false if not logged in. Rate limit: 60 requests per 60 seconds per IP.",
-            tags = {"User"},
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200",
-                            description = "Whether the user is a verified agency representative",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    schema = @Schema(type = "boolean", description = "true if the user is a verified agency representative, false otherwise")
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "429",
-                            description = "Rate limit exceeded. Maximum 60 requests per 60 seconds per IP."
-                    )
-            }
-    )
-    @RateLimit(requests = 60)
-    @GetMapping("/isAgent")
-    public ResponseEntity<?> isAgent() {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            return ResponseEntity.ok(user.isVerifiedAgencyRep());
-        }
-        return ResponseEntity.ok(false);
-    }
-    @Operation(
             summary = "Check if user is FAQ author",
             description = "Returns whether the currently logged-in user is an FAQ author. Returns false if not logged in. Rate limit: 60 requests per 60 seconds per IP.",
             tags = {"User"},

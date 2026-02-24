@@ -31,9 +31,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -224,83 +221,6 @@ public class ThreadController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok().body(thread);
-    }
-
-    @Operation(
-            summary = "Search threads by title",
-            description = "Search for threads by title, including partial matches. Rate limit: 30 requests per 60 seconds per IP.",
-            tags = {"Thread"},
-            parameters = {
-                    @Parameter(name="title", description = "The title, or a portion of the title, that should be searched."),
-                    @Parameter(name="pageNumber", description = "Zero-based page index")
-            },
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200",
-                            description = "A collection of threads were found with similar titles. The response can also be empty, which means no threads were found.",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    array = @ArraySchema(schema = @Schema(implementation = ThreadResponse.class))
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "429",
-                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per IP."
-                    )
-            }
-    )
-    @RateLimit(requests = 30)
-    @GetMapping("/search-by-title")
-    public ResponseEntity<?> searchByTitle(@RequestParam String title, @RequestParam int pageNumber) {
-        List<ThreadEntity> threads = threadRepository.findByContentContaining(title, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
-        return ResponseEntity.ok(toResponseModel(threads));
-    }
-
-    @Operation(
-            summary = "Search threads by date",
-            description = "Search for threads by the day they were created on. Rate limit: 30 requests per 60 seconds per IP.",
-            tags = {"Thread"},
-            parameters = {
-                    @Parameter(name="date", description = "The day on which to search. Must be formatted as MM-dd-yyyy", example = "01-01-2026")
-            },
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200",
-                            description = "A collection of threads made on the specified date."
-                    ),
-                    @ApiResponse(
-                            responseCode = "400",
-                            description = "The date provided was not in the proper format. Must be MM-dd-yyyy"
-                    ),
-                    @ApiResponse(
-                            responseCode = "429",
-                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per IP."
-                    )
-            }
-    )
-    @RateLimit(requests = 30)
-    // REQUIRED FORMAT mm-dd-yyyy
-    @GetMapping("/search-by-date")
-    public ResponseEntity<?> searchByDate(@RequestParam String date) {
-        DateFormat sourceFormat = new SimpleDateFormat("MM-dd-yyyy");
-        try {
-            Date dateParsed = sourceFormat.parse(date);
-            Calendar cal =  Calendar.getInstance();
-            cal.setTime(dateParsed);
-            cal.add(Calendar.HOUR_OF_DAY, 0);
-            cal.add(Calendar.MINUTE, 0);
-            cal.add(Calendar.SECOND, 0);
-            cal.add(Calendar.MILLISECOND, 0);
-            Date start = cal.getTime();
-            cal.add(Calendar.DAY_OF_MONTH, 1);
-            Date end = cal.getTime();
-
-            List<ThreadEntity> threads = threadRepository.findByCreatedAtBetween(start, end);
-            return ResponseEntity.ok(toResponseModel(threads));
-
-        } catch (ParseException e) {
-            return ResponseEntity.badRequest().build();
-        }
     }
 
     @Operation(
