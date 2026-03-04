@@ -17,6 +17,8 @@ import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PrivilegesResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.UserSettingsResponse;
+import net.fosterlink.fosterlinkbackend.models.web.user.ChangePasswordModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
@@ -234,6 +236,39 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
+    @Operation(
+            summary = "Change the current user's password",
+            description = "Verifies the user's old password and, if correct, replaces it with the new one. The user will be logged out after a successful change. Rate limit: 5 requests per 60 seconds per user.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Password changed successfully. The user has been logged out."),
+                    @ApiResponse(responseCode = "401", description = "The old password provided is incorrect."),
+                    @ApiResponse(responseCode = "404", description = "No user found for the current JWT."),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 5, keyType = "USER")
+    @PostMapping("/changePassword")
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordModel model, HttpServletRequest req) {
+        String email = JwtUtil.getLoggedInEmail();
+        UserEntity user = email != null ? userRepository.findByEmail(email) : null;
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        if (!passwordEncoder.matches(model.getOldPassword(), user.getPassword())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        user.setPassword(passwordEncoder.encode(model.getNewPassword()));
+        userRepository.save(user);
+        try {
+            manualLogout(req);
+        } catch (ServletException e) {
+            return ResponseEntity.status(500).build();
+        }
+        return ResponseEntity.ok().build();
+    }
+
     @Operation(summary = "Delete a user",
             description = "Deletes the user that is currently logged in. The user that makes the request will be the user that is deleted. Rate limit: 5 requests per 60 seconds per user.",
             tags={"User"},
@@ -272,6 +307,41 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
     }
+    @Operation(
+            summary = "Get account settings for the currently logged-in user",
+            description = "Returns editable account fields (firstName, lastName, email, phoneNumber, username, profilePictureUrl) for the currently authenticated user. Rate limit: 30 requests per 60 seconds per user.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "The editable account settings for the logged-in user",
+                            content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserSettingsResponse.class))
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "No user found for the current JWT"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded."
+                    )
+            }, security = {
+                    @SecurityRequirement(name = "bearerAuth")
+            }
+    )
+    @RateLimit(requests = 30, keyType = "USER")
+    @GetMapping("/getSettings")
+    public ResponseEntity<?> getUserSettings() {
+        String email = JwtUtil.getLoggedInEmail();
+        UserEntity user = userRepository.findByEmail(email);
+        if (user != null) {
+            return ResponseEntity.ok(new UserSettingsResponse(user));
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
+
     @Operation(
             summary = "Get the information of the currently logged in user",
             description = "Returns the profile information of the currently authenticated user. Rate limit: 60 requests per 60 seconds per IP.",
