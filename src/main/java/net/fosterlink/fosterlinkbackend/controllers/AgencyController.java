@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
+import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.AgencyDeletionRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
 import net.fosterlink.fosterlinkbackend.entities.LocationEntity;
@@ -32,6 +33,7 @@ import net.fosterlink.fosterlinkbackend.repositories.mappers.AgencyMapper;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -51,16 +53,14 @@ public class AgencyController {
     private final LocationRepository locationRepository;
     private final AgencyRepository agencyRepository;
     private final AgencyDeletionRequestRepository deletionRequestRepository;
-    private final GeoApiContext geoApiContext;
     private final EntityManager entityManager;
 
-    public AgencyController(AgencyMapper agencyMapper, UserRepository userRepository, LocationRepository locationRepository, AgencyRepository agencyRepository, AgencyDeletionRequestRepository deletionRequestRepository, GeoApiContext geoApiContext, EntityManager entityManager) {
+    public AgencyController(AgencyMapper agencyMapper, UserRepository userRepository, LocationRepository locationRepository, AgencyRepository agencyRepository, AgencyDeletionRequestRepository deletionRequestRepository, EntityManager entityManager) {
         this.agencyMapper = agencyMapper;
         this.userRepository = userRepository;
         this.locationRepository = locationRepository;
         this.agencyRepository = agencyRepository;
         this.deletionRequestRepository = deletionRequestRepository;
-        this.geoApiContext = geoApiContext;
         this.entityManager = entityManager;
     }
 
@@ -128,9 +128,9 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingAgencies(@RequestParam int pageNumber) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         int totalCount = agencyRepository.countPendingOrDenied();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllPendingAgencies(pageNumber), totalPages));
@@ -160,10 +160,11 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/approve")
     @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> approveAgency(@Valid @RequestBody ApproveAgencyResponse model) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         Optional<AgencyEntity> agency = agencyRepository.findById(model.getId());
         if (agency.isPresent()) {
@@ -204,13 +205,12 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 30, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAnyAuthority('ADMINISTRATOR','AGENCY_REP')")
     @PostMapping("/create")
     public ResponseEntity<?> createAgency(@Valid @RequestBody CreateAgencyModel model) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR") && !JwtUtil.hasAuthority("AGENCY_REP")) {
-            return ResponseEntity.status(403).build();
-        }
         LoggedInUser loggedInUser = JwtUtil.getLoggedInUser();
-        UserEntity user = loggedInUser != null ? userRepository.findById(loggedInUser.getDatabaseId()).orElse(null) : null;
+        UserEntity user = userRepository.findById(loggedInUser.getDatabaseId()).orElse(null);
         if (user != null) {
                     AgencyEntity agency =  new AgencyEntity();
                     agency.setName(model.getName());
@@ -271,9 +271,9 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @GetMapping("/pending/count")
     public ResponseEntity<?> countPending() {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(agencyRepository.countPending());
     }
 
@@ -305,11 +305,12 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @DeleteMapping("/delete")
     @Transactional
     @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> deleteAgency(@RequestParam int id) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         Optional<AgencyEntity> agencyOpt = agencyRepository.findById(id);
         if (agencyOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -342,10 +343,11 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/hide")
     @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> hideAgency(@RequestParam int id, @RequestParam boolean hidden) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         UserEntity user = loggedIn != null ? userRepository.findById(loggedIn.getDatabaseId()).orElse(null) : null;
         if (user == null) return ResponseEntity.status(403).build();
@@ -382,10 +384,9 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @GetMapping("/getHidden")
     public ResponseEntity<?> getHiddenAgencies(@RequestParam int pageNumber) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
-
         int totalCount = agencyRepository.countHidden();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllHiddenAgencies(pageNumber), totalPages));
@@ -407,6 +408,7 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 60, keyType = "USER")
+    @DisallowRestricted
     @PostMapping("/deletion-request")
     public ResponseEntity<?> createDeletionRequest(@RequestParam int agencyId) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -447,6 +449,7 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 10, keyType = "USER")
+    @DisallowRestricted
     @DeleteMapping("/deletion-request")
     @Transactional
     public ResponseEntity<?> cancelDeletionRequest(@RequestParam int agencyId) {
@@ -487,10 +490,9 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @GetMapping("/deletion-requests")
     public ResponseEntity<?> getDeletionRequests(@RequestParam int pageNumber) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
-
         int totalCount = deletionRequestRepository.countPending();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         return ResponseEntity.ok(new GetAgencyDeletionRequestsResponse(agencyMapper.getAllDeletionRequests(pageNumber), totalPages));
@@ -513,12 +515,12 @@ public class AgencyController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/deletion-request/approve")
     @Transactional
     @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> approveDeletionRequest(@RequestParam int requestId, @RequestParam boolean approved) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
-
         Optional<AgencyDeletionRequestEntity> requestOpt = deletionRequestRepository.findById(requestId);
         if (requestOpt.isEmpty()) return ResponseEntity.notFound().build();
 

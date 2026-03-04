@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
+import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.AccountDeletionRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AccountDeletionRequestResponse;
@@ -22,6 +23,7 @@ import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -156,12 +158,11 @@ public class AccountDeletionController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @GetMapping("/requests")
     public ResponseEntity<?> getDeletionRequests(
             @RequestParam int pageNumber,
             @RequestParam(defaultValue = "recency") String sortBy) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
-
         int totalCount = deletionRequestRepository.countPending();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
 
@@ -188,12 +189,12 @@ public class AccountDeletionController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/approve")
     @Transactional
     public ResponseEntity<?> approveDeletion(@RequestParam int requestId) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         LoggedInUser loggedInAdmin = JwtUtil.getLoggedInUser();
-        UserEntity admin = loggedInAdmin != null ? userRepository.findById(loggedInAdmin.getDatabaseId()).orElse(null) : null;
+        UserEntity admin = userRepository.findById(loggedInAdmin.getDatabaseId()).orElse(null);
         if (admin == null) return ResponseEntity.status(403).build();
 
         Optional<AccountDeletionRequestEntity> requestOpt = deletionRequestRepository.findById(requestId);
@@ -217,12 +218,12 @@ public class AccountDeletionController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/delay")
     @Transactional
     public ResponseEntity<?> delayDeletion(@Valid @RequestBody DelayDeletionModel model) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         LoggedInUser loggedInAdmin = JwtUtil.getLoggedInUser();
-        UserEntity admin = loggedInAdmin != null ? userRepository.findById(loggedInAdmin.getDatabaseId()).orElse(null) : null;
+        UserEntity admin = userRepository.findById(loggedInAdmin.getDatabaseId()).orElse(null);
         if (admin == null) return ResponseEntity.status(403).build();
 
         Optional<AccountDeletionRequestEntity> requestOpt = deletionRequestRepository.findById(model.getRequestId());

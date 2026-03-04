@@ -11,6 +11,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
+import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.*;
 import net.fosterlink.fosterlinkbackend.models.rest.GetThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.GetHiddenThreadsResponse;
@@ -29,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -88,6 +90,7 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 15, keyType = "USER")
+    @DisallowRestricted
     @PostMapping("/create")
     public ResponseEntity<?> create(@Valid @RequestBody CreateThreadModel model) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -163,6 +166,7 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 10, keyType = "USER")
+    @DisallowRestricted
     @PutMapping("/update")
     public ResponseEntity<?> update(@Valid @RequestBody UpdateThreadModel model) {
 
@@ -307,6 +311,8 @@ public class ThreadController {
 
     )
     @RateLimit(requests = 5, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/delete")
     @Transactional
     public ResponseEntity<?> deleteById(@RequestParam int threadId) {
@@ -509,6 +515,7 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, burstRequests = 3, burstDurationSeconds = 10, keyType = "USER")
+    @DisallowRestricted
     @PostMapping("/replies")
     public ResponseEntity<?> replyTo(@Valid @RequestBody ReplyToThreadModel reply) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -571,6 +578,7 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 10, keyType = "USER")
+    @DisallowRestricted
     @PutMapping("/replies/update")
     public ResponseEntity<?> updateReply(@Valid @RequestBody UpdateReplyModel model) {
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(model.getReplyId()).orElse(null);
@@ -627,6 +635,8 @@ public class ThreadController {
             }
     )
     @RateLimit(requests = 5, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/replies/delete")
     public ResponseEntity<?> deleteReplyById(@RequestParam int replyId) {
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
@@ -670,6 +680,8 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 10, burstRequests = 3, burstDurationSeconds = 30, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/replies/hide")
     public ResponseEntity<?> hideReply(@RequestParam int replyId, @RequestParam boolean hidden) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -714,11 +726,11 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 5, burstRequests = 2, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @DeleteMapping("/replies/hidden/delete")
     @Transactional
     public ResponseEntity<?> fullDeleteHiddenReply(@RequestParam int replyId) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
-
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
         if (reply == null) return ResponseEntity.status(404).build();
 
@@ -753,6 +765,7 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
+    @DisallowRestricted
     @PostMapping("/replies/like")
     public ResponseEntity<?> likeReply(@Valid @RequestBody LikeReplyModel likeReply) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -798,6 +811,7 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
+    @DisallowRestricted
     @PostMapping("/like")
     public ResponseEntity<?> likeThread(@Valid @RequestBody LikeThreadModel model) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -841,9 +855,10 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @GetMapping("/hidden")
     public ResponseEntity<?> getHiddenThread(@RequestParam int threadId) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        if (JwtUtil.getLoggedInUser() == null) return ResponseEntity.status(403).build();
         int uid = JwtUtil.getLoggedInUser().getDatabaseId();
         HiddenThreadResponse hiddenThreadResponse = threadMapper.findHiddenThreadById(threadId, uid);
         return hiddenThreadResponse != null ? ResponseEntity.ok(hiddenThreadResponse) : ResponseEntity.notFound().build();
@@ -866,6 +881,8 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 10, burstRequests = 3, burstDurationSeconds = 30, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/hide")
     @Transactional
     public ResponseEntity<?> hideThread(@RequestParam int threadId, @RequestParam boolean hidden) {
@@ -919,9 +936,9 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/getHidden")
     public ResponseEntity<?> getHiddenThreads(@RequestParam HiddenThreadType hiddenThreadType, @RequestParam int pageNumber) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         int uid = JwtUtil.getLoggedInUser().getDatabaseId();
         if (hiddenThreadType == HiddenThreadType.ADMIN) {
             return ResponseEntity.ok(threadMapper.getHiddenThreadsAdminDeleted(pageNumber, uid));
@@ -946,38 +963,34 @@ public class ThreadController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 5, burstRequests = 2, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @DeleteMapping("/hidden/delete")
     @Transactional
     public ResponseEntity<?> fullDeleteHiddenThread(@RequestParam int threadId) {
-        if (JwtUtil.hasAuthority("ADMINISTRATOR")) {
-            {
-                var threadOpt = threadRepository.findByIdWithRelations(threadId);
-                if (threadOpt.isEmpty()) {
-                    return ResponseEntity.status(404).build();
-                }
-                ThreadEntity thread = threadOpt.get();
-                int metadataId = thread.getPostMetadata().getId();
-                // Delete in order: reply likes (for all replies), replies, reply metadata, thread likes, thread tags, thread, thread metadata
-                List<ThreadReplyEntity> replies = threadReplyRepository.findByThreadId(threadId);
-                List<Integer> replyMetadataIds = replies.stream()
-                        .map(r -> r.getMetadata().getId())
-                        .toList();
-                if (!replies.isEmpty()) {
-                    List<Integer> replyIds = replies.stream().map(ThreadReplyEntity::getId).toList();
-                    threadReplyLikeRepository.deleteByThreadIn(replyIds);
-                }
-                threadReplyRepository.deleteByThreadId(threadId);
-                replyMetadataIds.forEach(postMetadataRepository::deleteById);
-                threadLikeRepository.deleteByThread(threadId);
-                threadTagRepository.deleteByThread_Id(threadId);
-                entityManager.flush();
-                threadRepository.deleteThreadById(threadId);
-                postMetadataRepository.deleteById(metadataId);
-                return ResponseEntity.ok().build();
-            }
-        } else {
-            return ResponseEntity.status(403).build();
+        var threadOpt = threadRepository.findByIdWithRelations(threadId);
+        if (threadOpt.isEmpty()) {
+            return ResponseEntity.status(404).build();
         }
+        ThreadEntity thread = threadOpt.get();
+        int metadataId = thread.getPostMetadata().getId();
+        // Delete in order: reply likes (for all replies), replies, reply metadata, thread likes, thread tags, thread, thread metadata
+        List<ThreadReplyEntity> replies = threadReplyRepository.findByThreadId(threadId);
+        List<Integer> replyMetadataIds = replies.stream()
+                .map(r -> r.getMetadata().getId())
+                .toList();
+        if (!replies.isEmpty()) {
+            List<Integer> replyIds = replies.stream().map(ThreadReplyEntity::getId).toList();
+            threadReplyLikeRepository.deleteByThreadIn(replyIds);
+        }
+        threadReplyRepository.deleteByThreadId(threadId);
+        replyMetadataIds.forEach(postMetadataRepository::deleteById);
+        threadLikeRepository.deleteByThread(threadId);
+        threadTagRepository.deleteByThread_Id(threadId);
+        entityManager.flush();
+        threadRepository.deleteThreadById(threadId);
+        postMetadataRepository.deleteById(metadataId);
+        return ResponseEntity.ok().build();
     }
 
     private List<ThreadResponse> toResponseModel(List<ThreadEntity> threads) {

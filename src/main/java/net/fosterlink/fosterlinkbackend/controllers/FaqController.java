@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
+import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.FAQApprovalEntity;
 import net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
@@ -36,6 +37,7 @@ import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -152,24 +154,23 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAnyAuthority('FAQ_AUTHOR','ADMINISTRATOR')")
     @PostMapping("/create")
     public ResponseEntity<?> create(@Valid @RequestBody CreateFaqModel createFaqModel) {
-        if (JwtUtil.hasAuthority("FAQ_AUTHOR") || JwtUtil.hasAuthority("ADMINISTRATOR")) {
-            LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
-            UserEntity user = loggedIn != null ? userRepository.findById(loggedIn.getDatabaseId()).orElse(null) : null;
-            if (user != null) {
-                FaqEntity faqEntity = new FaqEntity();
-                faqEntity.setAuthor(user);
-                faqEntity.setContent(createFaqModel.getContent());
-                faqEntity.setTitle(createFaqModel.getTitle());
-                faqEntity.setSummary(createFaqModel.getSummary());
-                faqEntity.setCreatedAt(new Date());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user == null) return ResponseEntity.status(403).build();
 
-                FaqEntity saved = fAQRepository.save(faqEntity);
-                return ResponseEntity.ok(faqMapper.mapNewFaq(saved));
-            }
-        }
-        return ResponseEntity.status(403).build();
+        FaqEntity faqEntity = new FaqEntity();
+        faqEntity.setAuthor(user);
+        faqEntity.setContent(createFaqModel.getContent());
+        faqEntity.setTitle(createFaqModel.getTitle());
+        faqEntity.setSummary(createFaqModel.getSummary());
+        faqEntity.setCreatedAt(new Date());
+
+        FaqEntity saved = fAQRepository.save(faqEntity);
+        return ResponseEntity.ok(faqMapper.mapNewFaq(saved));
     }
 
     @Operation(
@@ -200,9 +201,9 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingFaqs(@RequestParam int pageNumber) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         int totalCount = fAQRepository.countPending();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         return ResponseEntity.ok(new GetPendingFaqsResponse(faqMapper.allPendingPreviews(pageNumber), totalPages));
@@ -260,10 +261,11 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/approve")
     @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> approveFaq(@Valid @RequestBody ApproveFaqModel faq) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         Optional<FaqEntity> faqEntity = fAQRepository.findById(faq.getId());
         if (faqEntity.isPresent()) {
@@ -303,12 +305,10 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAnyAuthority('ADMINISTRATOR','FAQ_AUTHOR')")
     @GetMapping("/requests")
     public ResponseEntity<?> getRequests() {
-        if (JwtUtil.hasAuthority("ADMINISTRATOR") || JwtUtil.hasAuthority("FAQ_AUTHOR")) {
-            return ResponseEntity.ok(faqMapper.getAllRequests());
-        }
-        return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(faqMapper.getAllRequests());
     }
     @Operation(
             summary = "Answer/delete an FAQ request",
@@ -331,13 +331,12 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAnyAuthority('ADMINISTRATOR','FAQ_AUTHOR')")
     @PostMapping("/requests/answer")
     public ResponseEntity<?> answerRequest(@Valid @RequestBody AnswerFaqSuggestionResponse model) {
-        if (JwtUtil.hasAuthority("ADMINISTRATOR") || JwtUtil.hasAuthority("FAQ_AUTHOR")) {
-            fAQRequestRepository.deleteById(model.getReqId());
-            return ResponseEntity.ok().build();
-        }
-        return ResponseEntity.status(403).build();
+        fAQRequestRepository.deleteById(model.getReqId());
+        return ResponseEntity.ok().build();
     }
 
     @Operation(
@@ -368,11 +367,12 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @DeleteMapping("/delete")
     @Transactional
     @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> deleteFaq(@RequestParam int id) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         if (!fAQRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
@@ -401,6 +401,7 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 10, burstRequests = 2, burstDurationSeconds = 15)
+    @DisallowRestricted
     @PostMapping("/requests/create")
     public ResponseEntity<?> createFaqRequest(@Valid @RequestBody CreateFaqSuggestionModel model) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -465,6 +466,8 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 10, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/hide")
     @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> hideFaq(@RequestParam int faqId, @RequestParam boolean hidden) {
@@ -517,10 +520,9 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/getHidden")
     public ResponseEntity<?> getHiddenFaqs(@RequestParam HiddenFaqType type, @RequestParam int pageNumber) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
-
         int totalCount;
         var faqs = type == HiddenFaqType.ADMIN
                 ? faqMapper.allHiddenByAdminPreviews(pageNumber)
@@ -545,12 +547,12 @@ public class FaqController {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @RateLimit(requests = 5, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @DeleteMapping("/hidden/delete")
     @Transactional
     @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> deleteHiddenFaq(@RequestParam int id) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
-
         if (!fAQRepository.existsById(id)) return ResponseEntity.notFound().build();
 
         Optional<FAQApprovalEntity> approvalOpt = fAQApprovalRepository.findFAQApprovalEntityByFaqId(id);

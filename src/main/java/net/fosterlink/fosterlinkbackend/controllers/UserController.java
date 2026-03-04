@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
+import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
@@ -32,8 +33,11 @@ import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -92,6 +96,7 @@ public class UserController {
             }
     )
     @RateLimit(requests = 5, burstRequests = 4, burstDurationSeconds = 30)
+    @DisallowRestricted
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegisterModel model) {
 
@@ -154,6 +159,8 @@ public class UserController {
         try {
             String jwt = loginUser(model.getEmail(), model.getPassword());
             return ResponseEntity.ok(Map.of("token", jwt));
+        } catch (DisabledException | LockedException e) {
+            return ResponseEntity.status(403).body(Map.of("reason", "banned"));
         } catch (BadCredentialsException e) {
             return ResponseEntity.status(401).build();
         } catch (Exception e) {
@@ -195,6 +202,7 @@ public class UserController {
              }
      )
      @RateLimit(requests = 10, keyType = "USER")
+    @DisallowRestricted
     @PutMapping("/update")
     public ResponseEntity<?> updateUser(@Valid @RequestBody UpdateUserModel model, HttpServletRequest req) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -258,6 +266,7 @@ public class UserController {
             security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @RateLimit(requests = 5, keyType = "USER")
+    @DisallowRestricted
     @PostMapping("/changePassword")
     public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordModel model, HttpServletRequest req) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
@@ -615,15 +624,17 @@ public class UserController {
             security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/ban")
     public ResponseEntity<?> banUser(@RequestParam int userId) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
         if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         UserEntity target = targetOpt.get();
         target.setBannedAt(new Date());
         userRepository.save(target);
         banStatusService.evict(target.getEmail());
+        banStatusService.evictProfileMetadata(target.getId());
         return ResponseEntity.ok().build();
     }
 
@@ -639,15 +650,17 @@ public class UserController {
             security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/unban")
     public ResponseEntity<?> unbanUser(@RequestParam int userId) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
         if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         UserEntity target = targetOpt.get();
         target.setBannedAt(null);
         userRepository.save(target);
         banStatusService.evict(target.getEmail());
+        banStatusService.evictProfileMetadata(target.getId());
         return ResponseEntity.ok().build();
     }
 
@@ -663,9 +676,10 @@ public class UserController {
             security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/restrict")
     public ResponseEntity<?> restrictUser(@RequestParam int userId, @RequestParam(required = false) String restrictedUntil) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
         if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         UserEntity target = targetOpt.get();
@@ -676,6 +690,8 @@ public class UserController {
             } catch (java.text.ParseException ignored) {}
         }
         userRepository.save(target);
+        banStatusService.evict(target.getEmail());
+        banStatusService.evictProfileMetadata(target.getId());
         return ResponseEntity.ok().build();
     }
 
@@ -691,15 +707,18 @@ public class UserController {
             security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/unrestrict")
     public ResponseEntity<?> unrestrictUser(@RequestParam int userId) {
-        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
         if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         UserEntity target = targetOpt.get();
         target.setRestrictedAt(null);
         target.setRestrictedUntil(null);
         userRepository.save(target);
+        banStatusService.evict(target.getEmail());
+        banStatusService.evictProfileMetadata(target.getId());
         return ResponseEntity.ok().build();
     }
 

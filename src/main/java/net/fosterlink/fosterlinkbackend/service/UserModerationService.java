@@ -18,6 +18,9 @@ public class UserModerationService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private BanStatusService banStatusService;
+
     /**
      * Finds all users whose temporary restriction has expired (restrictedUntil is in the past)
      * and clears their restriction. Users with a null restrictedUntil are permanently restricted
@@ -30,6 +33,8 @@ public class UserModerationService {
             user.setRestrictedAt(null);
             user.setRestrictedUntil(null);
             userRepository.save(user);
+            banStatusService.evict(user.getEmail());
+            banStatusService.evictProfileMetadata(user.getId());
         }
     }
 }

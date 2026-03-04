@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
  *
  * Ban status lookups are served from an in-memory Caffeine cache keyed by email.
  * Entries expire after 5 minutes as a safety net and are explicitly evicted when
- * a user is banned or unbanned so changes take effect immediately.
+ * a user is banned, unbanned, restricted, or unrestricted so changes take effect immediately.
  *
  * UserDetails cache mirrors the same keys so the filter's loadUserByUsername call
  * is also covered by the same eviction paths.
@@ -36,7 +36,7 @@ public class BanStatusService {
 
     /**
      * Evicts both the ban status and the cached UserDetails for the given email.
-     * Must be called after any ban or unban operation.
+     * Must be called after any ban, unban, restrict, or unrestrict operation.
      */
     @Caching(evict = {
             @CacheEvict(value = "bannedUsers",  key = "#email"),

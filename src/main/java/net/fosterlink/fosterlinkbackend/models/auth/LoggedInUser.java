@@ -35,6 +35,7 @@ public class LoggedInUser implements UserDetails {
     private boolean credentialsNonExpired;
     /** Whether the account is not locked. */
     private boolean accountNonLocked;
+    private boolean restricted;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

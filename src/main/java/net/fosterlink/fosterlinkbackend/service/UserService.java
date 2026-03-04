@@ -36,7 +36,7 @@ public class UserService implements UserDetailsService {
         boolean isBanned = userEntity.getBannedAt() != null;
         boolean enabled = !isBanned;
         boolean accountNonLocked = !isBanned;
-        return new LoggedInUser(userEntity.getId(), userEntity.getEmail(), userEntity.getPassword(), buildAuthorities(userEntity), enabled, true, true, accountNonLocked);
+        return new LoggedInUser(userEntity.getId(), userEntity.getEmail(), userEntity.getPassword(), buildAuthorities(userEntity), enabled, true, true, accountNonLocked, userEntity.getRestrictedAt() != null);
     }
     private Set<String> buildAuthorities(UserEntity user) {
         Set<String> authorities = new HashSet<>();
