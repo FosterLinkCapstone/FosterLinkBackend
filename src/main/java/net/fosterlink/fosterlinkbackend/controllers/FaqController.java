@@ -464,9 +464,8 @@ public class FaqController {
     @GetMapping("/allAuthor")
     public ResponseEntity<?> getAllAuthor(@RequestParam Integer userId, @RequestParam int pageNumber) {
 
-        boolean userExists = userRepository.existsById(userId);
-
-        if (!userExists) return ResponseEntity.notFound().build();
+        Optional<UserEntity> authorOpt = userRepository.findById(userId);
+        if (authorOpt.isEmpty() || authorOpt.get().isAccountDeleted()) return ResponseEntity.notFound().build();
 
         List<FaqResponse> faqs = faqMapper.allApprovedPreviewsForUser(userId, pageNumber);
 

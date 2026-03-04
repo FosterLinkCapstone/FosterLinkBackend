@@ -2,8 +2,11 @@ package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -164,5 +167,10 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
     WHERE fa.hidden_by IS NOT NULL AND fa.hidden_by_author = true
     """, nativeQuery = true)
     List<Object[]> allHiddenByUserPreviews(Pageable pageable);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM faq WHERE author = :userId", nativeQuery = true)
+    void deleteByAuthorId(@Param("userId") int userId);
 
 }

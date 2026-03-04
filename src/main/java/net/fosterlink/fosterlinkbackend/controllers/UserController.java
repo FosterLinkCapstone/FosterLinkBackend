@@ -495,8 +495,33 @@ public class UserController {
     @GetMapping("/profileMetadata")
     public ResponseEntity<?> getProfileMetadata(@RequestParam int userId) {
 
-        if (!userRepository.existsById(userId)) {
+        Optional<UserEntity> targetUserOpt = userRepository.findById(userId);
+        if (targetUserOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        UserEntity targetUser = targetUserOpt.get();
+
+        // Fully anonymized accounts (username set to "deleted_account_*" by anonymizeUser())
+        // have no meaningful profile — return 404 for everyone, including admins.
+        if (targetUser.getUsername() != null && targetUser.getUsername().startsWith("deleted_account_")) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        // Accounts pending deletion are visible only to the owner and administrators.
+        if (targetUser.isAccountDeleted()) {
+            boolean isOwner = false;
+            boolean isAdmin = false;
+            if (JwtUtil.isLoggedIn()) {
+                UserEntity requester = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+                if (requester != null) {
+                    isOwner = requester.getId() == userId;
+                    isAdmin = requester.isAdministrator();
+                }
+            }
+            if (!isOwner && !isAdmin) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
         }
 
         ProfileMetadataResponse res = userMapper.mapProfileMetadataResponse(userId);

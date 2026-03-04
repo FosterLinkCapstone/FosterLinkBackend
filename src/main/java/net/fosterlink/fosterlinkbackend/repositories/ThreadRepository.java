@@ -1,8 +1,10 @@
 package net.fosterlink.fosterlinkbackend.repositories;
 
+import jakarta.transaction.Transactional;
 import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
@@ -485,6 +487,28 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         WHERE pm.hidden = true AND pm.user_deleted = true
         """, nativeQuery = true)
     int countHiddenThreadsUserDeleted();
+
+    @Query(value = "SELECT id FROM thread WHERE posted_by = :userId", nativeQuery = true)
+    List<Integer> findIdsByPostedById(@Param("userId") int userId);
+
+    /** Bulk delete by id to avoid JPA loading the entity and trying to null out thread_tag/thread_like FKs (which are NOT NULL). */
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM ThreadEntity t WHERE t.id = :id")
+    void deleteThreadById(@Param("id") int id);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread t ON t.metadata = pm.id SET pm.hidden = true, pm.user_deleted = true WHERE t.posted_by = :userId AND pm.hidden = false", nativeQuery = true)
+    void hideVisibleThreadsByUserId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread t ON t.metadata = pm.id SET pm.hidden = false, pm.user_deleted = false WHERE t.posted_by = :userId AND pm.user_deleted = true", nativeQuery = true)
+    void unhideUserHiddenThreadsByUserId(@Param("userId") int userId);
+
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata WHERE t.postedBy.id = :userId")
+    List<ThreadEntity> findAllByPostedById(@Param("userId") int userId);
 
     @Query(value = """
     SELECT

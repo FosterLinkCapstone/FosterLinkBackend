@@ -79,4 +79,14 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
     @Transactional
     @Query(value = "DELETE FROM agency_deletion_request WHERE id = :id", nativeQuery = true)
     void deleteRequestById(@Param("id") int id);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE adr FROM agency_deletion_request adr INNER JOIN agency a ON adr.agency = a.id WHERE a.agent = :userId", nativeQuery = true)
+    void deleteByAgencyAgentId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE adr FROM agency_deletion_request adr INNER JOIN agency a ON adr.agency = a.id WHERE a.agent = :userId AND adr.approved IS NULL", nativeQuery = true)
+    void deletePendingByAgencyAgentId(@Param("userId") int userId);
 }

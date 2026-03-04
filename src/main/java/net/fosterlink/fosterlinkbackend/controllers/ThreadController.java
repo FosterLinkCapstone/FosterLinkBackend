@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.*;
@@ -58,6 +60,9 @@ public class ThreadController {
     private PostMetadataRepository postMetadataRepository;
     @Autowired
     private ThreadReplyRepository threadReplyRepository;
+    @Autowired
+    private EntityManager entityManager;
+
 
     @Operation(
             summary = "Create a new thread",
@@ -253,13 +258,12 @@ public class ThreadController {
     @RateLimit(requests = 30)
     @GetMapping("/search-by-user")
     public ResponseEntity<?> searchByUser(@RequestParam int userId, @RequestParam int pageNumber) {
-        boolean authorExists = userRepository.existsById(userId);
-
-        int sendingUserId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
-
-        if (!authorExists) {
+        Optional<UserEntity> authorOpt = userRepository.findById(userId);
+        if (authorOpt.isEmpty() || authorOpt.get().isAccountDeleted()) {
             return ResponseEntity.notFound().build();
         }
+
+        int sendingUserId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
 
         var threads = threadMapper.searchByUser(sendingUserId, userId, pageNumber);
         int totalCount = threadRepository.visibleThreadCountForUser(userId);
@@ -303,6 +307,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 5, keyType = "USER")
     @DeleteMapping("/delete")
+    @Transactional
     public ResponseEntity<?> deleteById(@RequestParam int threadId) {
         ThreadEntity t =  threadRepository.findByIdWithRelations(threadId).orElse(null);
 
@@ -867,6 +872,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 10, burstRequests = 3, burstDurationSeconds = 30, keyType = "USER")
     @PostMapping("/hide")
+    @Transactional
     public ResponseEntity<?> hideThread(@RequestParam int threadId, @RequestParam boolean hidden) {
         if (JwtUtil.isLoggedIn()) {
             UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
@@ -975,7 +981,8 @@ public class ThreadController {
                 replyMetadataIds.forEach(postMetadataRepository::deleteById);
                 threadLikeRepository.deleteByThread(threadId);
                 threadTagRepository.deleteByThread_Id(threadId);
-                threadRepository.deleteById(threadId);
+                entityManager.flush();
+                threadRepository.deleteThreadById(threadId);
                 postMetadataRepository.deleteById(metadataId);
                 return ResponseEntity.ok().build();
             } else {

@@ -117,4 +117,20 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
     @Query("DELETE FROM ThreadReplyEntity tr WHERE tr.thread_id = :threadId")
     void deleteByThreadId(@Param("threadId") int threadId);
 
+    @Query(value = "SELECT id FROM thread_reply WHERE posted_by = :userId", nativeQuery = true)
+    List<Integer> findIdsByPostedById(@Param("userId") int userId);
+
+    @Query("SELECT tr FROM ThreadReplyEntity tr WHERE tr.postedBy.id = :userId")
+    List<ThreadReplyEntity> findAllByPostedById(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread_reply tr ON tr.metadata = pm.id SET pm.hidden = true, pm.user_deleted = true WHERE tr.posted_by = :userId AND pm.hidden = false", nativeQuery = true)
+    void hideVisibleRepliesByUserId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread_reply tr ON tr.metadata = pm.id SET pm.hidden = false, pm.user_deleted = false WHERE tr.posted_by = :userId AND pm.user_deleted = true", nativeQuery = true)
+    void unhideUserHiddenRepliesByUserId(@Param("userId") int userId);
+
 }

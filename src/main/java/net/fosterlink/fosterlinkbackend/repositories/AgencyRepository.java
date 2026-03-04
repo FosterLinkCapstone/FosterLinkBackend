@@ -144,6 +144,16 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
 
     @Modifying
     @Transactional
+    @Query(value = "UPDATE agency SET hidden = true, hidden_by_username = '[account-deletion-pending]' WHERE agent = :userId AND hidden = false", nativeQuery = true)
+    void hideVisibleAgenciesByAgentId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE agency SET hidden = false, hidden_by_username = NULL WHERE agent = :userId AND hidden_by_username = '[account-deletion-pending]'", nativeQuery = true)
+    void unhidePendingDeletionAgenciesByAgentId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
     @Query(value = "DELETE FROM agency_deletion_request WHERE agency = :agencyId", nativeQuery = true)
     void deleteDeletionRequestsByAgencyId(@Param("agencyId") int agencyId);
 
