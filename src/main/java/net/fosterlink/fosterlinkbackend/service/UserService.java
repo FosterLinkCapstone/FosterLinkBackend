@@ -5,6 +5,7 @@ import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -25,13 +26,17 @@ public class UserService implements UserDetailsService {
      * @throws UsernameNotFoundException email not found
      */
     @Override
+    @Cacheable(value = "userDetails", key = "#email")
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         UserEntity userEntity = userRepository.findByEmail(email);
         if (userEntity == null) return null;
         return convertEntity(userEntity);
     }
     private LoggedInUser convertEntity(UserEntity userEntity) {
-        return new LoggedInUser(userEntity.getId(), userEntity.getEmail(), userEntity.getPassword(), buildAuthorities(userEntity), true, true, true, true); // TODO account locking choke point
+        boolean isBanned = userEntity.getBannedAt() != null;
+        boolean enabled = !isBanned;
+        boolean accountNonLocked = !isBanned;
+        return new LoggedInUser(userEntity.getId(), userEntity.getEmail(), userEntity.getPassword(), buildAuthorities(userEntity), enabled, true, true, accountNonLocked);
     }
     private Set<String> buildAuthorities(UserEntity user) {
         Set<String> authorities = new HashSet<>();

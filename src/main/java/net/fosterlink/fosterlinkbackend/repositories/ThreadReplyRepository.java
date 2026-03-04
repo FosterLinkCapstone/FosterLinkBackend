@@ -45,7 +45,9 @@ public interface ThreadReplyRepository extends CrudRepository<ThreadReplyEntity,
     u.verified_foster,
     u.faq_author,
     u.verified_agency_rep,
-    u.created_at as author_created_at
+    u.created_at as author_created_at,
+    u.banned_at,
+    u.restricted_at
 FROM thread_reply t
 INNER JOIN user u ON t.posted_by = u.id
 INNER JOIN post_metadata pm ON t.metadata = pm.id
@@ -60,7 +62,8 @@ WHERE t.thread_id = :threadId AND pm.hidden = false
 GROUP BY t.id, t.content, t.created_at, t.updated_at,
          likes.like_count, user_like.thread, u.id, u.first_name, u.last_name,
          u.username, u.profile_picture_url, u.verified_foster,
-         u.faq_author, u.verified_agency_rep, u.created_at
+         u.faq_author, u.verified_agency_rep, u.created_at,
+         u.banned_at, u.restricted_at
     """, nativeQuery = true)
     List<Object[]> getRepliesForThread(int threadId, int userId); // -1 if no user
     
@@ -81,6 +84,8 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
     u.faq_author,
     u.verified_agency_rep,
     u.created_at as author_created_at,
+    u.banned_at,
+    u.restricted_at,
     pm.id as metadata_id,
     pm.hidden,
     pm.user_deleted,
@@ -102,6 +107,7 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
          likes.like_count, user_like.thread, u.id, u.first_name, u.last_name,
          u.username, u.profile_picture_url, u.verified_foster,
          u.faq_author, u.verified_agency_rep, u.created_at,
+         u.banned_at, u.restricted_at,
          pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
     """, nativeQuery = true)
     List<Object[]> getAllRepliesForThreadAdmin(int threadId, int userId);

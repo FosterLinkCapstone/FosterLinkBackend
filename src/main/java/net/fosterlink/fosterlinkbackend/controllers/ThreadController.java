@@ -21,6 +21,7 @@ import net.fosterlink.fosterlinkbackend.models.web.thread.*;
 import net.fosterlink.fosterlinkbackend.repositories.*;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadMapper;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadReplyMapper;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.util.StringUtil;
@@ -28,8 +29,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -91,8 +90,8 @@ public class ThreadController {
     @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 15, keyType = "USER")
     @PostMapping("/create")
     public ResponseEntity<?> create(@Valid @RequestBody CreateThreadModel model) {
-
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        UserEntity user = loggedIn != null ? userRepository.findById(loggedIn.getDatabaseId()).orElse(null) : null;
 
         if (user != null) {
 
@@ -220,7 +219,8 @@ public class ThreadController {
     @RateLimit(requests = 30)
     @GetMapping("/search-by-id")
     public ResponseEntity<?> searchById(@RequestParam int threadId) {
-        int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        int userId = loggedIn != null ? loggedIn.getDatabaseId() : -1;
         ThreadResponse thread = threadMapper.findById(threadId, userId);
         if (thread == null) {
             return ResponseEntity.notFound().build();
@@ -263,7 +263,8 @@ public class ThreadController {
             return ResponseEntity.notFound().build();
         }
 
-        int sendingUserId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
+        LoggedInUser loggedInForSearch = JwtUtil.getLoggedInUser();
+        int sendingUserId = loggedInForSearch != null ? loggedInForSearch.getDatabaseId() : -1;
 
         var threads = threadMapper.searchByUser(sendingUserId, userId, pageNumber);
         int totalCount = threadRepository.visibleThreadCountForUser(userId);
@@ -315,8 +316,7 @@ public class ThreadController {
             return ResponseEntity.notFound().build();
         }
 
-        Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication().getAuthorities();
-        boolean isAdmin = authorities.stream().map(GrantedAuthority::getAuthority).anyMatch(s->s.equals("ADMINISTRATOR"));
+        boolean isAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
         String email = JwtUtil.getLoggedInEmail();
         if (t.getPostedBy().getEmail().equals(email) || isAdmin) {
             t.getPostMetadata().setHidden(true);
@@ -442,7 +442,8 @@ public class ThreadController {
             @RequestParam String orderBy,
             @RequestParam int pageNumber
     ) {
-        int userId = JwtUtil.isLoggedIn() ? userRepository.findByEmail(JwtUtil.getLoggedInEmail()).getId() : -1;
+        LoggedInUser loggedInForThreads = JwtUtil.getLoggedInUser();
+        int userId = loggedInForThreads != null ? loggedInForThreads.getDatabaseId() : -1;
         var threads = threadMapper.getThreads(orderBy, userId, pageNumber);
         int totalCount = threadRepository.countVisible();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
@@ -473,12 +474,13 @@ public class ThreadController {
     @RateLimit
     @GetMapping("/replies")
     public ResponseEntity<?> replies(@RequestParam int threadId) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isAdministrator()) {
-                return ResponseEntity.ok(threadReplyMapper.getAllRepliesForThreadAdmin(threadId, user.getId()));
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn != null) {
+            int uid = loggedIn.getDatabaseId();
+            if (JwtUtil.hasAuthority("ADMINISTRATOR")) {
+                return ResponseEntity.ok(threadReplyMapper.getAllRepliesForThreadAdmin(threadId, uid));
             }
-            return ResponseEntity.ok(threadReplyMapper.getRepliesForThread(threadId, user.getId()));
+            return ResponseEntity.ok(threadReplyMapper.getRepliesForThread(threadId, uid));
         }
         return ResponseEntity.ok(threadReplyMapper.getRepliesForThread(threadId, -1));
     }
@@ -509,8 +511,10 @@ public class ThreadController {
     @RateLimit(requests = 15, burstRequests = 3, burstDurationSeconds = 10, keyType = "USER")
     @PostMapping("/replies")
     public ResponseEntity<?> replyTo(@Valid @RequestBody ReplyToThreadModel reply) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn != null) {
+            UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+            if (user == null) return ResponseEntity.status(403).build();
 
             PostMetadataEntity postMetadata = new PostMetadataEntity();
             postMetadata.setHidden(false);
@@ -631,16 +635,16 @@ public class ThreadController {
             return ResponseEntity.notFound().build();
         }
 
-        Collection<? extends GrantedAuthority> authorities = SecurityContextHolder.getContext().getAuthentication().getAuthorities();
-        boolean isAdmin = authorities.stream().map(GrantedAuthority::getAuthority).anyMatch(s->s.equals("ADMINISTRATOR"));
+        boolean isAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
         String email = JwtUtil.getLoggedInEmail();
         if (reply.getPostedBy().getEmail().equals(email) || isAdmin) {
             reply.getMetadata().setHidden(true);
             if (!isAdmin) {
                 reply.getMetadata().setUser_deleted(true);
             } else {
-                UserEntity admin = userRepository.findByEmail(email);
-                reply.getMetadata().setHidden_by(admin.getUsername());
+                LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+                UserEntity admin = loggedIn != null ? userRepository.findById(loggedIn.getDatabaseId()).orElse(null) : null;
+                if (admin != null) reply.getMetadata().setHidden_by(admin.getUsername());
             }
             threadReplyRepository.save(reply);
             return ResponseEntity.ok().body(true);
@@ -668,9 +672,10 @@ public class ThreadController {
     @RateLimit(requests = 10, burstRequests = 3, burstDurationSeconds = 30, keyType = "USER")
     @PostMapping("/replies/hide")
     public ResponseEntity<?> hideReply(@RequestParam int replyId, @RequestParam boolean hidden) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user == null) return ResponseEntity.status(403).build();
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
         if (reply == null) return ResponseEntity.status(404).build();
 
@@ -712,10 +717,7 @@ public class ThreadController {
     @DeleteMapping("/replies/hidden/delete")
     @Transactional
     public ResponseEntity<?> fullDeleteHiddenReply(@RequestParam int replyId) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
 
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
         if (reply == null) return ResponseEntity.status(404).build();
@@ -753,8 +755,10 @@ public class ThreadController {
     @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
     @PostMapping("/replies/like")
     public ResponseEntity<?> likeReply(@Valid @RequestBody LikeReplyModel likeReply) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn != null) {
+            UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+            if (user == null) return ResponseEntity.status(403).build();
             if (!threadReplyLikeRepository.existsByThreadAndUser(likeReply.getReplyId(), user)) {
                 ThreadReplyLikeEntity threadReplyLikeEntity = new ThreadReplyLikeEntity();
                 threadReplyLikeEntity.setThread(likeReply.getReplyId());
@@ -796,8 +800,10 @@ public class ThreadController {
     @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
     @PostMapping("/like")
     public ResponseEntity<?> likeThread(@Valid @RequestBody LikeThreadModel model) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn != null) {
+            UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+            if (user == null) return ResponseEntity.status(403).build();
             if (!threadLikeRepository.existsByThreadAndUser(model.getThreadId(), user)) {
                 ThreadLikeEntity threadLikeEntity = new ThreadLikeEntity();
                 threadLikeEntity.setThread(model.getThreadId());
@@ -837,21 +843,10 @@ public class ThreadController {
     @RateLimit
     @GetMapping("/hidden")
     public ResponseEntity<?> getHiddenThread(@RequestParam int threadId) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isAdministrator()) {
-                HiddenThreadResponse  hiddenThreadResponse = threadMapper.findHiddenThreadById(threadId, user.getId());
-                if (hiddenThreadResponse != null) {
-                    return ResponseEntity.ok(hiddenThreadResponse);
-                } else {
-                    return ResponseEntity.notFound().build();
-                }
-            } else {
-                return ResponseEntity.status(403).build();
-            }
-        } else {
-            return ResponseEntity.status(403).build();
-        }
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        int uid = JwtUtil.getLoggedInUser().getDatabaseId();
+        HiddenThreadResponse hiddenThreadResponse = threadMapper.findHiddenThreadById(threadId, uid);
+        return hiddenThreadResponse != null ? ResponseEntity.ok(hiddenThreadResponse) : ResponseEntity.notFound().build();
     }
 
     @Operation(
@@ -874,8 +869,10 @@ public class ThreadController {
     @PostMapping("/hide")
     @Transactional
     public ResponseEntity<?> hideThread(@RequestParam int threadId, @RequestParam boolean hidden) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn != null) {
+            UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+            if (user == null) return ResponseEntity.status(403).build();
             Optional<ThreadEntity> thread = threadRepository.findByIdWithRelations(threadId);
             if (thread.isEmpty()) return ResponseEntity.status(404).build();
             boolean hiddenByAuthor = (thread.get().getPostedBy().getId() == user.getId()) && !user.isAdministrator();
@@ -924,19 +921,12 @@ public class ThreadController {
     @RateLimit
     @PostMapping("/getHidden")
     public ResponseEntity<?> getHiddenThreads(@RequestParam HiddenThreadType hiddenThreadType, @RequestParam int pageNumber) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isAdministrator()) {
-                if (hiddenThreadType == HiddenThreadType.ADMIN) {
-                    return ResponseEntity.ok(threadMapper.getHiddenThreadsAdminDeleted(pageNumber, user.getId()));
-                } else {
-                    return ResponseEntity.ok(threadMapper.getHiddenThreadsUserDeleted(pageNumber, user.getId()));
-                }
-            } else {
-                return ResponseEntity.status(403).build();
-            }
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        int uid = JwtUtil.getLoggedInUser().getDatabaseId();
+        if (hiddenThreadType == HiddenThreadType.ADMIN) {
+            return ResponseEntity.ok(threadMapper.getHiddenThreadsAdminDeleted(pageNumber, uid));
         } else {
-            return ResponseEntity.status(403).build();
+            return ResponseEntity.ok(threadMapper.getHiddenThreadsUserDeleted(pageNumber, uid));
         }
     }
 
@@ -959,9 +949,8 @@ public class ThreadController {
     @DeleteMapping("/hidden/delete")
     @Transactional
     public ResponseEntity<?> fullDeleteHiddenThread(@RequestParam int threadId) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isAdministrator()) {
+        if (JwtUtil.hasAuthority("ADMINISTRATOR")) {
+            {
                 var threadOpt = threadRepository.findByIdWithRelations(threadId);
                 if (threadOpt.isEmpty()) {
                     return ResponseEntity.status(404).build();
@@ -985,8 +974,6 @@ public class ThreadController {
                 threadRepository.deleteThreadById(threadId);
                 postMetadataRepository.deleteById(metadataId);
                 return ResponseEntity.ok().build();
-            } else {
-                return ResponseEntity.status(403).build();
             }
         } else {
             return ResponseEntity.status(403).build();

@@ -17,6 +17,7 @@ import net.fosterlink.fosterlinkbackend.repositories.AccountDeletionRequestRepos
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AccountDeletionRequestMapper;
 import net.fosterlink.fosterlinkbackend.service.AccountDeletionService;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import org.jetbrains.annotations.NotNull;
@@ -65,8 +66,9 @@ public class AccountDeletionController {
     @PostMapping("/request")
     @Transactional
     public ResponseEntity<?> requestDeletion(@RequestParam boolean clearAccount) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         if (user == null) return ResponseEntity.status(403).build();
 
         Optional<AccountDeletionRequestEntity> existing = deletionRequestRepository.findPendingByUserId(user.getId());
@@ -92,8 +94,9 @@ public class AccountDeletionController {
     @DeleteMapping("/cancel")
     @Transactional
     public ResponseEntity<?> cancelDeletion() {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         if (user == null) return ResponseEntity.status(403).build();
 
         Optional<AccountDeletionRequestEntity> requestOpt = deletionRequestRepository.findPendingByUserId(user.getId());
@@ -120,8 +123,9 @@ public class AccountDeletionController {
     @RateLimit(requests = 30, keyType = "USER")
     @GetMapping("/my-request")
     public ResponseEntity<?> getMyRequest() {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         if (user == null) return ResponseEntity.status(403).build();
 
         Optional<AccountDeletionRequestEntity> requestOpt = deletionRequestRepository.findPendingByUserId(user.getId());
@@ -156,9 +160,7 @@ public class AccountDeletionController {
     public ResponseEntity<?> getDeletionRequests(
             @RequestParam int pageNumber,
             @RequestParam(defaultValue = "recency") String sortBy) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (user == null || !user.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
 
         int totalCount = deletionRequestRepository.countPending();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
@@ -189,9 +191,10 @@ public class AccountDeletionController {
     @PostMapping("/approve")
     @Transactional
     public ResponseEntity<?> approveDeletion(@RequestParam int requestId) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity admin = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (admin == null || !admin.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        LoggedInUser loggedInAdmin = JwtUtil.getLoggedInUser();
+        UserEntity admin = loggedInAdmin != null ? userRepository.findById(loggedInAdmin.getDatabaseId()).orElse(null) : null;
+        if (admin == null) return ResponseEntity.status(403).build();
 
         Optional<AccountDeletionRequestEntity> requestOpt = deletionRequestRepository.findById(requestId);
         if (requestOpt.isEmpty()) return ResponseEntity.notFound().build();
@@ -217,9 +220,10 @@ public class AccountDeletionController {
     @PostMapping("/delay")
     @Transactional
     public ResponseEntity<?> delayDeletion(@Valid @RequestBody DelayDeletionModel model) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity admin = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (admin == null || !admin.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        LoggedInUser loggedInAdmin = JwtUtil.getLoggedInUser();
+        UserEntity admin = loggedInAdmin != null ? userRepository.findById(loggedInAdmin.getDatabaseId()).orElse(null) : null;
+        if (admin == null) return ResponseEntity.status(403).build();
 
         Optional<AccountDeletionRequestEntity> requestOpt = deletionRequestRepository.findById(model.getRequestId());
         if (requestOpt.isEmpty()) return ResponseEntity.notFound().build();

@@ -31,8 +31,10 @@ import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.FaqMapper;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -152,9 +154,10 @@ public class FaqController {
     @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 15, keyType = "USER")
     @PostMapping("/create")
     public ResponseEntity<?> create(@Valid @RequestBody CreateFaqModel createFaqModel) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isFaqAuthor() || user.isAdministrator()) {
+        if (JwtUtil.hasAuthority("FAQ_AUTHOR") || JwtUtil.hasAuthority("ADMINISTRATOR")) {
+            LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+            UserEntity user = loggedIn != null ? userRepository.findById(loggedIn.getDatabaseId()).orElse(null) : null;
+            if (user != null) {
                 FaqEntity faqEntity = new FaqEntity();
                 faqEntity.setAuthor(user);
                 faqEntity.setContent(createFaqModel.getContent());
@@ -199,18 +202,10 @@ public class FaqController {
     @RateLimit
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingFaqs(@RequestParam int pageNumber) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isAdministrator()) {
-                int totalCount = fAQRepository.countPending();
-                int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-                return ResponseEntity.ok(new GetPendingFaqsResponse(faqMapper.allPendingPreviews(pageNumber), totalPages));
-            } else {
-                return ResponseEntity.status(403).build();
-            }
-        } else {
-            return ResponseEntity.status(403).build();
-        }
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        int totalCount = fAQRepository.countPending();
+        int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+        return ResponseEntity.ok(new GetPendingFaqsResponse(faqMapper.allPendingPreviews(pageNumber), totalPages));
     }
     @Operation(
             summary = "Check approval status for logged-in user's FAQs",
@@ -234,11 +229,11 @@ public class FaqController {
     @RateLimit
     @GetMapping("/checkApproval")
     public ResponseEntity<?> getUnapprovedFaqCount() {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            return ResponseEntity.ok(faqMapper.checkApprovalStatusForUser(user.getId()));
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn != null) {
+            return ResponseEntity.ok(faqMapper.checkApprovalStatusForUser(loggedIn.getDatabaseId()));
         }
-        return ResponseEntity.ok(new ApprovalCheckResponse(0,0));
+        return ResponseEntity.ok(new ApprovalCheckResponse(0, 0));
     }
     @Operation(
             summary = "Approve or deny an FAQ",
@@ -266,28 +261,21 @@ public class FaqController {
     )
     @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/approve")
+    @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> approveFaq(@Valid @RequestBody ApproveFaqModel faq) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isAdministrator()) {
-                Optional<FaqEntity> faqEntity = fAQRepository.findById(faq.getId());
-                if (faqEntity.isPresent()) {
-                    Optional<FAQApprovalEntity> approval = fAQApprovalRepository.findFAQApprovalEntityByFaqId(faq.getId());
-                    FAQApprovalEntity entity;
-                    entity = approval.orElseGet(FAQApprovalEntity::new);
-                    entity.setApproved(faq.isApproved());
-                    entity.setApprovedById(user.getId());
-                    entity.setFaqId(faqEntity.get().getId());
-                    fAQApprovalRepository.save(entity);
-                    return ResponseEntity.ok().build();
-                } else {
-                    return ResponseEntity.notFound().build();
-                }
-            } else {
-                return ResponseEntity.status(403).build();
-            }
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        Optional<FaqEntity> faqEntity = fAQRepository.findById(faq.getId());
+        if (faqEntity.isPresent()) {
+            Optional<FAQApprovalEntity> approval = fAQApprovalRepository.findFAQApprovalEntityByFaqId(faq.getId());
+            FAQApprovalEntity entity = approval.orElseGet(FAQApprovalEntity::new);
+            entity.setApproved(faq.isApproved());
+            entity.setApprovedById(loggedIn.getDatabaseId());
+            entity.setFaqId(faqEntity.get().getId());
+            fAQApprovalRepository.save(entity);
+            return ResponseEntity.ok().build();
         } else {
-            return ResponseEntity.status(403).build();
+            return ResponseEntity.notFound().build();
         }
     }
     @Operation(
@@ -317,11 +305,8 @@ public class FaqController {
     @RateLimit
     @GetMapping("/requests")
     public ResponseEntity<?> getRequests() {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isAdministrator() || user.isFaqAuthor()) {
-                return ResponseEntity.ok(faqMapper.getAllRequests());
-            }
+        if (JwtUtil.hasAuthority("ADMINISTRATOR") || JwtUtil.hasAuthority("FAQ_AUTHOR")) {
+            return ResponseEntity.ok(faqMapper.getAllRequests());
         }
         return ResponseEntity.status(403).build();
     }
@@ -348,12 +333,9 @@ public class FaqController {
     @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/requests/answer")
     public ResponseEntity<?> answerRequest(@Valid @RequestBody AnswerFaqSuggestionResponse model) {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user.isAdministrator() || user.isFaqAuthor()) {
-                fAQRequestRepository.deleteById(model.getReqId());
-                return ResponseEntity.ok().build();
-            }
+        if (JwtUtil.hasAuthority("ADMINISTRATOR") || JwtUtil.hasAuthority("FAQ_AUTHOR")) {
+            fAQRequestRepository.deleteById(model.getReqId());
+            return ResponseEntity.ok().build();
         }
         return ResponseEntity.status(403).build();
     }
@@ -388,14 +370,9 @@ public class FaqController {
     @RateLimit(requests = 15, keyType = "USER")
     @DeleteMapping("/delete")
     @Transactional
+    @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> deleteFaq(@RequestParam int id) {
-        if (!JwtUtil.isLoggedIn()) {
-            return ResponseEntity.status(403).build();
-        }
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (!user.isAdministrator()) {
-            return ResponseEntity.status(403).build();
-        }
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         if (!fAQRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
@@ -426,10 +403,11 @@ public class FaqController {
     @RateLimit(requests = 10, burstRequests = 2, burstDurationSeconds = 15)
     @PostMapping("/requests/create")
     public ResponseEntity<?> createFaqRequest(@Valid @RequestBody CreateFaqSuggestionModel model) {
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
         FAQRequestEntity faqRequestResponse = new FAQRequestEntity();
         faqRequestResponse.setSuggestedTopic(model.getSuggested());
-        faqRequestResponse.setRequestedById(user.getId());
+        faqRequestResponse.setRequestedById(loggedIn.getDatabaseId());
         faqRequestResponse.setCreatedAt(new Date());
         fAQRequestRepository.save(faqRequestResponse);
         return ResponseEntity.ok().build();
@@ -488,10 +466,12 @@ public class FaqController {
     )
     @RateLimit(requests = 10, keyType = "USER")
     @PostMapping("/hide")
+    @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> hideFaq(@RequestParam int faqId, @RequestParam boolean hidden) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user == null) return ResponseEntity.status(403).build();
         Optional<FaqEntity> faqOpt = fAQRepository.findById(faqId);
         if (faqOpt.isEmpty()) return ResponseEntity.notFound().build();
 
@@ -539,10 +519,7 @@ public class FaqController {
     @RateLimit
     @PostMapping("/getHidden")
     public ResponseEntity<?> getHiddenFaqs(@RequestParam HiddenFaqType type, @RequestParam int pageNumber) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
 
         int totalCount;
         var faqs = type == HiddenFaqType.ADMIN
@@ -570,11 +547,9 @@ public class FaqController {
     @RateLimit(requests = 5, keyType = "USER")
     @DeleteMapping("/hidden/delete")
     @Transactional
+    @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> deleteHiddenFaq(@RequestParam int id) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
 
         if (!fAQRepository.existsById(id)) return ResponseEntity.notFound().build();
 

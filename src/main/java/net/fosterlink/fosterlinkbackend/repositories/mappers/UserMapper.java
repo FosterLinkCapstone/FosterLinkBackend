@@ -7,6 +7,7 @@ import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -30,9 +31,12 @@ public class UserMapper {
                         (Boolean) row[7]    // verified_agency_rep
         );
         author.setCreatedAt((Date) row[8]);
+        author.setBanned(row[9] != null);
+        author.setRestricted(row[10] != null);
         return author;
     }
 
+    @Cacheable(value = "profileMetadata", key = "#userId")
     public ProfileMetadataResponse mapProfileMetadataResponse(int userId) {
         Object[] row = userRepository.getProfileMetadataRow(userId).get(0);
         if (row == null) return null;
@@ -68,6 +72,8 @@ public class UserMapper {
                         (Boolean) row[3]    // verifiedAgencyRep
         );
         userResponse.setCreatedAt((Date) row[11]);
+        userResponse.setBanned(row[12] != null);
+        userResponse.setRestricted(row[13] != null);
         res.setUser(userResponse);
 
         return res;

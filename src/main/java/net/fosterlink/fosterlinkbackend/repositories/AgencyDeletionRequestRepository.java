@@ -44,6 +44,8 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
             agent.faq_author,
             agent.verified_agency_rep,
             agent.created_at AS agent_created_at,
+            agent.banned_at AS agent_banned_at,
+            agent.restricted_at AS agent_restricted_at,
             requester.id AS requester_id,
             requester.first_name AS requester_first_name,
             requester.last_name AS requester_last_name,

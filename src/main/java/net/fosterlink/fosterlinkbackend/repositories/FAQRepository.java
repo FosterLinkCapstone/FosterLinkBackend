@@ -34,7 +34,9 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
                 u.verified_foster,
                 u.faq_author,
                 u.verified_agency_rep,
-                u.created_at as author_created_at
+                u.created_at as author_created_at,
+                u.banned_at,
+                u.restricted_at
         FROM faq fr
         INNER JOIN user u ON fr.author = u.id
         LEFT JOIN (
@@ -45,7 +47,7 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
         WHERE approved = true AND approval.hidden_by IS NULL
         GROUP BY fr.id, fr.title, fr.summary, fr.created_at, fr.updated_at, approval.approved, approval.approved_by_username, u.id,\s
                      u.first_name, u.last_name, u.profile_picture_url, u.verified_foster,\s
-                     u.faq_author, u.verified_foster, u.created_at;
+                     u.faq_author, u.verified_foster, u.created_at, u.banned_at, u.restricted_at;
     """, nativeQuery = true)
     List<Object[]> allApprovedPreviews(Pageable pageable);
 
@@ -65,7 +67,9 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
                 u.verified_foster,
                 u.faq_author,
                 u.verified_agency_rep,
-                u.created_at as author_created_at
+                u.created_at as author_created_at,
+                u.banned_at,
+                u.restricted_at
         FROM faq fr
         INNER JOIN user u ON fr.author = u.id
         LEFT JOIN (
@@ -76,7 +80,7 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
         WHERE approved = true AND fr.author = :userId AND approval.hidden_by IS NULL
         GROUP BY fr.id, fr.title, fr.summary, fr.created_at, fr.updated_at, approval.approved, approval.approved_by_username, u.id,\s
                      u.first_name, u.last_name, u.profile_picture_url, u.verified_foster,\s
-                     u.faq_author, u.verified_foster, u.created_at;
+                     u.faq_author, u.verified_foster, u.created_at, u.banned_at, u.restricted_at;
     """, nativeQuery = true)
     List<Object[]> allApprovedPreviewsForUser(int userId, Pageable pageable);
 
@@ -101,7 +105,9 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
         u.verified_foster,
         u.faq_author,
         u.verified_agency_rep,
-        u.created_at
+        u.created_at,
+        u.banned_at,
+        u.restricted_at
     FROM faq fr
     INNER JOIN user u ON fr.author = u.id
     LEFT JOIN (
@@ -135,7 +141,9 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
         u.verified_foster,
         u.faq_author,
         u.verified_agency_rep,
-        u.created_at as author_created_at
+        u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at
     FROM faq fr
     INNER JOIN user u ON fr.author = u.id
     INNER JOIN faq_approval fa ON fa.faq_id = fr.id
@@ -160,7 +168,9 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
         u.verified_foster,
         u.faq_author,
         u.verified_agency_rep,
-        u.created_at as author_created_at
+        u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at
     FROM faq fr
     INNER JOIN user u ON fr.author = u.id
     INNER JOIN faq_approval fa ON fa.faq_id = fr.id

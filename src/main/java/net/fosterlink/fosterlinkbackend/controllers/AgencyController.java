@@ -27,8 +27,10 @@ import net.fosterlink.fosterlinkbackend.repositories.AgencyDeletionRequestReposi
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
 import net.fosterlink.fosterlinkbackend.repositories.LocationRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AgencyMapper;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -91,14 +93,10 @@ public class AgencyController {
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         boolean includeDeletionRequestForAdmin = false;
         Integer currentUserId = null;
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            if (user != null) {
-                currentUserId = user.getId();
-                if (user.isAdministrator()) {
-                    includeDeletionRequestForAdmin = true;
-                }
-            }
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn != null) {
+            currentUserId = loggedIn.getDatabaseId();
+            includeDeletionRequestForAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
         }
         return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllApprovedAgencies(pageNumber, includeDeletionRequestForAdmin, currentUserId), totalPages));
     }
@@ -132,12 +130,10 @@ public class AgencyController {
     @RateLimit
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingAgencies(@RequestParam int pageNumber) {
-        UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (userEntity.isAdministrator()) {
-            int totalCount = agencyRepository.countPendingOrDenied();
-            int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-            return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllPendingAgencies(pageNumber), totalPages));
-        } else return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        int totalCount = agencyRepository.countPendingOrDenied();
+        int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
+        return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllPendingAgencies(pageNumber), totalPages));
     }
     @Operation(
             summary = "Approve or deny an agency",
@@ -165,20 +161,18 @@ public class AgencyController {
     )
     @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/approve")
+    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> approveAgency(@Valid @RequestBody ApproveAgencyResponse model) {
-        UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (userEntity.isAdministrator()) {
-            Optional<AgencyEntity> agency = agencyRepository.findById(model.getId());
-            if (agency.isPresent()) {
-                agency.get().setApproved(model.isApproved());
-                agency.get().setApproved_by_id(userEntity.getId());
-                agencyRepository.save(agency.get());
-                return ResponseEntity.ok().build();
-            } else {
-                return ResponseEntity.status(404).build();
-            }
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        Optional<AgencyEntity> agency = agencyRepository.findById(model.getId());
+        if (agency.isPresent()) {
+            agency.get().setApproved(model.isApproved());
+            agency.get().setApproved_by_id(loggedIn.getDatabaseId());
+            agencyRepository.save(agency.get());
+            return ResponseEntity.ok().build();
         } else {
-            return ResponseEntity.status(403).build();
+            return ResponseEntity.status(404).build();
         }
     }
     @Operation(
@@ -212,8 +206,12 @@ public class AgencyController {
     @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 30, keyType = "USER")
     @PostMapping("/create")
     public ResponseEntity<?> createAgency(@Valid @RequestBody CreateAgencyModel model) {
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (user.isAdministrator() || user.isVerifiedAgencyRep()) {
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR") && !JwtUtil.hasAuthority("AGENCY_REP")) {
+            return ResponseEntity.status(403).build();
+        }
+        LoggedInUser loggedInUser = JwtUtil.getLoggedInUser();
+        UserEntity user = loggedInUser != null ? userRepository.findById(loggedInUser.getDatabaseId()).orElse(null) : null;
+        if (user != null) {
                     AgencyEntity agency =  new AgencyEntity();
                     agency.setName(model.getName());
                     agency.setWebsiteUrl(model.getWebsiteUrl());
@@ -275,10 +273,8 @@ public class AgencyController {
     @RateLimit
     @GetMapping("/pending/count")
     public ResponseEntity<?> countPending() {
-        UserEntity userEntity = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (userEntity.isAdministrator()) {
-            return ResponseEntity.ok(agencyRepository.countPending());
-        } else return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(agencyRepository.countPending());
     }
 
     @Operation(
@@ -311,11 +307,9 @@ public class AgencyController {
     @RateLimit(requests = 15, keyType = "USER")
     @DeleteMapping("/delete")
     @Transactional
+    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> deleteAgency(@RequestParam int id) {
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (user == null || !user.isAdministrator()) {
-            return ResponseEntity.status(403).build();
-        }
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
         Optional<AgencyEntity> agencyOpt = agencyRepository.findById(id);
         if (agencyOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -349,10 +343,12 @@ public class AgencyController {
     )
     @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/hide")
+    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> hideAgency(@RequestParam int id, @RequestParam boolean hidden) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        UserEntity user = loggedIn != null ? userRepository.findById(loggedIn.getDatabaseId()).orElse(null) : null;
+        if (user == null) return ResponseEntity.status(403).build();
 
         Optional<AgencyEntity> agencyOpt = agencyRepository.findById(id);
         if (agencyOpt.isEmpty()) return ResponseEntity.notFound().build();
@@ -388,9 +384,7 @@ public class AgencyController {
     @RateLimit
     @GetMapping("/getHidden")
     public ResponseEntity<?> getHiddenAgencies(@RequestParam int pageNumber) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
 
         int totalCount = agencyRepository.countHidden();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
@@ -415,16 +409,19 @@ public class AgencyController {
     @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 60, keyType = "USER")
     @PostMapping("/deletion-request")
     public ResponseEntity<?> createDeletionRequest(@RequestParam int agencyId) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
 
         Optional<AgencyEntity> agencyOpt = agencyRepository.findById(agencyId);
         if (agencyOpt.isEmpty()) return ResponseEntity.notFound().build();
 
         AgencyEntity agency = agencyOpt.get();
-        if (agency.getAgent().getId() != user.getId() && !user.isAdministrator()) {
+        if (agency.getAgent().getId() != loggedIn.getDatabaseId() && !JwtUtil.hasAuthority("ADMINISTRATOR")) {
             return ResponseEntity.status(403).build();
         }
+
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user == null) return ResponseEntity.status(403).build();
 
         AgencyDeletionRequestEntity request = new AgencyDeletionRequestEntity();
         request.setAgency(agency);
@@ -453,14 +450,14 @@ public class AgencyController {
     @DeleteMapping("/deletion-request")
     @Transactional
     public ResponseEntity<?> cancelDeletionRequest(@RequestParam int agencyId) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
 
         Optional<AgencyDeletionRequestEntity> requestOpt = deletionRequestRepository.findPendingByAgencyId(agencyId);
         if (requestOpt.isEmpty()) return ResponseEntity.notFound().build();
 
         AgencyDeletionRequestEntity request = requestOpt.get();
-        if (request.getRequestedBy().getId() != user.getId() && !user.isAdministrator()) {
+        if (request.getRequestedBy().getId() != loggedIn.getDatabaseId() && !JwtUtil.hasAuthority("ADMINISTRATOR")) {
             return ResponseEntity.status(403).build();
         }
 
@@ -492,9 +489,7 @@ public class AgencyController {
     @RateLimit
     @GetMapping("/deletion-requests")
     public ResponseEntity<?> getDeletionRequests(@RequestParam int pageNumber) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
 
         int totalCount = deletionRequestRepository.countPending();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
@@ -520,10 +515,9 @@ public class AgencyController {
     @RateLimit(requests = 15, keyType = "USER")
     @PostMapping("/deletion-request/approve")
     @Transactional
+    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> approveDeletionRequest(@RequestParam int requestId, @RequestParam boolean approved) {
-        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
-        UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-        if (!user.isAdministrator()) return ResponseEntity.status(403).build();
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(403).build();
 
         Optional<AgencyDeletionRequestEntity> requestOpt = deletionRequestRepository.findById(requestId);
         if (requestOpt.isEmpty()) return ResponseEntity.notFound().build();

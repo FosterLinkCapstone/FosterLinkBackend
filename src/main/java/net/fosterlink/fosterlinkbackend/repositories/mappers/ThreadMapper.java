@@ -104,20 +104,20 @@ public class ThreadMapper {
         response.setCommentCount(((Number) row[7]).intValue());
         response.setUserPostCount(((Number) row[8]).intValue());
 
-        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 18));
+        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 20));
         response.setAuthor(author);
 
         PostMetadataResponse postMetadata = new PostMetadataResponse(
-                ((Number) row[18]).intValue(),
-                toBoolean(row[19]),
-                toBoolean(row[20]),
+                ((Number) row[20]).intValue(),
                 toBoolean(row[21]),
                 toBoolean(row[22]),
-                (String) row[23]
+                toBoolean(row[23]),
+                toBoolean(row[24]),
+                (String) row[25]
         );
         response.setPostMetadata(postMetadata);
 
-        String tagsString = (String) row[24];
+        String tagsString = (String) row[26];
         if (tagsString != null && !tagsString.isEmpty()) {
             response.setTags(Arrays.asList(tagsString.split(",")));
         } else {
@@ -140,11 +140,11 @@ public class ThreadMapper {
         response.setCommentCount(((Number) row[7]).intValue());
         response.setUserPostCount(((Number) row[8]).intValue());
 
-        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 18));
+        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 20));
 
         response.setAuthor(author);
 
-        String tagsString = (String) row[18];
+        String tagsString = (String) row[20];
         if (tagsString != null && !tagsString.isEmpty()) {
             response.setTags(Arrays.asList(tagsString.split(",")));
         } else {

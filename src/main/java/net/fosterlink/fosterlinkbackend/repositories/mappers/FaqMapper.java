@@ -6,6 +6,7 @@ import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRequestRepository;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -63,12 +64,13 @@ public class FaqMapper {
             faqResponse.setUpdatedAt((Date) obj[4]);
             faqResponse.setApproved(((Integer) obj[5]) == 1);
             faqResponse.setApprovedByUsername((String)obj[6]);
-            faqResponse.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7,16)));
+            faqResponse.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7, 18)));
             faqResponseList.add(faqResponse);
         }
         return faqResponseList;
     }
 
+    @Cacheable(value = "faqApprovedPreviews", key = "#pageNumber")
     public List<FaqResponse> allApprovedPreviews(int pageNumber) {
         List<FaqResponse> faqResponseList = new ArrayList<>();
         List<Object[]> map = fAQRepository.allApprovedPreviews(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
@@ -88,7 +90,7 @@ public class FaqMapper {
             faqResponse.setUpdatedAt((Date) obj[4]);
             faqResponse.setApprovalStatus(ApprovalStatus.fromDbVal(Integer.parseInt(String.valueOf(obj[5])))); // lol
             faqResponse.setDeniedByUsername((String)obj[6]);
-            faqResponse.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7,16)));
+            faqResponse.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7, 18)));
             faqResponseList.add(faqResponse);
         }
         return faqResponseList;
@@ -134,7 +136,7 @@ public class FaqMapper {
             r.setUpdatedAt((Date) obj[4]);
             r.setHiddenBy((String) obj[5]);
             r.setHiddenByAuthor(Boolean.TRUE.equals(obj[6]));
-            r.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7, 16)));
+            r.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7, 18)));
             result.add(r);
         }
         return result;

@@ -21,6 +21,8 @@ public class UserResponse
         this.profilePictureUrl = userEntity.getProfilePictureUrl();
         this.verified = userEntity.isVerifiedFoster() || userEntity.isFaqAuthor() || userEntity.isVerifiedAgencyRep();
         this.createdAt = userEntity.getCreatedAt();
+        this.banned = userEntity.getBannedAt() != null;
+        this.restricted = userEntity.getRestrictedAt() != null;
     }
     @Schema(description = "The internal ID of the user")
     private int id;
@@ -34,5 +36,9 @@ public class UserResponse
     private boolean verified; // faqAuthor, foster, or agency rep (UI should combine all to one)
     @Schema(description = "The date on which the user registered")
     private Date createdAt;
+    @Schema(description = "Whether or not the user is banned from the site")
+    private boolean banned;
+    @Schema(description = "Whether or not the user is restricted from the site")
+    private boolean restricted;
 
 }

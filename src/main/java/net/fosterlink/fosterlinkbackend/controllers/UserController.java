@@ -23,9 +23,11 @@ import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
 import net.fosterlink.fosterlinkbackend.mail.RegistrationMailService;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
+import net.fosterlink.fosterlinkbackend.service.BanStatusService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -65,6 +67,8 @@ public class UserController {
     private UserMapper userMapper;
     @Autowired(required = false)
     private RegistrationMailService registrationMailService;
+    @Autowired
+    private BanStatusService banStatusService;
 
     @Operation(
             summary = "Register a new user",
@@ -193,10 +197,11 @@ public class UserController {
      @RateLimit(requests = 10, keyType = "USER")
     @PutMapping("/update")
     public ResponseEntity<?> updateUser(@Valid @RequestBody UpdateUserModel model, HttpServletRequest req) {
-        String email = JwtUtil.getLoggedInEmail();
-        UserEntity user = email != null ? userRepository.findByEmail(email) : null;
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         boolean logout = false;
-        if (JwtUtil.isLoggedIn() && user != null && user.getId() == model.getUserId()) {
+        if (user != null && user.getId() == model.getUserId()) {
             if (model.getFirstName() != null)  {
                 user.setFirstName(model.getFirstName());
             }
@@ -221,7 +226,11 @@ public class UserController {
             if (model.getProfilePictureUrl() != null)  {
                 user.setProfilePictureUrl(model.getProfilePictureUrl());
             }
+            String emailBeforeSave = user.getEmail();
+            int userIdForEviction = user.getId();
             UserEntity saved = userRepository.save(user);
+            banStatusService.evictUserDetails(emailBeforeSave);
+            banStatusService.evictProfileMetadata(userIdForEviction);
             if (logout) {
                 try {
                     manualLogout(req);
@@ -251,8 +260,9 @@ public class UserController {
     @RateLimit(requests = 5, keyType = "USER")
     @PostMapping("/changePassword")
     public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordModel model, HttpServletRequest req) {
-        String email = JwtUtil.getLoggedInEmail();
-        UserEntity user = email != null ? userRepository.findByEmail(email) : null;
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
@@ -261,6 +271,7 @@ public class UserController {
         }
         user.setPassword(passwordEncoder.encode(model.getNewPassword()));
         userRepository.save(user);
+        banStatusService.evictUserDetails(user.getEmail());
         try {
             manualLogout(req);
         } catch (ServletException e) {
@@ -297,11 +308,14 @@ public class UserController {
     @RateLimit(requests = 5, keyType = "USER")
     @DeleteMapping("/delete")
     public ResponseEntity<?> deleteUser() {
-            String email = JwtUtil.getLoggedInEmail();
-            UserEntity user = userRepository.findByEmail(email);
+            LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+            if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
             if (user != null) {
+                String email = user.getEmail();
                 // TODO logout
                 userRepository.delete(user);
+                banStatusService.evict(email);
                 return ResponseEntity.ok().build();
             } else {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -333,8 +347,9 @@ public class UserController {
     @RateLimit(requests = 30, keyType = "USER")
     @GetMapping("/getSettings")
     public ResponseEntity<?> getUserSettings() {
-        String email = JwtUtil.getLoggedInEmail();
-        UserEntity user = userRepository.findByEmail(email);
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         if (user != null) {
             return ResponseEntity.ok(new UserSettingsResponse(user));
         } else {
@@ -368,8 +383,9 @@ public class UserController {
     @RateLimit(requests = 60)
     @GetMapping("/getInfo")
     public ResponseEntity<?> getUserInfo() {
-        String email = JwtUtil.getLoggedInEmail();
-        UserEntity user = userRepository.findByEmail(email);
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         if (user != null) {
             return ResponseEntity.ok(new UserResponse(user));
         } else {
@@ -399,12 +415,11 @@ public class UserController {
     @RateLimit(requests = 60)
     @GetMapping("/privileges")
     public ResponseEntity<?> getPrivileges() {
-        PrivilegesResponse res = new  PrivilegesResponse(false,false,false);
+        PrivilegesResponse res = new PrivilegesResponse(false, false, false);
         if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            res.setAdmin(user.isAdministrator());
-            res.setFaqAuthor(user.isFaqAuthor());
-            res.setAgent(user.isVerifiedAgencyRep());
+            res.setAdmin(JwtUtil.hasAuthority("ADMINISTRATOR"));
+            res.setFaqAuthor(JwtUtil.hasAuthority("FAQ_AUTHOR"));
+            res.setAgent(JwtUtil.hasAuthority("AGENCY_REP"));
         }
         return ResponseEntity.ok(res);
     }
@@ -431,11 +446,7 @@ public class UserController {
     @RateLimit(requests = 60)
     @GetMapping("/isAdmin")
     public ResponseEntity<?> isUserAdmin() {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            return ResponseEntity.ok(user.isAdministrator());
-        }
-        return ResponseEntity.ok(false);
+        return ResponseEntity.ok(JwtUtil.isLoggedIn() && JwtUtil.hasAuthority("ADMINISTRATOR"));
     }
     @Operation(
             summary = "Check if user is FAQ author",
@@ -459,11 +470,7 @@ public class UserController {
     @RateLimit(requests = 60)
     @GetMapping("/isFaqAuthor")
     public ResponseEntity<?> isUserFaqAuthor() {
-        if (JwtUtil.isLoggedIn()) {
-            UserEntity user = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-            return ResponseEntity.ok(user.isFaqAuthor());
-        }
-        return ResponseEntity.ok(false);
+        return ResponseEntity.ok(JwtUtil.isLoggedIn() && JwtUtil.hasAuthority("FAQ_AUTHOR"));
     }
     @Operation(
             summary = "Get agent information",
@@ -580,15 +587,9 @@ public class UserController {
 
         // Accounts pending deletion are visible only to the owner and administrators.
         if (targetUser.isAccountDeleted()) {
-            boolean isOwner = false;
-            boolean isAdmin = false;
-            if (JwtUtil.isLoggedIn()) {
-                UserEntity requester = userRepository.findByEmail(JwtUtil.getLoggedInEmail());
-                if (requester != null) {
-                    isOwner = requester.getId() == userId;
-                    isAdmin = requester.isAdministrator();
-                }
-            }
+            LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+            boolean isOwner = loggedIn != null && loggedIn.getDatabaseId() == userId;
+            boolean isAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
             if (!isOwner && !isAdmin) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
@@ -600,6 +601,106 @@ public class UserController {
         }
 
         return ResponseEntity.ok(res);
+    }
+
+    @Operation(
+            summary = "Ban a user",
+            description = "Bans a user by setting their banned_at timestamp. Requires administrator privileges.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "User successfully banned"),
+                    @ApiResponse(responseCode = "403", description = "Caller is not an administrator"),
+                    @ApiResponse(responseCode = "404", description = "Target user not found")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @PostMapping("/ban")
+    public ResponseEntity<?> banUser(@RequestParam int userId) {
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        Optional<UserEntity> targetOpt = userRepository.findById(userId);
+        if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity target = targetOpt.get();
+        target.setBannedAt(new Date());
+        userRepository.save(target);
+        banStatusService.evict(target.getEmail());
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Unban a user",
+            description = "Unbans a user by clearing their banned_at timestamp. Requires administrator privileges.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "User successfully unbanned"),
+                    @ApiResponse(responseCode = "403", description = "Caller is not an administrator"),
+                    @ApiResponse(responseCode = "404", description = "Target user not found")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @PostMapping("/unban")
+    public ResponseEntity<?> unbanUser(@RequestParam int userId) {
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        Optional<UserEntity> targetOpt = userRepository.findById(userId);
+        if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity target = targetOpt.get();
+        target.setBannedAt(null);
+        userRepository.save(target);
+        banStatusService.evict(target.getEmail());
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Restrict a user",
+            description = "Restricts a user by setting their restricted_at timestamp. Optionally set restricted_until for a temporary restriction. Requires administrator privileges.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "User successfully restricted"),
+                    @ApiResponse(responseCode = "403", description = "Caller is not an administrator"),
+                    @ApiResponse(responseCode = "404", description = "Target user not found")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @PostMapping("/restrict")
+    public ResponseEntity<?> restrictUser(@RequestParam int userId, @RequestParam(required = false) String restrictedUntil) {
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        Optional<UserEntity> targetOpt = userRepository.findById(userId);
+        if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity target = targetOpt.get();
+        target.setRestrictedAt(new Date());
+        if (restrictedUntil != null) {
+            try {
+                target.setRestrictedUntil(new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").parse(restrictedUntil));
+            } catch (java.text.ParseException ignored) {}
+        }
+        userRepository.save(target);
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Unrestrict a user",
+            description = "Unrestricts a user by clearing their restricted_at and restricted_until timestamps. Requires administrator privileges.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "User successfully unrestricted"),
+                    @ApiResponse(responseCode = "403", description = "Caller is not an administrator"),
+                    @ApiResponse(responseCode = "404", description = "Target user not found")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @PostMapping("/unrestrict")
+    public ResponseEntity<?> unrestrictUser(@RequestParam int userId) {
+        if (!JwtUtil.hasAuthority("ADMINISTRATOR")) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        Optional<UserEntity> targetOpt = userRepository.findById(userId);
+        if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity target = targetOpt.get();
+        target.setRestrictedAt(null);
+        target.setRestrictedUntil(null);
+        userRepository.save(target);
+        return ResponseEntity.ok().build();
     }
 
     private String loginUser(String username, String password) throws BadCredentialsException {

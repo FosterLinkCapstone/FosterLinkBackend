@@ -74,18 +74,18 @@ public class AgencyMapper {
             agentInfo.setPhoneNumber((String) obj[19]);
             agency.setAgentInfo(agentInfo);
 
-            agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 20, 29)));
+            agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 20, 31)));
             dr.setAgency(agency);
 
             UserResponse requester = new UserResponse();
-            requester.setId((Integer) obj[29]);
-            requester.setFullName(obj[30] + " " + obj[31]);
-            requester.setUsername((String) obj[32]);
-            requester.setProfilePictureUrl((String) obj[33]);
+            requester.setId((Integer) obj[31]);
+            requester.setFullName(obj[32] + " " + obj[33]);
+            requester.setUsername((String) obj[34]);
+            requester.setProfilePictureUrl((String) obj[35]);
             requester.setVerified(
-                    (Boolean) obj[34] || (Boolean) obj[35] || (Boolean) obj[36]
+                    (Boolean) obj[36] || (Boolean) obj[37] || (Boolean) obj[38]
             );
-            requester.setCreatedAt((Date) obj[37]);
+            requester.setCreatedAt((Date) obj[39]);
             dr.setRequestedBy(requester);
 
             results.add(dr);
@@ -118,18 +118,18 @@ public class AgencyMapper {
             agentInfoResponse.setPhoneNumber((String)obj[14]);
             agency.setAgentInfo(agentInfoResponse);
 
-            agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 15, 15 + 9)));
+            agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 15, 15 + 11)));
 
-            if (includeHiddenBy && obj.length > 24) {
-                agency.setHiddenByUsername((String) obj[24]);
+            if (includeHiddenBy && obj.length > 26) {
+                agency.setHiddenByUsername((String) obj[26]);
             }
 
             boolean includeDeletionRequest = includeDeletionRequestForAdmin
                 || (currentUserId != null && currentUserId.equals(obj[15]));
-            if (includeDeletionRequest && obj.length > 25) {
-                agency.setDeletionRequestedAt(obj[24] != null ? (Date) obj[24] : null);
-                agency.setDeletionRequestedByUsername(obj[25] != null ? (String) obj[25] : null);
-                agency.setDeletionRequestId(obj.length > 26 && obj[26] != null ? (Integer) obj[26] : null);
+            if (includeDeletionRequest && obj.length > 27) {
+                agency.setDeletionRequestedAt(obj[26] != null ? (Date) obj[26] : null);
+                agency.setDeletionRequestedByUsername(obj[27] != null ? (String) obj[27] : null);
+                agency.setDeletionRequestId(obj.length > 28 && obj[28] != null ? (Integer) obj[28] : null);
             }
 
             agencies.add(agency);

@@ -56,6 +56,12 @@ public class UserEntity {
     private Date createdAt;
     /** When the account was last updated. */
     private Date updatedAt;
+    @Nullable
+    private Date bannedAt;
+    @Nullable
+    private Date restrictedAt;
+    @Nullable
+    private Date restrictedUntil;
 
     /** FAQs authored by this user. */
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "author")

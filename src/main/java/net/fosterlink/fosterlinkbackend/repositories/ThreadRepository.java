@@ -83,6 +83,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -114,7 +116,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY (
         COALESCE(likes.like_count, 0) * 0.4 +
         (DATEDIFF(NOW(), t.created_at) / -365.0) * 0.6 +
@@ -144,6 +147,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -175,7 +180,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY t.created_at DESC
     """, nativeQuery = true)
     List<Object[]> findThreadsForUser(int userId, int authorId, Pageable pageable);
@@ -200,6 +206,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -231,7 +239,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY (
         COALESCE(likes.like_count, 0) * 0.4 +
         (DATEDIFF(NOW(), t.created_at) / -365.0) * 0.6 +
@@ -261,6 +270,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -292,7 +303,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY t.created_at DESC
    """, nativeQuery = true)
     List<Object[]> findThreadsNewest(@Param("userId") int userId, Pageable pageable);
@@ -317,6 +329,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -348,7 +362,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY t.created_at ASC
     """, nativeQuery = true)
     List<Object[]> findThreadsOldest(@Param("userId") int userId, Pageable pageable);
@@ -373,6 +388,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -404,7 +421,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY COALESCE(likes.like_count, 0) DESC, t.created_at DESC;
     """, nativeQuery = true)
     List<Object[]> findThreadsMostLiked(@Param("userId") int userId, Pageable pageable);
@@ -429,6 +447,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         pm.id as pm_id,
         pm.hidden as pm_hidden,
         pm.user_deleted as pm_user_deleted,
@@ -467,6 +487,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at,
              pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
     ORDER BY t.created_at DESC
     """, nativeQuery = true)
@@ -530,6 +551,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         pm.id as pm_id,
         pm.hidden as pm_hidden,
         pm.user_deleted as pm_user_deleted,
@@ -568,6 +591,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at,
              pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
     ORDER BY t.created_at DESC
     """, nativeQuery = true)
@@ -593,6 +617,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -624,7 +650,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     LIMIT 1
 """, nativeQuery = true)
     List<Object[]> findByIdResponse(@Param("threadId") int threadId, int userId); // -1 if no user
@@ -649,6 +676,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         pm.id as pm_id,
         pm.hidden as pm_hidden,
         pm.user_deleted as pm_user_deleted,
@@ -687,6 +716,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at,
              pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
     LIMIT 1
     """, nativeQuery = true)

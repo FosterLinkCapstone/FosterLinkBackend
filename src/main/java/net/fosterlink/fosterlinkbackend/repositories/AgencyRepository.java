@@ -1,6 +1,7 @@
 package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -44,6 +45,8 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
             agent.faq_author,
             agent.verified_agency_rep,
             agent.created_at,
+            agent.banned_at,
+            agent.restricted_at,
             (SELECT dr.created_at FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_requested_at,
             (SELECT u.username FROM agency_deletion_request dr INNER JOIN user u ON dr.requested_by = u.id WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_requested_by_username,
             (SELECT dr.id FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_request_id
@@ -53,6 +56,7 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
         INNER JOIN user approved_by ON ag.approved_by_id = approved_by.id
         WHERE ag.approved = TRUE AND ag.hidden = FALSE;
     """, nativeQuery = true)
+    @Cacheable(value = "agencyApprovedRows", key = "#pageable.pageNumber")
     List<Object[]> allApprovedAgencies(Pageable pageable);
     @Query(value = """
 SELECT
@@ -79,7 +83,9 @@ SELECT
     agent.verified_foster,
     agent.faq_author,
     agent.verified_agency_rep,
-    agent.created_at
+    agent.created_at,
+    agent.banned_at,
+    agent.restricted_at
 FROM agency ag
 INNER JOIN user agent ON ag.agent = agent.id
 INNER JOIN location lo ON ag.address = lo.id
@@ -130,6 +136,8 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
             agent.faq_author,
             agent.verified_agency_rep,
             agent.created_at,
+            agent.banned_at,
+            agent.restricted_at,
             ag.hidden_by_username
         FROM agency ag
         INNER JOIN user agent ON ag.agent = agent.id
