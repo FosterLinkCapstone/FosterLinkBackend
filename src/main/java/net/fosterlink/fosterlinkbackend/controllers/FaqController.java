@@ -122,11 +122,12 @@ public class FaqController {
     @GetMapping("/content")
     public ResponseEntity<?> getContentFor(@RequestParam int id) {
         Optional<FaqEntity> faq = fAQRepository.findById(id);
-        if (faq.isPresent()) {
-            return ResponseEntity.ok(faq.get().getContent());
-        } else {
+        if (faq.isEmpty()) return ResponseEntity.notFound().build();
+        Optional<FAQApprovalEntity> approval = fAQApprovalRepository.findFAQApprovalEntityByFaqId(id);
+        if (approval.isEmpty() || !approval.get().isApproved() || approval.get().getHiddenBy() != null) {
             return ResponseEntity.notFound().build();
         }
+        return ResponseEntity.ok(faq.get().getContent());
     }
 
     @Operation(
@@ -415,23 +416,24 @@ public class FaqController {
     }
     @Operation(
             summary = "Get all approved FAQs by author",
-            description = "Retrieves all approved FAQs created by a specific user. Returns 404 if the user does not exist or has no approved FAQs. Rate limit: 50 requests per 60 seconds per IP.",
+            description = "Retrieves a paginated list of approved FAQs created by a specific user. Returns 404 if the user does not exist. Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ"},
             parameters = {
-                    @Parameter(name = "userId", description = "The internal ID of the FAQ author", required = true)
+                    @Parameter(name = "userId", description = "The internal ID of the FAQ author", required = true),
+                    @Parameter(name = "pageNumber", description = "Zero-based page number", required = true)
             },
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "List of approved FAQs by the user",
+                            description = "Paginated list of approved FAQs by the user",
                             content = @Content(
                                     mediaType = "application/json",
-                                    array = @ArraySchema(schema = @Schema(implementation = FaqResponse.class))
+                                    schema = @Schema(implementation = GetFaqsResponse.class)
                             )
                     ),
                     @ApiResponse(
                             responseCode = "404",
-                            description = "The user with the provided ID could not be found, or the user has no approved FAQs"
+                            description = "The user with the provided ID could not be found"
                     ),
                     @ApiResponse(
                             responseCode = "429",
@@ -446,11 +448,11 @@ public class FaqController {
         Optional<UserEntity> authorOpt = userRepository.findById(userId);
         if (authorOpt.isEmpty() || authorOpt.get().isAccountDeleted()) return ResponseEntity.notFound().build();
 
+        int totalCount = fAQRepository.countApprovedByAuthor(userId);
+        int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         List<FaqResponse> faqs = faqMapper.allApprovedPreviewsForUser(userId, pageNumber);
 
-        if (faqs.isEmpty()) return ResponseEntity.notFound().build();
-
-        return ResponseEntity.ok(faqs);
+        return ResponseEntity.ok(new GetFaqsResponse(faqs, totalPages));
     }
 
     @Operation(

@@ -56,13 +56,17 @@ public class FaqMapper {
 
     private List<FaqResponse> mapFaqResponses(List<FaqResponse> faqResponseList, List<Object[]> map) {
         for (Object[] obj : map) {
+            // Only include approved FAQs; skip denied or pending (approved column is index 5)
+            if (obj.length <= 5 || !Integer.valueOf(1).equals(obj[5])) {
+                continue;
+            }
             FaqResponse faqResponse = new FaqResponse();
             faqResponse.setId((Integer)obj[0]);
             faqResponse.setTitle((String)obj[1]);
             faqResponse.setSummary((String)obj[2]);
             faqResponse.setCreatedAt((Date) obj[3]);
             faqResponse.setUpdatedAt((Date) obj[4]);
-            faqResponse.setApproved(((Integer) obj[5]) == 1);
+            faqResponse.setApproved(true);
             faqResponse.setApprovedByUsername((String)obj[6]);
             faqResponse.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7, 18)));
             faqResponseList.add(faqResponse);
