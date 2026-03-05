@@ -61,7 +61,8 @@ public class SecurityConfig {
             "/v1/threads/replies/hide", "/v1/threads/replies/hidden/delete",
             "/v1/faq/delete", "/v1/agencies/delete",
             "/v1/account-deletion/request", "/v1/account-deletion/cancel", "/v1/account-deletion/my-request",
-            "/v1/account-deletion/requests", "/v1/account-deletion/approve", "/v1/account-deletion/delay"
+            "/v1/account-deletion/requests", "/v1/account-deletion/approve", "/v1/account-deletion/delay",
+            "/v1/admin/users/search", "/v1/admin/users/setRole"
     };
 
     @Autowired private UserService userService;

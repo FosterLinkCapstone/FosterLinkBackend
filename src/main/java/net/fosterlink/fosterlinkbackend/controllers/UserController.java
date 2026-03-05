@@ -631,6 +631,7 @@ public class UserController {
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
         if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         UserEntity target = targetOpt.get();
+        if (target.isAccountDeleted()) return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
         target.setBannedAt(new Date());
         userRepository.save(target);
         banStatusService.evict(target.getEmail());
@@ -657,6 +658,7 @@ public class UserController {
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
         if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         UserEntity target = targetOpt.get();
+        if (target.isAccountDeleted()) return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
         target.setBannedAt(null);
         userRepository.save(target);
         banStatusService.evict(target.getEmail());
@@ -683,6 +685,7 @@ public class UserController {
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
         if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         UserEntity target = targetOpt.get();
+        if (target.isAccountDeleted()) return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
         target.setRestrictedAt(new Date());
         if (restrictedUntil != null) {
             try {
@@ -714,6 +717,7 @@ public class UserController {
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
         if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         UserEntity target = targetOpt.get();
+        if (target.isAccountDeleted()) return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
         target.setRestrictedAt(null);
         target.setRestrictedUntil(null);
         userRepository.save(target);
