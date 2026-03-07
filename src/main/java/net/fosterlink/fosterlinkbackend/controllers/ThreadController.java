@@ -141,17 +141,13 @@ public class ThreadController {
     }
 
     @Operation(
-            summary="Update a thread",
-            description = "Updates an existing thread. Only the thread author can update their thread. Rate limit: 10 requests per 60 seconds per user.",
+            summary = "Update a thread",
+            description = "Updates an existing thread's title and/or content. Request body must include threadId; title and content are optional (omit or null to leave unchanged). Only the thread author can update their thread. Returns empty body on success. Rate limit: 10 requests per 60 seconds per user.",
             tags = {"Thread"},
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "The successfully updated thread",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    schema = @Schema(implementation = ThreadResponse.class)
-                            )
+                            description = "The thread was successfully updated. Empty response body."
                     ),
                     @ApiResponse(
                             responseCode = "401",
@@ -160,6 +156,10 @@ public class ThreadController {
                     @ApiResponse(
                             responseCode = "403",
                             description = "The user attempted to access a secure endpoint without providing an authorized JWT (see bearerAuth security policy)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The thread with the given ID was not found"
                     ),
                     @ApiResponse(
                             responseCode = "429",
@@ -186,12 +186,8 @@ public class ThreadController {
             if (model.getTitle() != null) {
                 thread.setTitle(StringUtil.cleanString(model.getTitle()));
             }
-            ThreadEntity saved = threadRepository.save(thread);
-            int lc = threadLikeRepository.likeCountForThread(saved.getId());
-
-            int commentCount = threadReplyRepository.visibleReplyCountForThread(saved.getId());
-            int userPostCount = threadRepository.visibleThreadCountForUser(saved.getPostedBy().getId());
-            return ResponseEntity.ok().body(new ThreadResponse(saved, lc, commentCount, userPostCount));
+            threadRepository.save(thread);
+            return ResponseEntity.ok().build();
         } else {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
