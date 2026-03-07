@@ -3,6 +3,8 @@ package net.fosterlink.fosterlinkbackend.entities;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.Instant;
+
 /**
  * JPA entity for the agency table. Represents a foster care agency with contact/location
  * and an associated verified agent (user). Approval state is managed by administrators.
@@ -10,7 +12,7 @@ import lombok.Data;
 @Entity
 @Data
 @Table(name="agency")
-public class AgencyEntity {
+public class  AgencyEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,6 +29,11 @@ public class AgencyEntity {
     private Integer approved_by_id;
     private boolean hidden;
     private String hiddenByUsername;
+
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 
     /** Physical address of the agency. */
     @OneToOne(fetch = FetchType.LAZY)

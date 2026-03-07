@@ -93,6 +93,13 @@ public class AgencyMapper {
         return results;
     }
 
+    private static java.util.Date toDate(Object o) {
+        if (o == null) return null;
+        if (o instanceof java.util.Date) return (java.util.Date) o;
+        if (o instanceof java.sql.Timestamp) return new java.util.Date(((java.sql.Timestamp) o).getTime());
+        return null;
+    }
+
     private List<AgencyResponse> getAgencyResponses(List<AgencyResponse> agencies, List<Object[]> toMap, boolean includeHiddenBy, boolean includeDeletionRequestForAdmin, Integer currentUserId) {
         for (Object[] obj : toMap) {
             AgencyResponse agency = new AgencyResponse();
@@ -102,34 +109,36 @@ public class AgencyMapper {
             agency.setAgencyWebsiteLink((String)obj[3]);
             agency.setApproved(obj[4] == null ? 1 : (((Boolean) obj[4]) ? 2 : 3));
             agency.setApprovedByUsername(obj[5] == null ? null : (String) obj[5]);
+            agency.setCreatedAt(toDate(obj[6]));
+            agency.setUpdatedAt(toDate(obj[7]));
 
             LocationEntity locationEntity = new LocationEntity();
-            locationEntity.setId((Integer)obj[6]);
-            locationEntity.setAddrLine1((String)obj[7]);
-            locationEntity.setAddrLine2((String)obj[8]);
-            locationEntity.setCity((String)obj[9]);
-            locationEntity.setState((String)obj[10]);
-            locationEntity.setZipCode((Integer)obj[11]);
+            locationEntity.setId((Integer)obj[8]);
+            locationEntity.setAddrLine1((String)obj[9]);
+            locationEntity.setAddrLine2((String)obj[10]);
+            locationEntity.setCity((String)obj[11]);
+            locationEntity.setState((String)obj[12]);
+            locationEntity.setZipCode((Integer)obj[13]);
             agency.setLocation(locationEntity);
 
             AgentInfoResponse agentInfoResponse = new AgentInfoResponse();
-            agentInfoResponse.setId((Integer)obj[12]);
-            agentInfoResponse.setEmail((String)obj[13]);
-            agentInfoResponse.setPhoneNumber((String)obj[14]);
+            agentInfoResponse.setId((Integer)obj[14]);
+            agentInfoResponse.setEmail((String)obj[15]);
+            agentInfoResponse.setPhoneNumber((String)obj[16]);
             agency.setAgentInfo(agentInfoResponse);
 
-            agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 15, 15 + 11)));
+            agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 17, 17 + 11)));
 
-            if (includeHiddenBy && obj.length > 26) {
-                agency.setHiddenByUsername((String) obj[26]);
+            if (includeHiddenBy && obj.length > 28) {
+                agency.setHiddenByUsername((String) obj[28]);
             }
 
             boolean includeDeletionRequest = includeDeletionRequestForAdmin
-                || (currentUserId != null && currentUserId.equals(obj[15]));
-            if (includeDeletionRequest && obj.length > 27) {
-                agency.setDeletionRequestedAt(obj[26] != null ? (Date) obj[26] : null);
-                agency.setDeletionRequestedByUsername(obj[27] != null ? (String) obj[27] : null);
-                agency.setDeletionRequestId(obj.length > 28 && obj[28] != null ? (Integer) obj[28] : null);
+                || (currentUserId != null && currentUserId.equals(obj[17]));
+            if (includeDeletionRequest && obj.length > 30) {
+                agency.setDeletionRequestedAt(toDate(obj[28]));
+                agency.setDeletionRequestedByUsername(obj[29] != null ? (String) obj[29] : null);
+                agency.setDeletionRequestId(obj[30] != null ? (Integer) obj[30] : null);
             }
 
             agencies.add(agency);

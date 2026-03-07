@@ -1,7 +1,6 @@
 package net.fosterlink.fosterlinkbackend.controllers;
 
 
-import com.google.maps.GeoApiContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -22,6 +21,8 @@ import net.fosterlink.fosterlinkbackend.models.rest.ApproveAgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.GetAgenciesResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.GetAgencyDeletionRequestsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
+import net.fosterlink.fosterlinkbackend.models.web.agency.UpdateAgencyLocationModel;
+import net.fosterlink.fosterlinkbackend.models.web.agency.UpdateAgencyModel;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.models.web.agency.CreateAgencyModel;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyDeletionRequestRepository;
@@ -37,7 +38,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.Date;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -170,6 +173,7 @@ public class AgencyController {
         if (agency.isPresent()) {
             agency.get().setApproved(model.isApproved());
             agency.get().setApproved_by_id(loggedIn.getDatabaseId());
+            agency.get().setUpdatedAt(Instant.now());
             agencyRepository.save(agency.get());
             return ResponseEntity.ok().build();
         } else {
@@ -217,6 +221,7 @@ public class AgencyController {
                     agency.setWebsiteUrl(model.getWebsiteUrl());
                     agency.setMissionStatement(model.getMissionStatement());
                     agency.setAgent(user);
+                    agency.setCreatedAt(Instant.now());
 
                     LocationEntity location = new LocationEntity();
                     location.setZipCode(model.getLocationZipCode());
@@ -232,16 +237,16 @@ public class AgencyController {
                     AgencyEntity savedAgency = agencyRepository.save(agency);
 
                     AgencyResponse agencyResponse = new AgencyResponse();
-
+                    agencyResponse.setId(savedAgency.getId());
                     agencyResponse.setAgencyName(savedAgency.getName());
                     agencyResponse.setAgencyMissionStatement(savedAgency.getMissionStatement());
                     agencyResponse.setAgencyWebsiteLink(savedAgency.getWebsiteUrl());
-                    agencyResponse.setId(agency.getId());
+                    agencyResponse.setCreatedAt(savedAgency.getCreatedAt() != null ? Date.from(savedAgency.getCreatedAt()) : null);
                     agencyResponse.setAgent(new UserResponse(user));
                     agencyResponse.setAgentInfo(new AgentInfoResponse(user));
                     agencyResponse.setLocation(savedLocation);
 
-                    return ResponseEntity.ok(agency);
+                    return ResponseEntity.ok(agencyResponse);
         } else {
             return ResponseEntity.status(403).build();
         }
@@ -358,6 +363,7 @@ public class AgencyController {
         AgencyEntity agency = agencyOpt.get();
         agency.setHidden(hidden);
         agency.setHiddenByUsername(hidden ? user.getUsername() : null);
+        agency.setUpdatedAt(Instant.now());
         agencyRepository.save(agency);
         return ResponseEntity.ok().build();
     }
@@ -538,6 +544,70 @@ public class AgencyController {
         } else {
             deletionRequestRepository.deleteRequestById(requestId);
         }
+        return ResponseEntity.ok().build();
+    }
+    @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAnyAuthority('AGENCY_REP', 'ADMINISTRATOR')")
+    @PutMapping("/update")
+    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
+    public ResponseEntity<?> updateAgency(@RequestBody UpdateAgencyModel model) {
+        Optional<AgencyEntity> agencyOpt = agencyRepository.findById(model.getAgencyId());
+        if (agencyOpt.isEmpty()) return ResponseEntity.notFound().build();
+        AgencyEntity agency = agencyOpt.get();
+        if (!Objects.equals(agency.getAgent().getEmail(), JwtUtil.getLoggedInEmail())) return ResponseEntity.status(403).build();
+
+        if (model.getName() != null) agency.setName(model.getName());
+        if (model.getMissionStatement() != null) agency.setMissionStatement(model.getMissionStatement());
+        if (model.getWebsiteUrl() != null) agency.setWebsiteUrl(model.getWebsiteUrl());
+
+        Instant now = Instant.now();
+        agency.setUpdatedAt(now);
+        agencyRepository.save(agency);
+        agencyRepository.setAgencyPending(agency.getId(), now);
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Update an agency's location",
+            description = "Updates the physical address of an agency. Only the agency's representative may update. Rate limit: 15 requests per 60 seconds per user.",
+            tags = {"Agency", "Admin", "Agent"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The agency location was successfully updated"),
+                    @ApiResponse(responseCode = "400", description = "The request body validation failed (e.g., invalid zip code, missing required fields)"),
+                    @ApiResponse(responseCode = "403", description = "You must be the owner of this agency to update its location."),
+                    @ApiResponse(responseCode = "404", description = "The agency was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAnyAuthority('AGENCY_REP', 'ADMINISTRATOR')")
+    @PutMapping("/update-location")
+    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
+    public ResponseEntity<?> updateAgencyLocation(@Valid @RequestBody UpdateAgencyLocationModel model) {
+        Optional<AgencyEntity> agencyOpt = agencyRepository.findById(model.getAgencyId());
+        if (agencyOpt.isEmpty()) return ResponseEntity.notFound().build();
+        AgencyEntity agency = agencyOpt.get();
+        if (!Objects.equals(agency.getAgent().getEmail(), JwtUtil.getLoggedInEmail())) return ResponseEntity.status(403).build();
+
+        LocationEntity location = agency.getAddress();
+        if (location == null) {
+            location = new LocationEntity();
+            agency.setAddress(location);
+        }
+        location.setAddrLine1(model.getLocationAddrLine1());
+        location.setAddrLine2(model.getLocationAddrLine2());
+        location.setCity(model.getLocationCity());
+        location.setState(model.getLocationState());
+        location.setZipCode(model.getLocationZipCode());
+
+        locationRepository.save(location);
+        Instant now = Instant.now();
+        agency.setUpdatedAt(now);
+        agencyRepository.save(agency);
+        agencyRepository.setAgencyPending(agency.getId(), now);
         return ResponseEntity.ok().build();
     }
 

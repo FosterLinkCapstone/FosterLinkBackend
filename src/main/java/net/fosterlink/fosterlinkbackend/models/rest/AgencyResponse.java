@@ -28,6 +28,11 @@ public class AgencyResponse {
     @Schema(description = "The username of the administrator who approved/denied the agency. Can be null if pending.")
     private String approvedByUsername;
 
+    @Schema(description = "When the agency was created.")
+    private java.util.Date createdAt;
+    @Schema(description = "When the agency was last updated (e.g. approved, denied, hidden). Null if never updated.")
+    private java.util.Date updatedAt;
+
     @Schema(description = "The username of the administrator who hid this agency. Null if not hidden.")
     private String hiddenByUsername;
 

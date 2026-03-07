@@ -27,6 +27,8 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
             ag.website_url,
             ag.approved,
             approved_by.username AS approved_by_username,
+            ag.created_at,
+            ag.updated_at,
             lo.id AS location_id,
             lo.addr_line1,
             lo.addr_line2,
@@ -66,6 +68,8 @@ SELECT
     ag.website_url,
     ag.approved,
     IFNULL(approved_by.username, '') AS approved_by_username,
+    ag.created_at,
+    ag.updated_at,
     lo.id AS location_id,
     lo.addr_line1,
     lo.addr_line2,
@@ -118,6 +122,8 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
             ag.website_url,
             ag.approved,
             IFNULL(approved_by.username, '') AS approved_by_username,
+            ag.created_at,
+            ag.updated_at,
             lo.id AS location_id,
             lo.addr_line1,
             lo.addr_line2,
@@ -170,5 +176,11 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
     @Transactional
     @Query(value = "DELETE FROM agency WHERE id = :id", nativeQuery = true)
     void deleteAgencyById(@Param("id") int id);
+
+    /** Sets an agency back to pending (clears approval so it no longer appears in the approved list). */
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query(value = "UPDATE agency SET approved = NULL, approved_by_id = NULL, updated_at = :updatedAt WHERE id = :id", nativeQuery = true)
+    void setAgencyPending(@Param("id") int id, @Param("updatedAt") java.time.Instant updatedAt);
 
 }
