@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * REST API for forum threads and replies: create, update, delete, search, like, and reply to threads.
@@ -116,14 +117,16 @@ public class ThreadController {
             ThreadEntity savedThread = threadRepository.save(threadEntity);
 
             Set<ThreadTagEntity> entities = new HashSet<>();
-
             if (model.getTags() != null) {
+                Set<String> seenNormalized = new HashSet<>();
                 for (String tag : model.getTags()) {
-                    ThreadTagEntity threadTagEntity = new ThreadTagEntity();
-                    threadTagEntity.setName(tag);
-                    threadTagEntity.setThread(savedThread);
-                    entities.add(threadTagEntity);
-
+                    String normalized = normalizeTagName(tag);
+                    if (!normalized.isEmpty() && seenNormalized.add(normalized)) {
+                        ThreadTagEntity threadTagEntity = new ThreadTagEntity();
+                        threadTagEntity.setName(normalized);
+                        threadTagEntity.setThread(savedThread);
+                        entities.add(threadTagEntity);
+                    }
                 }
             }
 
@@ -991,6 +994,82 @@ public class ThreadController {
         threadRepository.deleteThreadById(threadId);
         postMetadataRepository.deleteById(metadataId);
         return ResponseEntity.ok().build();
+    }
+    @Operation(
+            summary = "Update thread tags",
+            description = "Replaces all tags on a thread with the provided list. Only the thread author can update tags. Tag names are normalized (trimmed, lowercased). Rate limit: 30 requests per 60 seconds per user, with burst limit of 5 requests per 5 seconds.",
+            tags = {"Thread"},
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Tags were successfully updated. Empty response body."
+                    ),
+                    @ApiResponse(
+                            responseCode = "403",
+                            description = "Not logged in, or the logged-in user is not the author of the thread"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The thread with the given ID was not found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Rate limit exceeded. Maximum 30 requests per 60 seconds per user."
+                    )
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 30, burstRequests = 5, burstDurationSeconds = 5, keyType = "USER")
+    @DisallowRestricted
+    @PutMapping("/tags")
+    @Transactional
+    public ResponseEntity<?> updateTags(@RequestBody UpdateTagsModel updateTagsModel) {
+        var threadOpt = threadRepository.findByIdWithRelations(updateTagsModel.getThreadId());
+        if (threadOpt.isEmpty()) return ResponseEntity.status(404).build();
+        if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();
+        var threadEntity = threadOpt.get();
+        if (!Objects.equals(threadEntity.getPostedBy().getEmail(), JwtUtil.getLoggedInUser().getEmail())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        int threadId = threadEntity.getId();
+        List<Object[]> currentTagRows = threadTagRepository.findTagsByThreadIds(List.of(threadId));
+        Set<String> currentNamesNormalized = currentTagRows.stream()
+                .map(arr -> normalizeTagName((String) arr[1]))
+                .collect(Collectors.toSet());
+
+        String[] requested = updateTagsModel.getTags() != null ? updateTagsModel.getTags() : new String[0];
+        Set<String> newNames = Stream.of(requested)
+                .filter(Objects::nonNull)
+                .map(ThreadController::normalizeTagName)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+
+        Set<String> toRemoveNormalized = new HashSet<>(currentNamesNormalized);
+        toRemoveNormalized.removeAll(newNames);
+        Set<String> toRemoveActual = currentTagRows.stream()
+                .map(arr -> (String) arr[1])
+                .filter(name -> toRemoveNormalized.contains(normalizeTagName(name)))
+                .collect(Collectors.toSet());
+        Set<String> toAdd = new HashSet<>(newNames);
+        toAdd.removeAll(currentNamesNormalized);
+
+        if (!toRemoveActual.isEmpty()) {
+            threadTagRepository.deleteByThreadIdAndNameIn(threadId, toRemoveActual);
+        }
+        for (String name : toAdd) {
+            ThreadTagEntity tagEntity = new ThreadTagEntity();
+            tagEntity.setName(name);
+            tagEntity.setThread(threadEntity);
+            threadTagRepository.save(tagEntity);
+        }
+
+        return ResponseEntity.ok().build();
+    }
+
+    /** Normalizes a tag for storage and comparison: trim and lowercase. */
+    private static String normalizeTagName(String name) {
+        return name == null ? "" : name.trim().toLowerCase();
     }
 
     private List<ThreadResponse> toResponseModel(List<ThreadEntity> threads) {

@@ -8,6 +8,7 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface ThreadTagRepository extends CrudRepository<ThreadTagEntity, Integer> {
@@ -24,6 +25,12 @@ public interface ThreadTagRepository extends CrudRepository<ThreadTagEntity, Int
     @Modifying
     @Query(value = "DELETE FROM thread_tag WHERE thread = :threadId", nativeQuery = true)
     void deleteByThread_Id(@Param("threadId") int threadId);
+
+    /** Deletes only the tags for the given thread whose names are in the given collection. Use for minimal updates. */
+    @Transactional
+    @Modifying
+    @Query("DELETE FROM ThreadTagEntity tt WHERE tt.thread.id = :threadId AND tt.name IN :names")
+    void deleteByThreadIdAndNameIn(@Param("threadId") int threadId, @Param("names") Collection<String> names);
 
     @Modifying
     @Transactional
