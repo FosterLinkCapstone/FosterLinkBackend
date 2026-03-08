@@ -91,7 +91,7 @@ public class FaqMapper {
             faqResponse.setTitle((String)obj[1]);
             faqResponse.setSummary((String)obj[2]);
             faqResponse.setCreatedAt((Date) obj[3]);
-            faqResponse.setUpdatedAt((Date) obj[4]);
+            faqResponse.setUpdatedAt(obj[4] != null ? (Date) obj[4] : null);
             faqResponse.setApprovalStatus(ApprovalStatus.fromDbVal(Integer.parseInt(String.valueOf(obj[5])))); // lol
             faqResponse.setDeniedByUsername((String)obj[6]);
             faqResponse.setAuthor(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 7, 18)));

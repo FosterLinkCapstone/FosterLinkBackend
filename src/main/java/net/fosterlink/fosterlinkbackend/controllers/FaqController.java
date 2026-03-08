@@ -26,6 +26,7 @@ import net.fosterlink.fosterlinkbackend.models.rest.PendingFaqResponse;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.models.web.faq.ApproveFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqModel;
+import net.fosterlink.fosterlinkbackend.models.web.faq.UpdateFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.HiddenFaqType;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
@@ -453,6 +454,50 @@ public class FaqController {
         List<FaqResponse> faqs = faqMapper.allApprovedPreviewsForUser(userId, pageNumber);
 
         return ResponseEntity.ok(new GetFaqsResponse(faqs, totalPages));
+    }
+
+    @Operation(
+            summary = "Update an FAQ (author only)",
+            description = "Updates an FAQ's title, summary, and/or content. Only the author may update their own FAQ. Saving sends the FAQ back to pending approval; an administrator must approve it again. Rate limit: 15 requests per 60 seconds per user.",
+            tags = {"FAQ", "FaqAuthor"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The FAQ was successfully updated and is now pending approval"),
+                    @ApiResponse(responseCode = "400", description = "No title, summary, or content provided, or validation failed"),
+                    @ApiResponse(responseCode = "403", description = "Only the author may update this FAQ"),
+                    @ApiResponse(responseCode = "404", description = "The FAQ was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/update")
+    @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
+    public ResponseEntity<?> updateFaq(@Valid @RequestBody UpdateFaqModel model) {
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
+        if (model.getTitle() == null && model.getSummary() == null && model.getContent() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        Optional<FaqEntity> faqOpt = fAQRepository.findById(model.getId());
+        if (faqOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        FaqEntity faq = faqOpt.get();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user == null) return ResponseEntity.status(403).build();
+
+        if (faq.getAuthor().getId() != user.getId()) {
+            return ResponseEntity.status(403).build();
+        }
+
+        if (model.getTitle() != null) faq.setTitle(model.getTitle());
+        if (model.getSummary() != null) faq.setSummary(model.getSummary());
+        if (model.getContent() != null) faq.setContent(model.getContent());
+        faq.setUpdatedAt(new Date());
+        fAQRepository.save(faq);
+        fAQApprovalRepository.deleteByFaqId(faq.getId());
+        return ResponseEntity.ok().build();
     }
 
     @Operation(
