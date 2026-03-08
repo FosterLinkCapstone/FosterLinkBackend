@@ -7,6 +7,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import net.fosterlink.fosterlinkbackend.config.validation.Blacklist;
+import net.fosterlink.fosterlinkbackend.config.validation.BlacklistMatchBy;
 import net.fosterlink.fosterlinkbackend.models.validation.Order1;
 import net.fosterlink.fosterlinkbackend.models.validation.Order2;
 
@@ -19,14 +21,17 @@ public class UserRegisterModel {
     @NotBlank(message = "Please provide a username!", groups = {Order1.class})
     @Size(min=3, max=30)
     @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "Username must be alphanumeric including underscores.")
+    @Blacklist(matchBy = BlacklistMatchBy.STARTS_WITH, value = {"deleted_account", "deleted-account", "deletedaccount"})
     private final String username;
     @Schema(description = "First name of the user.", example = "Jacob")
     @NotBlank
     @Size(min=1, max=50)
+    @Blacklist(value = {"deleted", "account", "deleted_account", "deletedaccount", "deleted-account"})
     private final String firstName;
     @Schema(description = "Last name of the user.", example = "Blair")
     @NotBlank
     @Size(min=1, max=50)
+    @Blacklist(value = {"deleted", "account", "deleted_account", "deletedaccount", "deleted-account"})
     private final String lastName;
     @Schema(description = "Email of the user.", example = "jacob@fosterlink.net")
     @NotBlank
