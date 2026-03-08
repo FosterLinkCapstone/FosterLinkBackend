@@ -125,10 +125,26 @@ public class FaqController {
         Optional<FaqEntity> faq = fAQRepository.findById(id);
         if (faq.isEmpty()) return ResponseEntity.notFound().build();
         Optional<FAQApprovalEntity> approval = fAQApprovalRepository.findFAQApprovalEntityByFaqId(id);
-        if (approval.isEmpty() || !approval.get().isApproved() || approval.get().getHiddenBy() != null) {
-            return ResponseEntity.notFound().build();
+        boolean approved = approval.isPresent() && approval.get().isApproved();
+        boolean hidden = approval.isPresent() && approval.get().getHiddenBy() != null;
+        boolean hiddenByAuthor = approval.isPresent() && approval.get().getHiddenBy() != null;
+
+        if (approved && !hidden) {
+            return ResponseEntity.ok(faq.get().getContent());
         }
-        return ResponseEntity.ok(faq.get().getContent());
+        // Pending or hidden: allow if caller is admin, or (hidden by author and caller is the author)
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn != null) {
+            UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+            if (user != null) {
+                boolean canView = user.isAdministrator()
+                        || (hidden && hiddenByAuthor && faq.get().getAuthor().getId() == user.getId());
+                if (canView) {
+                    return ResponseEntity.ok(faq.get().getContent());
+                }
+            }
+        }
+        return ResponseEntity.notFound().build();
     }
 
     @Operation(
@@ -502,7 +518,7 @@ public class FaqController {
 
     @Operation(
             summary = "Hide or restore an FAQ",
-            description = "Allows an FAQ author to hide (soft-delete) their own FAQ, or an administrator to hide any FAQ. Administrators can also restore hidden FAQs. Rate limit: 10 requests per 60 seconds per user.",
+            description = "Allows an FAQ author to hide (soft-delete) or restore their own FAQ, or an administrator to hide any FAQ and to restore only FAQs they hid (not author-hidden). Rate limit: 10 requests per 60 seconds per user.",
             tags = {"FAQ", "Admin", "FaqAuthor"},
             responses = {
                     @ApiResponse(responseCode = "200", description = "The FAQ was successfully hidden or restored"),
@@ -538,7 +554,9 @@ public class FaqController {
             approval = approvalOpt.get();
         }
 
-        if (user.isAdministrator() || (hiddenByAuthor && hidden)) {
+        boolean canHide = user.isAdministrator() || (hiddenByAuthor && hidden);
+        boolean canRestore = !hidden && approvalOpt.isPresent() && ((approval.getHiddenBy() != null && faqOpt.get().getAuthor().getId() == user.getId()) || (approval.getHiddenBy() == null && user.isAdministrator()));
+        if (canHide || canRestore) {
             if (hidden) {
                 approval.setHiddenByAuthor(hiddenByAuthor);
                 approval.setHiddenBy(user.getUsername());

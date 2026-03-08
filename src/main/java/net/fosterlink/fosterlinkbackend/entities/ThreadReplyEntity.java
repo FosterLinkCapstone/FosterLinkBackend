@@ -32,8 +32,8 @@ public class ThreadReplyEntity {
     @ManyToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "metadata")
     private PostMetadataEntity metadata;
-    /** User who wrote the reply. */
-    @ManyToOne(cascade = CascadeType.ALL)
+    /** User who wrote the reply. Do not cascade delete—deleting a reply must not delete the user. */
+    @ManyToOne
     @JoinColumn(name = "posted_by")
     private UserEntity postedBy;
 }

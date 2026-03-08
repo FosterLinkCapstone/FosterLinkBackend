@@ -123,7 +123,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         (DATEDIFF(NOW(), t.created_at) / -365.0) * 0.6 +
         RAND() * 0.3
     ) DESC
-    LIMIT 10
+    LIMIT 3
     """, nativeQuery = true)
     List<Object[]> findRandomWeightedThreadsForUser(int userId);
 

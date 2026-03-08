@@ -664,7 +664,7 @@ public class ThreadController {
 
     @Operation(
             summary = "Hide or restore a reply",
-            description = "Hides or restores a reply. Authors can hide their own reply (soft delete); administrators can hide any reply or restore hidden replies. Rate limit: 10 requests per 60 seconds per user, with burst limit of 3 requests per 30 seconds.",
+            description = "Hides or restores a reply. Authors can hide or restore their own reply (soft delete); administrators can hide any reply and can restore only replies they hid (not author-hidden). Rate limit: 10 requests per 60 seconds per user, with burst limit of 3 requests per 30 seconds.",
             tags = {"Thread", "Admin"},
             parameters = {
                     @Parameter(name = "replyId", description = "The internal ID of the reply to hide or restore", required = true),
@@ -672,7 +672,7 @@ public class ThreadController {
             },
             responses = {
                     @ApiResponse(responseCode = "200", description = "The reply was successfully hidden or restored"),
-                    @ApiResponse(responseCode = "403", description = "Not logged in, or insufficient permission (author can only hide own reply; admin can hide/restore any)"),
+                    @ApiResponse(responseCode = "403", description = "Not logged in, or insufficient permission (author can hide/restore own; admin can hide any, restore only admin-hidden)"),
                     @ApiResponse(responseCode = "404", description = "The reply was not found"),
                     @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
             },
@@ -691,7 +691,10 @@ public class ThreadController {
         if (reply == null) return ResponseEntity.status(404).build();
 
         boolean hiddenByAuthor = reply.getPostedBy().getId() == user.getId();
-        if (user.isAdministrator() || (hiddenByAuthor && hidden)) {
+        boolean canHide = user.isAdministrator() || (hiddenByAuthor && hidden);
+        boolean wasHiddenByAuthor = reply.getMetadata().isUser_deleted();
+        boolean canRestore = !hidden && ((wasHiddenByAuthor && reply.getPostedBy().getId() == user.getId()) || (!wasHiddenByAuthor && user.isAdministrator()));
+        if (canHide || canRestore) {
             if (hidden) {
                 reply.getMetadata().setUser_deleted(hiddenByAuthor);
                 if (!hiddenByAuthor) {
@@ -732,11 +735,12 @@ public class ThreadController {
     public ResponseEntity<?> fullDeleteHiddenReply(@RequestParam int replyId) {
         ThreadReplyEntity reply = threadReplyRepository.findByIdWithRelations(replyId).orElse(null);
         if (reply == null) return ResponseEntity.status(404).build();
+        if (!reply.getMetadata().isHidden()) {
+            return ResponseEntity.status(403).body("Only hidden replies can be permanently deleted");
+        }
 
-        int metadataId = reply.getMetadata().getId();
         threadReplyLikeRepository.deleteByThreadIn(List.of(replyId));
-        threadReplyRepository.deleteById(replyId);
-        postMetadataRepository.deleteById(metadataId);
+        threadReplyRepository.delete(reply);  // cascade deletes metadata
         return ResponseEntity.ok().build();
     }
     @Operation(
@@ -865,7 +869,7 @@ public class ThreadController {
 
     @Operation(
             summary = "Hide or restore a thread",
-            description = "Hides or restores a thread. Authors can hide their own thread (soft delete); administrators can hide any thread or restore hidden threads. Rate limit: 10 requests per 60 seconds per user, with burst limit of 3 requests per 30 seconds.",
+            description = "Hides or restores a thread. Authors can hide or restore their own thread (soft delete); administrators can hide any thread and can restore only threads they hid (not author-hidden). Rate limit: 10 requests per 60 seconds per user, with burst limit of 3 requests per 30 seconds.",
             tags = {"Thread", "Admin"},
             parameters = {
                     @Parameter(name = "threadId", description = "The internal ID of the thread to hide or restore", required = true),
@@ -873,7 +877,7 @@ public class ThreadController {
             },
             responses = {
                     @ApiResponse(responseCode = "200", description = "The thread was successfully hidden or restored"),
-                    @ApiResponse(responseCode = "403", description = "Not logged in, or insufficient permission (author can only hide own thread; admin can hide/restore any)"),
+                    @ApiResponse(responseCode = "403", description = "Not logged in, or insufficient permission (author can hide/restore own; admin can hide any, restore only admin-hidden)"),
                     @ApiResponse(responseCode = "404", description = "The thread was not found"),
                     @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
             },
@@ -892,7 +896,10 @@ public class ThreadController {
             Optional<ThreadEntity> thread = threadRepository.findByIdWithRelations(threadId);
             if (thread.isEmpty()) return ResponseEntity.status(404).build();
             boolean hiddenByAuthor = (thread.get().getPostedBy().getId() == user.getId()) && !user.isAdministrator();
-            if (user.isAdministrator() || (hiddenByAuthor && hidden)) {
+            boolean canHide = user.isAdministrator() || (hiddenByAuthor && hidden);
+            boolean wasHiddenByAuthor = thread.get().getPostMetadata().isUser_deleted();
+            boolean canRestore = !hidden && ((wasHiddenByAuthor && thread.get().getPostedBy().getId() == user.getId()) || (!wasHiddenByAuthor && user.isAdministrator()));
+            if (canHide || canRestore) {
                 if (hidden) {
                     thread.get().getPostMetadata().setUser_deleted(hiddenByAuthor);
                     thread.get().getPostMetadata().setHidden_by(user.getUsername());
