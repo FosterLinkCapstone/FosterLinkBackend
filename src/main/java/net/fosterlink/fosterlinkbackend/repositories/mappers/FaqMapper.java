@@ -81,6 +81,28 @@ public class FaqMapper {
 
         return mapFaqResponses(faqResponseList, map);
     }
+
+    /** Search and order: when search is null/empty and orderNewest true, uses cached allApprovedPreviews. searchBy: authorFullName, authorUsername, title, summary, or null/all for any. */
+    public List<FaqResponse> allApprovedPreviewsWithSearch(int pageNumber, String search, boolean orderNewest, String searchBy) {
+        String normalizedSearch = (search != null && !search.isBlank()) ? search.trim() : null;
+        if (normalizedSearch == null && orderNewest) {
+            return allApprovedPreviews(pageNumber);
+        }
+        String normalizedSearchBy = (searchBy != null && !searchBy.isBlank()) ? searchBy.trim() : null;
+        List<FaqResponse> faqResponseList = new ArrayList<>();
+        List<Object[]> map = orderNewest
+                ? fAQRepository.allApprovedPreviewsWithSearchNewest(normalizedSearch, normalizedSearchBy, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE))
+                : fAQRepository.allApprovedPreviewsWithSearchOldest(normalizedSearch, normalizedSearchBy, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+        return mapFaqResponses(faqResponseList, map);
+    }
+
+    public int countApprovedWithSearch(String search, String searchBy) {
+        if (search == null || search.isBlank()) {
+            return fAQRepository.countApproved();
+        }
+        String normalizedSearchBy = (searchBy != null && !searchBy.isBlank()) ? searchBy.trim() : null;
+        return fAQRepository.countApprovedWithSearch(search.trim(), normalizedSearchBy);
+    }
     public List<PendingFaqResponse> allPendingPreviews(int pageNumber) {
         List<PendingFaqResponse> faqResponseList = new ArrayList<>();
         List<Object[]> map = fAQRepository.allPendingPreviews(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));

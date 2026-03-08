@@ -66,10 +66,13 @@ public class FaqController {
 
     @Operation(
             summary = "Get all approved FAQs",
-            description = "Retrieves a paginated list of all FAQs that have been approved by an administrator. Rate limit: 50 requests per 60 seconds per IP.",
+            description = "Retrieves a paginated list of all FAQs that have been approved by an administrator. Supports search by author full name, author username, FAQ title, and FAQ summary. Order by newest or oldest (default newest). Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"FAQ"},
             parameters = {
-                    @Parameter(name = "pageNumber", description = "Zero-based page number", required = true)
+                    @Parameter(name = "pageNumber", description = "Zero-based page number", required = true),
+                    @Parameter(name = "search", description = "Optional search term"),
+                    @Parameter(name = "searchBy", description = "Category to search in: authorFullName, authorUsername, title, summary, or omit for all"),
+                    @Parameter(name = "orderBy", description = "Sort order: 'newest' (default) or 'oldest'")
             },
             responses = {
                     @ApiResponse(
@@ -88,10 +91,18 @@ public class FaqController {
     )
     @GetMapping("/all")
     @RateLimit
-    public ResponseEntity<?> getAllFaqs(@RequestParam int pageNumber) {
-        int totalCount = fAQRepository.countApproved();
+    public ResponseEntity<?> getAllFaqs(
+            @RequestParam int pageNumber,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String searchBy,
+            @RequestParam(required = false, defaultValue = "newest") String orderBy) {
+        boolean orderNewest = !"oldest".equalsIgnoreCase(orderBy);
+        String normalizedSearch = (search != null && !search.isBlank()) ? search.trim() : null;
+        String normalizedSearchBy = (searchBy != null && !searchBy.isBlank()) ? searchBy.trim() : null;
+        int totalCount = faqMapper.countApprovedWithSearch(normalizedSearch, normalizedSearchBy);
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new GetFaqsResponse(faqMapper.allApprovedPreviews(pageNumber), totalPages));
+        List<FaqResponse> faqs = faqMapper.allApprovedPreviewsWithSearch(pageNumber, normalizedSearch, orderNewest, normalizedSearchBy);
+        return ResponseEntity.ok(new GetFaqsResponse(faqs, totalPages));
     }
     @Operation(
             summary = "Get FAQ content by ID",

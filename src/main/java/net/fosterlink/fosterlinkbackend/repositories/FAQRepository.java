@@ -15,6 +15,20 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
     @Query(value = "SELECT COUNT(*) FROM faq fr INNER JOIN faq_approval fa ON fa.faq_id = fr.id WHERE fa.approved = 1 AND fa.hidden_by IS NULL", nativeQuery = true)
     int countApproved();
 
+    @Query(value = """
+            SELECT COUNT(*) FROM faq fr
+            INNER JOIN user u ON fr.author = u.id
+            INNER JOIN faq_approval fa ON fa.faq_id = fr.id
+            WHERE fa.approved = 1 AND fa.hidden_by IS NULL
+            AND (:search IS NULL OR :search = '' OR (
+                (COALESCE(:searchBy, 'all') IN ('all', 'authorFullName') AND LOWER(CONCAT(IFNULL(u.first_name, ''), ' ', IFNULL(u.last_name, ''))) LIKE LOWER(CONCAT('%', :search, '%')))
+                OR (COALESCE(:searchBy, 'all') IN ('all', 'authorUsername') AND LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')))
+                OR (COALESCE(:searchBy, 'all') IN ('all', 'title') AND LOWER(fr.title) LIKE LOWER(CONCAT('%', :search, '%')))
+                OR (COALESCE(:searchBy, 'all') IN ('all', 'summary') AND LOWER(fr.summary) LIKE LOWER(CONCAT('%', :search, '%')))
+            ))
+            """, nativeQuery = true)
+    int countApprovedWithSearch(@Param("search") String search, @Param("searchBy") String searchBy);
+
     @Query(value = "SELECT COUNT(*) FROM faq fr INNER JOIN faq_approval fa ON fa.faq_id = fr.id WHERE fa.approved = 1 AND fr.author = :userId AND fa.hidden_by IS NULL", nativeQuery = true)
     int countApprovedByAuthor(@Param("userId") int userId);
 
@@ -50,9 +64,90 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
         WHERE approval.approved = 1 AND approval.hidden_by IS NULL
         GROUP BY fr.id, fr.title, fr.summary, fr.created_at, fr.updated_at, approval.approved, approval.approved_by_username, u.id,\s
                      u.first_name, u.last_name, u.profile_picture_url, u.verified_foster,\s
-                     u.faq_author, u.verified_foster, u.created_at, u.banned_at, u.restricted_at;
+                     u.faq_author, u.verified_foster, u.created_at, u.banned_at, u.restricted_at
+        ORDER BY fr.created_at DESC;
     """, nativeQuery = true)
     List<Object[]> allApprovedPreviews(Pageable pageable);
+
+    @Query(value = """
+            SELECT fr.id,
+                fr.title,
+                fr.summary,
+                fr.created_at,
+                fr.updated_at,
+                IFNULL(approval.approved, false) AS approved,
+                IFNULL(approval.approved_by_username, '') AS approved_by_username,
+                u.id as author_id,
+                u.first_name,
+                u.last_name,
+                u.username,
+                u.profile_picture_url,
+                u.verified_foster,
+                u.faq_author,
+                u.verified_agency_rep,
+                u.created_at as author_created_at,
+                u.banned_at,
+                u.restricted_at
+        FROM faq fr
+        INNER JOIN user u ON fr.author = u.id
+        LEFT JOIN (
+                SELECT faq_id, approved, author.username AS approved_by_username, fa.hidden_by
+                FROM faq_approval fa
+                INNER JOIN user author ON fa.approved_by_id = author.id
+            ) approval ON approval.faq_id = fr.id
+        WHERE approval.approved = 1 AND approval.hidden_by IS NULL
+        AND (:search IS NULL OR :search = '' OR (
+            (COALESCE(:searchBy, 'all') IN ('all', 'authorFullName') AND LOWER(CONCAT(IFNULL(u.first_name, ''), ' ', IFNULL(u.last_name, ''))) LIKE LOWER(CONCAT('%', :search, '%')))
+            OR (COALESCE(:searchBy, 'all') IN ('all', 'authorUsername') AND LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')))
+            OR (COALESCE(:searchBy, 'all') IN ('all', 'title') AND LOWER(fr.title) LIKE LOWER(CONCAT('%', :search, '%')))
+            OR (COALESCE(:searchBy, 'all') IN ('all', 'summary') AND LOWER(fr.summary) LIKE LOWER(CONCAT('%', :search, '%')))
+        ))
+        GROUP BY fr.id, fr.title, fr.summary, fr.created_at, fr.updated_at, approval.approved, approval.approved_by_username, u.id,\s
+                     u.first_name, u.last_name, u.profile_picture_url, u.verified_foster,\s
+                     u.faq_author, u.verified_foster, u.created_at, u.banned_at, u.restricted_at
+        ORDER BY fr.created_at DESC
+        """, nativeQuery = true)
+    List<Object[]> allApprovedPreviewsWithSearchNewest(@Param("search") String search, @Param("searchBy") String searchBy, Pageable pageable);
+
+    @Query(value = """
+            SELECT fr.id,
+                fr.title,
+                fr.summary,
+                fr.created_at,
+                fr.updated_at,
+                IFNULL(approval.approved, false) AS approved,
+                IFNULL(approval.approved_by_username, '') AS approved_by_username,
+                u.id as author_id,
+                u.first_name,
+                u.last_name,
+                u.username,
+                u.profile_picture_url,
+                u.verified_foster,
+                u.faq_author,
+                u.verified_agency_rep,
+                u.created_at as author_created_at,
+                u.banned_at,
+                u.restricted_at
+        FROM faq fr
+        INNER JOIN user u ON fr.author = u.id
+        LEFT JOIN (
+                SELECT faq_id, approved, author.username AS approved_by_username, fa.hidden_by
+                FROM faq_approval fa
+                INNER JOIN user author ON fa.approved_by_id = author.id
+            ) approval ON approval.faq_id = fr.id
+        WHERE approval.approved = 1 AND approval.hidden_by IS NULL
+        AND (:search IS NULL OR :search = '' OR (
+            (COALESCE(:searchBy, 'all') IN ('all', 'authorFullName') AND LOWER(CONCAT(IFNULL(u.first_name, ''), ' ', IFNULL(u.last_name, ''))) LIKE LOWER(CONCAT('%', :search, '%')))
+            OR (COALESCE(:searchBy, 'all') IN ('all', 'authorUsername') AND LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')))
+            OR (COALESCE(:searchBy, 'all') IN ('all', 'title') AND LOWER(fr.title) LIKE LOWER(CONCAT('%', :search, '%')))
+            OR (COALESCE(:searchBy, 'all') IN ('all', 'summary') AND LOWER(fr.summary) LIKE LOWER(CONCAT('%', :search, '%')))
+        ))
+        GROUP BY fr.id, fr.title, fr.summary, fr.created_at, fr.updated_at, approval.approved, approval.approved_by_username, u.id,\s
+                     u.first_name, u.last_name, u.profile_picture_url, u.verified_foster,\s
+                     u.faq_author, u.verified_foster, u.created_at, u.banned_at, u.restricted_at
+        ORDER BY fr.created_at ASC
+        """, nativeQuery = true)
+    List<Object[]> allApprovedPreviewsWithSearchOldest(@Param("search") String search, @Param("searchBy") String searchBy, Pageable pageable);
 
     @Query(value = """
             SELECT fr.id,
