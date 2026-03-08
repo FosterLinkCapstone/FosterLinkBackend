@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -69,10 +70,12 @@ public class AgencyController {
 
     @Operation(
             summary = "Get all approved agencies",
-            description = "Retrieves a paginated list of all agencies that have been approved by an administrator. Rate limit: 50 requests per 60 seconds per IP.",
+            description = "Retrieves a paginated list of all agencies that have been approved by an administrator. Supports search by agency (name, mission), agent (full name, username, email, phone), or location (city, state, zip). Rate limit: 50 requests per 60 seconds per IP.",
             tags = {"Agency"},
             parameters = {
-                    @Parameter(name = "pageNumber", description = "Zero-based page number", required = true)
+                    @Parameter(name = "pageNumber", description = "Zero-based page number", required = true),
+                    @Parameter(name = "search", description = "Optional search term"),
+                    @Parameter(name = "searchBy", description = "Category to search in: agency, agent, or location")
             },
             responses = {
                     @ApiResponse(
@@ -91,8 +94,13 @@ public class AgencyController {
     )
     @GetMapping("/all")
     @RateLimit
-    public ResponseEntity<?> getAllAgencies(@RequestParam int pageNumber) {
-        int totalCount = agencyRepository.countApproved();
+    public ResponseEntity<?> getAllAgencies(
+            @RequestParam int pageNumber,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String searchBy) {
+        String normalizedSearch = (search != null && !search.isBlank()) ? search.trim() : null;
+        String normalizedSearchBy = (searchBy != null && !searchBy.isBlank()) ? searchBy.trim() : null;
+        int totalCount = agencyMapper.countApprovedWithSearch(normalizedSearch, normalizedSearchBy);
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         boolean includeDeletionRequestForAdmin = false;
         Integer currentUserId = null;
@@ -101,7 +109,10 @@ public class AgencyController {
             currentUserId = loggedIn.getDatabaseId();
             includeDeletionRequestForAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
         }
-        return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllApprovedAgencies(pageNumber, includeDeletionRequestForAdmin, currentUserId), totalPages));
+        List<AgencyResponse> agencies = (normalizedSearch == null || normalizedSearch.isEmpty())
+                ? agencyMapper.getAllApprovedAgencies(pageNumber, includeDeletionRequestForAdmin, currentUserId)
+                : agencyMapper.getAllApprovedAgenciesWithSearch(pageNumber, normalizedSearch, normalizedSearchBy, includeDeletionRequestForAdmin, currentUserId);
+        return ResponseEntity.ok(new GetAgenciesResponse(agencies, totalPages));
     }
     @Operation(
             summary = "Get all pending agencies",

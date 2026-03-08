@@ -30,6 +30,27 @@ public class AgencyMapper {
         return getAgencyResponses(agencies, toMap, false, includeDeletionRequestForAdmin, currentUserId);
     }
 
+    /** Search by: agency (name, mission), agent (full name, username, email, phone), location (city, state, zip). */
+    public List<AgencyResponse> getAllApprovedAgenciesWithSearch(int pageNumber, String search, String searchBy, boolean includeDeletionRequestForAdmin, Integer currentUserId) {
+        List<AgencyResponse> agencies = new ArrayList<>();
+        String normalizedSearch = (search != null && !search.isBlank()) ? search.trim() : null;
+        String normalizedSearchBy = (searchBy != null && !searchBy.isBlank()) ? searchBy.trim() : null;
+        if (normalizedSearch == null || normalizedSearch.isEmpty()) {
+            return getAllApprovedAgencies(pageNumber, includeDeletionRequestForAdmin, currentUserId);
+        }
+        List<Object[]> toMap = agencyRepository.allApprovedAgenciesWithSearch(normalizedSearch, normalizedSearchBy, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+        return getAgencyResponses(agencies, toMap, false, includeDeletionRequestForAdmin, currentUserId);
+    }
+
+    public int countApprovedWithSearch(String search, String searchBy) {
+        if (search == null || search.isBlank()) {
+            return agencyRepository.countApproved();
+        }
+        String normalizedSearch = search.trim();
+        String normalizedSearchBy = (searchBy != null && !searchBy.isBlank()) ? searchBy.trim() : "agency";
+        return agencyRepository.countApprovedWithSearch(normalizedSearch, normalizedSearchBy);
+    }
+
     public List<AgencyResponse> getAllPendingAgencies(int pageNumber) {
         List<AgencyResponse> agencies = new ArrayList<>();
         List<Object[]> toMap = agencyRepository.allPendingAgencies(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));

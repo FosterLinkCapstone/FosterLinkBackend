@@ -82,17 +82,15 @@ public class FaqMapper {
         return mapFaqResponses(faqResponseList, map);
     }
 
-    /** Search and order: when search is null/empty and orderNewest true, uses cached allApprovedPreviews. searchBy: authorFullName, authorUsername, title, summary, or null/all for any. */
-    public List<FaqResponse> allApprovedPreviewsWithSearch(int pageNumber, String search, boolean orderNewest, String searchBy) {
+    /** Search: when search is null/empty, uses cached allApprovedPreviews. searchBy: authorFullName, authorUsername, title, summary, or null/all for any. */
+    public List<FaqResponse> allApprovedPreviewsWithSearch(int pageNumber, String search, String searchBy) {
         String normalizedSearch = (search != null && !search.isBlank()) ? search.trim() : null;
-        if (normalizedSearch == null && orderNewest) {
+        if (normalizedSearch == null) {
             return allApprovedPreviews(pageNumber);
         }
         String normalizedSearchBy = (searchBy != null && !searchBy.isBlank()) ? searchBy.trim() : null;
         List<FaqResponse> faqResponseList = new ArrayList<>();
-        List<Object[]> map = orderNewest
-                ? fAQRepository.allApprovedPreviewsWithSearchNewest(normalizedSearch, normalizedSearchBy, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE))
-                : fAQRepository.allApprovedPreviewsWithSearchOldest(normalizedSearch, normalizedSearchBy, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+        List<Object[]> map = fAQRepository.allApprovedPreviewsWithSearchNewest(normalizedSearch, normalizedSearchBy, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         return mapFaqResponses(faqResponseList, map);
     }
 
