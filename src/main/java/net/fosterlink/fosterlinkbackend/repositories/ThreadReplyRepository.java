@@ -129,6 +129,9 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
     @Query("SELECT tr FROM ThreadReplyEntity tr WHERE tr.postedBy.id = :userId")
     List<ThreadReplyEntity> findAllByPostedById(@Param("userId") int userId);
 
+    @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.metadata JOIN FETCH tr.postedBy WHERE tr.postedBy.id = :userId ORDER BY tr.createdAt DESC")
+    List<ThreadReplyEntity> findAllByPostedByIdWithRelations(@Param("userId") int userId);
+
     @Modifying
     @Transactional
     @Query(value = "UPDATE post_metadata pm INNER JOIN thread_reply tr ON tr.metadata = pm.id SET pm.hidden = true, pm.user_deleted = true WHERE tr.posted_by = :userId AND pm.hidden = false", nativeQuery = true)

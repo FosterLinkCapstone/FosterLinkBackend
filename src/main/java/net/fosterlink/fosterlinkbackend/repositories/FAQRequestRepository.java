@@ -26,4 +26,7 @@ public interface FAQRequestRepository extends CrudRepository<FAQRequestEntity, I
     @Query(value = "DELETE FROM faq_request WHERE requested_by = :userId", nativeQuery = true)
     void deleteByRequestedById(@Param("userId") int userId);
 
+    @Query("SELECT fr FROM FAQRequestEntity fr WHERE fr.requestedById = :requestedById ORDER BY fr.createdAt DESC")
+    List<FAQRequestEntity> findByRequestedByIdOrderByCreatedAtDesc(@Param("requestedById") int requestedById);
+
 }

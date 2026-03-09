@@ -47,6 +47,9 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
     @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.id = :threadId")
     java.util.Optional<ThreadEntity> findByIdWithRelations(@Param("threadId") int threadId);
 
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postedBy WHERE t.id IN :threadIds")
+    List<ThreadEntity> findAllByIdWithPostedBy(@Param("threadIds") List<Integer> threadIds);
+
     @Query("SELECT DISTINCT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.id IN :threadIds AND t.postMetadata.hidden = false")
     List<ThreadEntity> findAllByIdWithRelations(@Param("threadIds") List<Integer> threadIds, Pageable pageable);
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.content LIKE CONCAT('%', :content, '%')", nativeQuery = true)
@@ -530,6 +533,9 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
 
     @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata WHERE t.postedBy.id = :userId")
     List<ThreadEntity> findAllByPostedById(@Param("userId") int userId);
+
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.postedBy.id = :userId ORDER BY t.createdAt DESC")
+    List<ThreadEntity> findAllByPostedByIdWithRelations(@Param("userId") int userId);
 
     @Query(value = """
     SELECT

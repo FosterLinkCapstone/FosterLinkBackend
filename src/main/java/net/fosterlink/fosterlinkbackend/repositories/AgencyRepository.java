@@ -226,6 +226,9 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
     @Query("SELECT a FROM AgencyEntity a WHERE a.agent.id = :agentId")
     List<AgencyEntity> findByAgentId(@Param("agentId") int agentId);
 
+    @Query("SELECT a FROM AgencyEntity a JOIN FETCH a.address JOIN FETCH a.agent WHERE a.agent.id = :agentId")
+    List<AgencyEntity> findByAgentIdWithRelations(@Param("agentId") int agentId);
+
     @Modifying
     @Transactional
     @Query(value = "UPDATE agency SET hidden = true, hidden_by_username = '[account-deletion-pending]' WHERE agent = :userId AND hidden = false", nativeQuery = true)

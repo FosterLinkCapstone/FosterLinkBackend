@@ -241,4 +241,7 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
     @Query(value = "DELETE FROM faq WHERE author = :userId", nativeQuery = true)
     void deleteByAuthorId(@Param("userId") int userId);
 
+    @Query("SELECT f FROM FaqEntity f JOIN FETCH f.author WHERE f.author.id = :authorId ORDER BY f.createdAt DESC")
+    List<FaqEntity> findByAuthor_IdOrderByCreatedAtDesc(@Param("authorId") int authorId);
+
 }

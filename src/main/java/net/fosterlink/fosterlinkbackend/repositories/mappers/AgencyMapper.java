@@ -1,5 +1,6 @@
 package net.fosterlink.fosterlinkbackend.repositories.mappers;
 
+import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
 import net.fosterlink.fosterlinkbackend.entities.LocationEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyDeletionRequestResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
@@ -165,6 +166,27 @@ public class AgencyMapper {
             agencies.add(agency);
         }
         return agencies;
+    }
+
+    /**
+     * Builds an AgencyResponse from an entity (e.g. for admin list of agencies by user).
+     * Uses approved: 0 = pending, 1 = approved, 2 = denied. Approver username is not set.
+     */
+    public AgencyResponse fromEntity(AgencyEntity e) {
+        AgencyResponse agency = new AgencyResponse();
+        agency.setId(e.getId());
+        agency.setAgencyName(e.getName());
+        agency.setAgencyMissionStatement(e.getMissionStatement());
+        agency.setAgencyWebsiteLink(e.getWebsiteUrl());
+        agency.setApproved(e.getApproved() == null ? 0 : (e.getApproved() ? 1 : 2));
+        agency.setApprovedByUsername(null);
+        agency.setCreatedAt(e.getCreatedAt() == null ? null : Date.from(e.getCreatedAt()));
+        agency.setUpdatedAt(e.getUpdatedAt() == null ? null : Date.from(e.getUpdatedAt()));
+        agency.setLocation(e.getAddress());
+        agency.setAgent(new UserResponse(e.getAgent()));
+        agency.setAgentInfo(new AgentInfoResponse(e.getAgent()));
+        agency.setHiddenByUsername(e.getHiddenByUsername());
+        return agency;
     }
 
 }
