@@ -1,13 +1,8 @@
 package net.fosterlink.fosterlinkbackend.mail.service;
 
-import jakarta.mail.internet.MimeMessage;
 import net.fosterlink.fosterlinkbackend.mail.CheckEmailPreference;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.util.Locale;
@@ -33,132 +28,66 @@ public class AdminUserMailService {
             "ADMINISTRATOR", "Administrator"
     );
 
-    private final JavaMailSender mailSender;
-    private final TemplateEngine templateEngine;
+    private final MailSendHelper mailSendHelper;
 
-    @Value("${spring.mail.username}")
-    private String fromAddress;
-
-    @Value("${app.frontendUrl}")
-    private String frontendUrl;
-
-    public AdminUserMailService(JavaMailSender mailSender, TemplateEngine templateEngine) {
-        this.mailSender = mailSender;
-        this.templateEngine = templateEngine;
+    public AdminUserMailService(MailSendHelper mailSendHelper) {
+        this.mailSendHelper = mailSendHelper;
     }
 
     @Async
     public void sendAdminApprovalRequest(String toEmail, String founderFirstName, String targetUsername,
-                                         int targetUserId, String rawToken, String frontendUrl) {
-        try {
-            String greeting = (founderFirstName != null && !founderFirstName.isBlank()) ? founderFirstName : "there";
-            String approveUrl = frontendUrl + "/token-action?action=approve&token=" + rawToken + "&userId=" + targetUserId;
-            String denyUrl    = frontendUrl + "/token-action?action=deny&token="    + rawToken + "&userId=" + targetUserId;
-            String unsubscribeUrl = frontendUrl + "/settings";
+                                         int targetUserId, String rawToken, String frontendUrl,
+                                         String recipientUnsubscribeToken, int recipientId) {
+        String baseUrl = frontendUrl != null ? frontendUrl : mailSendHelper.getFrontendUrl();
+        String approveUrl = baseUrl + "/token-action?action=approve&token=" + rawToken + "&userId=" + targetUserId;
+        String denyUrl    = baseUrl + "/token-action?action=deny&token="    + rawToken + "&userId=" + targetUserId;
 
-            Context context = new Context(Locale.getDefault());
-            context.setVariable("founderName", greeting);
-            context.setVariable("targetUsername", targetUsername);
-            context.setVariable("approveUrl", approveUrl);
-            context.setVariable("denyUrl", denyUrl);
-            context.setVariable("unsubscribeUrl", unsubscribeUrl);
+        Context context = new Context(Locale.getDefault());
+        context.setVariable("founderName", mailSendHelper.greetingName(founderFirstName));
+        context.setVariable("targetUsername", targetUsername);
+        context.setVariable("approveUrl", approveUrl);
+        context.setVariable("denyUrl", denyUrl);
+        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(recipientId, recipientUnsubscribeToken));
 
-            String htmlBody = templateEngine.process(ADMIN_APPROVAL_TEMPLATE, context);
-
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(toEmail);
-            helper.setSubject("Action required: Administrator role assignment approval");
-            helper.setText(htmlBody, true);
-
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Failed to send admin approval email to " + toEmail + ": " + e.getMessage());
-        }
+        mailSendHelper.sendTemplatedEmail(toEmail, "Action required: Administrator role assignment approval", ADMIN_APPROVAL_TEMPLATE, context);
     }
 
     @Async
     public void sendAdminRevocationRequest(String toEmail, String founderFirstName, String targetUsername,
-                                           int targetUserId, String rawToken, String frontendUrl) {
-        try {
-            String greeting = (founderFirstName != null && !founderFirstName.isBlank()) ? founderFirstName : "there";
-            String approveUrl = frontendUrl + "/token-action?action=approve-revoke&token=" + rawToken + "&userId=" + targetUserId;
-            String denyUrl    = frontendUrl + "/token-action?action=deny-revoke&token="    + rawToken + "&userId=" + targetUserId;
-            String unsubscribeUrl = frontendUrl + "/settings";
+                                           int targetUserId, String rawToken, String frontendUrl,
+                                           String recipientUnsubscribeToken, int recipientId) {
+        String baseUrl = frontendUrl != null ? frontendUrl : mailSendHelper.getFrontendUrl();
+        String approveUrl = baseUrl + "/token-action?action=approve-revoke&token=" + rawToken + "&userId=" + targetUserId;
+        String denyUrl    = baseUrl + "/token-action?action=deny-revoke&token="    + rawToken + "&userId=" + targetUserId;
 
-            Context context = new Context(Locale.getDefault());
-            context.setVariable("founderName", greeting);
-            context.setVariable("targetUsername", targetUsername);
-            context.setVariable("approveUrl", approveUrl);
-            context.setVariable("denyUrl", denyUrl);
-            context.setVariable("unsubscribeUrl", unsubscribeUrl);
+        Context context = new Context(Locale.getDefault());
+        context.setVariable("founderName", mailSendHelper.greetingName(founderFirstName));
+        context.setVariable("targetUsername", targetUsername);
+        context.setVariable("approveUrl", approveUrl);
+        context.setVariable("denyUrl", denyUrl);
+        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(recipientId, recipientUnsubscribeToken));
 
-            String htmlBody = templateEngine.process(ADMIN_REVOCATION_TEMPLATE, context);
-
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(toEmail);
-            helper.setSubject("Action required: Administrator role revocation approval");
-            helper.setText(htmlBody, true);
-
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Failed to send admin revocation email to " + toEmail + ": " + e.getMessage());
-        }
+        mailSendHelper.sendTemplatedEmail(toEmail, "Action required: Administrator role revocation approval", ADMIN_REVOCATION_TEMPLATE, context);
     }
 
     @CheckEmailPreference(value = "ROLE_ASSIGNED", uiName = "New role assigned (e.g. FAQ author or verified)")
     @Async
-    public void sendRoleAssignedNotification(int userId, String toEmail, String firstName, String role) {
-        try {
-            String greetingName = (firstName != null && !firstName.isBlank()) ? firstName : "there";
-            String roleDisplayName = ROLE_DISPLAY_NAMES.getOrDefault(role, role);
+    public void sendRoleAssignedNotification(int userId, String toEmail, String firstName, String role, String unsubscribeToken) {
+        Context context = new Context(Locale.getDefault());
+        context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
+        context.setVariable("roleDisplayName", ROLE_DISPLAY_NAMES.getOrDefault(role, role));
+        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
 
-            Context context = new Context(Locale.getDefault());
-            context.setVariable("greetingName", greetingName);
-            context.setVariable("roleDisplayName", roleDisplayName);
-            context.setVariable("unsubscribeUrl", frontendUrl + "/settings");
-
-            String htmlBody = templateEngine.process(ROLE_ASSIGNED_TEMPLATE, context);
-
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(toEmail);
-            helper.setSubject("You've been assigned a new role on FosterLink");
-            helper.setText(htmlBody, true);
-
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Failed to send role-assignment email to " + toEmail + ": " + e.getMessage());
-        }
+        mailSendHelper.sendTemplatedEmail(toEmail, "You've been assigned a new role on FosterLink", ROLE_ASSIGNED_TEMPLATE, context);
     }
 
     @Async
-    public void sendRoleRevokedNotification(int userId, String toEmail, String firstName, String role) {
-        try {
-            String greetingName = (firstName != null && !firstName.isBlank()) ? firstName : "there";
-            String roleDisplayName = ROLE_DISPLAY_NAMES.getOrDefault(role, role);
+    public void sendRoleRevokedNotification(int userId, String toEmail, String firstName, String role, String unsubscribeToken) {
+        Context context = new Context(Locale.getDefault());
+        context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
+        context.setVariable("roleDisplayName", ROLE_DISPLAY_NAMES.getOrDefault(role, role));
+        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
 
-            Context context = new Context(Locale.getDefault());
-            context.setVariable("greetingName", greetingName);
-            context.setVariable("roleDisplayName", roleDisplayName);
-            context.setVariable("unsubscribeUrl", frontendUrl + "/settings");
-
-            String htmlBody = templateEngine.process(ROLE_REVOKED_TEMPLATE, context);
-
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(toEmail);
-            helper.setSubject("Your role has been updated on FosterLink");
-            helper.setText(htmlBody, true);
-
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Failed to send role-revocation email to " + toEmail + ": " + e.getMessage());
-        }
+        mailSendHelper.sendTemplatedEmail(toEmail, "Your role has been updated on FosterLink", ROLE_REVOKED_TEMPLATE, context);
     }
 }

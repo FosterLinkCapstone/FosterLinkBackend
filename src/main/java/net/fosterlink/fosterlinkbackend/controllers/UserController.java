@@ -31,6 +31,7 @@ import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
 import net.fosterlink.fosterlinkbackend.service.BanStatusService;
 import net.fosterlink.fosterlinkbackend.service.RefreshTokenService;
+import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,6 +85,8 @@ public class UserController {
     private BanStatusService banStatusService;
     @Autowired
     private RefreshTokenService refreshTokenService;
+    @Autowired
+    private net.fosterlink.fosterlinkbackend.service.TokenAuthService tokenAuthService;
 
     @Operation(
             summary = "Register a new user",
@@ -127,8 +130,13 @@ public class UserController {
         userEntity.setProfilePictureUrl(DEFAULT_PROFILE_PIC);
 
         UserEntity dbEntity = userRepository.save(userEntity);
+        String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(dbEntity);
         if (userMailService != null) {
-            userMailService.sendThankYouForRegistering(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName());
+            userMailService.sendThankYouForRegistering(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName(), unsubscribeToken);
+            String verifyToken = tokenAuthService.generateToken(
+                    net.fosterlink.fosterlinkbackend.service.TokenAuthService.VERIFY_EMAIL_ENDPOINT,
+                    dbEntity.getId(), dbEntity.getId(), "verify_email_" + dbEntity.getEmail() + "_" + dbEntity.getId());
+            userMailService.sendVerificationEmail(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName(), verifyToken, unsubscribeToken);
         }
         try {
             String jwt = loginUser(dbEntity.getEmail(), model.getPassword());
@@ -415,6 +423,36 @@ public class UserController {
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
+    }
+
+    @Operation(
+            summary = "Resend email verification",
+            description = "Sends a new verification email to the currently logged-in user's email address. No-op if the email is already verified. Rate limit: 5 requests per 60 seconds per user.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Verification email sent (or already verified)."),
+                    @ApiResponse(responseCode = "404", description = "Current user not found."),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            }, security = { @SecurityRequirement(name = "bearerAuth") }
+    )
+    @RateLimit(requests = 5, keyType = "USER")
+    @PostMapping("/resendVerificationEmail")
+    public ResponseEntity<?> resendVerificationEmail() {
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        if (user.isEmailVerified()) {
+            return ResponseEntity.ok().build();
+        }
+        if (userMailService != null) {
+            String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(user);
+            String verifyToken = tokenAuthService.generateToken(
+                    TokenAuthService.VERIFY_EMAIL_ENDPOINT,
+                    user.getId(), user.getId(), "verify_email_" + user.getEmail() + "_" + user.getId());
+            userMailService.sendVerificationEmail(user.getId(), user.getEmail(), user.getFirstName(), verifyToken, unsubscribeToken);
+        }
+        return ResponseEntity.ok().build();
     }
 
     @Operation(

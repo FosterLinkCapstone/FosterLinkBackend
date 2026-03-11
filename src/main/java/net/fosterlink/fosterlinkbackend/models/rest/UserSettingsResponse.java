@@ -18,6 +18,7 @@ public class UserSettingsResponse {
         this.phoneNumber = userEntity.getPhoneNumber();
         this.username = userEntity.getUsername();
         this.profilePictureUrl = userEntity.getProfilePictureUrl();
+        this.emailVerified = userEntity.isEmailVerified();
     }
 
     @Schema(description = "The internal ID of the user")
@@ -40,4 +41,7 @@ public class UserSettingsResponse {
 
     @Schema(description = "The image URL of the user's profile picture")
     private String profilePictureUrl;
+
+    @Schema(description = "Whether the user's email address has been verified")
+    private boolean emailVerified;
 }

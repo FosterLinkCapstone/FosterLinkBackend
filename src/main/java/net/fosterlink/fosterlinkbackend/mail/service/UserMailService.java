@@ -1,13 +1,8 @@
 package net.fosterlink.fosterlinkbackend.mail.service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import net.fosterlink.fosterlinkbackend.mail.CheckEmailPreference;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.util.Locale;
@@ -20,19 +15,26 @@ import java.util.Locale;
 public class UserMailService {
 
     private static final String REGISTRATION_TEMPLATE = "mail/registration-thank-you";
+    private static final String EMAIL_VERIFICATION_TEMPLATE = "mail/email-verification";
 
-    private final JavaMailSender mailSender;
-    private final TemplateEngine templateEngine;
+    private final MailSendHelper mailSendHelper;
 
-    @Value("${spring.mail.username}")
-    private String fromAddress;
+    public UserMailService(MailSendHelper mailSendHelper) {
+        this.mailSendHelper = mailSendHelper;
+    }
 
-    @Value("${app.frontendUrl}")
-    private String frontendUrl;
-
-    public UserMailService(JavaMailSender mailSender, TemplateEngine templateEngine) {
-        this.mailSender = mailSender;
-        this.templateEngine = templateEngine;
+    /**
+     * Sends an email verification link to the given address. Does not throw; failures are logged.
+     * Skipped if the user has opted out via {@link CheckEmailPreference}.
+     */
+    @CheckEmailPreference("EMAIL_VERIFICATION")
+    @Async
+    public void sendVerificationEmail(int userId, String toEmail, String firstName, String verifyToken, String unsubscribeToken) {
+        Context context = new Context(Locale.getDefault());
+        context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
+        context.setVariable("verifyUrl", mailSendHelper.buildVerifyEmailUrl(userId, verifyToken));
+        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
+        mailSendHelper.sendTemplatedEmail(toEmail, "Verify your email - FosterLink", EMAIL_VERIFICATION_TEMPLATE, context);
     }
 
     /**
@@ -41,25 +43,12 @@ public class UserMailService {
      * Skipped if the user has opted out via {@link CheckEmailPreference}.
      */
     @CheckEmailPreference("REGISTRATION_THANK_YOU")
-    public void sendThankYouForRegistering(int userId, String toEmail, String firstName) {
-        try {
-            String greetingName = (firstName != null && !firstName.isBlank()) ? firstName : "there";
-            Context context = new Context(Locale.getDefault());
-            context.setVariable("greetingName", greetingName);
-            context.setVariable("unsubscribeUrl", frontendUrl + "/settings");
+    @Async
+    public void sendThankYouForRegistering(int userId, String toEmail, String firstName, String unsubscribeToken) {
+        Context context = new Context(Locale.getDefault());
+        context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
+        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
 
-            String htmlBody = templateEngine.process(REGISTRATION_TEMPLATE, context);
-
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(toEmail);
-            helper.setSubject("Thank you for registering with FosterLink");
-            helper.setText(htmlBody, true);
-
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Failed to send registration thank-you email to " + toEmail + ": " + e.getMessage());
-        }
+        mailSendHelper.sendTemplatedEmail(toEmail, "Thank you for registering with FosterLink", REGISTRATION_TEMPLATE, context);
     }
 }

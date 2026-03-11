@@ -1,7 +1,9 @@
 package net.fosterlink.fosterlinkbackend.service;
 
 import net.fosterlink.fosterlinkbackend.entities.TokenAuthEntity;
+import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.repositories.TokenAuthRepository;
+import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,9 @@ import java.util.HexFormat;
 public class TokenAuthService {
 
     private static final Logger log = LoggerFactory.getLogger(TokenAuthService.class);
+
+    static final String UNSUBSCRIBE_ENDPOINT = "/unsubscribeAll";
+    public static final String VERIFY_EMAIL_ENDPOINT = "/verifyEmail";
 
     /**
      * Caches one MessageDigest per thread. MessageDigest is not thread-safe, so a
@@ -42,6 +47,7 @@ public class TokenAuthService {
     private long tokenAuthExpirationPeriodMs;
 
     private @Autowired TokenAuthRepository tokenAuthRepository;
+    private @Autowired UserRepository userRepository;
 
     /**
      * Generates a cryptographically random token, hashes it, persists the hash, and returns the
@@ -70,13 +76,51 @@ public class TokenAuthService {
         return rawToken;
     }
 
+    /**
+     * Generates a persistent (never-expiring) token for the given endpoint.
+     * Use this for actions that should remain valid indefinitely, such as unsubscribe links.
+     * The token has no processId and is never purged by the expiry cleanup job.
+     */
+    public String generatePersistentToken(String endpoint, int generatedByUserId, Integer targetUserId) {
+        byte[] bytes = new byte[32];
+        SECURE_RANDOM.nextBytes(bytes);
+        String rawToken = HexFormat.of().formatHex(bytes);
+
+        String hashedToken = hashToken(rawToken);
+
+        TokenAuthEntity entity = new TokenAuthEntity();
+        entity.setToken(hashedToken);
+        entity.setValidForEndpoint(endpoint);
+        entity.setGeneratedByUserId(generatedByUserId);
+        entity.setTargetUserId(targetUserId);
+        entity.setExpiresAt(null);
+        entity.setProcessId(null);
+        tokenAuthRepository.save(entity);
+
+        return rawToken;
+    }
+
+    /**
+     * Returns the user's unsubscribe token, generating and persisting one if it doesn't exist yet.
+     * Safe to call on every email send; subsequent calls are a no-op if the token is already set.
+     */
+    public String getOrCreateUnsubscribeToken(UserEntity user) {
+        if (user.getUnsubscribeToken() != null) {
+            return user.getUnsubscribeToken();
+        }
+        String rawToken = generatePersistentToken(UNSUBSCRIBE_ENDPOINT, user.getId(), user.getId());
+        user.setUnsubscribeToken(rawToken);
+        userRepository.save(user);
+        return rawToken;
+    }
+
     public String hashToken(String input) {
         byte[] hash = SHA256_DIGEST.get().digest(input.getBytes(StandardCharsets.UTF_8));
         return HexFormat.of().formatHex(hash);
     }
 
     // Runs once per hour. Cleans up rows that have passed their expiry time so
-    // the table doesn't grow unboundedly.
+    // the table doesn't grow unboundedly. Rows with NULL expiresAt are never purged.
     @Scheduled(fixedRate = 3_600_000)
     public void purgeExpiredTokens() {
         int deleted = tokenAuthRepository.deleteExpiredTokens();

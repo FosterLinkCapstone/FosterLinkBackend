@@ -293,8 +293,9 @@ public class AdminUserController {
         banStatusService.evictProfileMetadata(target.getId());
 
         if (enabled) {
+            String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
             adminUserMailService.sendRoleAssignedNotification(
-                    target.getId(), target.getEmail(), target.getFirstName(), role);
+                    target.getId(), target.getEmail(), target.getFirstName(), role, unsubscribeToken);
         }
 
         return ResponseEntity.ok().build();
@@ -323,13 +324,16 @@ public class AdminUserController {
         String processId = UUID.randomUUID().toString();
         mailingListMailService.sendToMailingList("FounderMailingList", (founder) -> {
             String rawToken = tokenAuthService.generateToken(ASSIGN_ADMIN_ENDPOINT, caller.getDatabaseId(), userId, processId);
+            String founderUnsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(founder);
             adminUserMailService.sendAdminApprovalRequest(
                     founder.getEmail(),
                     founder.getFirstName(),
                     target.getUsername(),
                     userId,
                     rawToken,
-                    frontendUrl
+                    frontendUrl,
+                    founderUnsubscribeToken,
+                    founder.getId()
             );
         });
 
@@ -359,13 +363,16 @@ public class AdminUserController {
         String processId = UUID.randomUUID().toString();
         mailingListMailService.sendToMailingList("FounderMailingList", (founder) -> {
             String rawToken = tokenAuthService.generateToken(REVOKE_ADMIN_ENDPOINT, caller.getDatabaseId(), userId, processId);
+            String founderUnsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(founder);
             adminUserMailService.sendAdminRevocationRequest(
                     founder.getEmail(),
                     founder.getFirstName(),
                     target.getUsername(),
                     userId,
                     rawToken,
-                    frontendUrl
+                    frontendUrl,
+                    founderUnsubscribeToken,
+                    founder.getId()
             );
         });
 

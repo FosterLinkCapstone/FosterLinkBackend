@@ -12,5 +12,7 @@ public @interface TokenAuth {
     int tokenParamIndex() default 0;
     int userIdParamIndex() default 1;
     String endpointName();
+    /** When false, the token is validated but not deleted — use for idempotent actions like unsubscribe. */
+    boolean consumeOnUse() default true;
 
 }

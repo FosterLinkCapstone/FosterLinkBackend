@@ -11,10 +11,10 @@ import java.util.Optional;
 
 public interface TokenAuthRepository extends CrudRepository<TokenAuthEntity, Integer> {
 
-    @Query("SELECT t FROM TokenAuthEntity t WHERE t.token = :token AND t.validForEndpoint = :endpoint AND t.expiresAt > CURRENT_TIMESTAMP")
+    @Query("SELECT t FROM TokenAuthEntity t WHERE t.token = :token AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP)")
     Optional<TokenAuthEntity> findByTokenAndEndpointNonExpired(String token, String endpoint);
 
-    @Query("SELECT t FROM TokenAuthEntity t WHERE t.token = :token AND t.expiresAt > CURRENT_TIMESTAMP")
+    @Query("SELECT t FROM TokenAuthEntity t WHERE t.token = :token AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP)")
     Optional<TokenAuthEntity> findByTokenNonExpired(String token);
 
     /**
@@ -22,11 +22,19 @@ public interface TokenAuthRepository extends CrudRepository<TokenAuthEntity, Int
      * Returns the number of rows deleted (1 = valid token consumed, 0 = not found or expired).
      * Using a single DELETE prevents a TOCTOU race where two concurrent requests both
      * pass a preceding SELECT check before either deletes the row.
+     * NULL expiresAt is treated as non-expiring.
      */
     @Modifying
     @Transactional
-    @Query("DELETE FROM TokenAuthEntity t WHERE t.token = :token AND t.validForEndpoint = :endpoint AND t.expiresAt > CURRENT_TIMESTAMP AND (t.targetUserId IS NULL OR t.targetUserId = :userId)")
+    @Query("DELETE FROM TokenAuthEntity t WHERE t.token = :token AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP) AND (t.targetUserId IS NULL OR t.targetUserId = :userId)")
     int consumeValidToken(String token, String endpoint, int userId);
+
+    /**
+     * Read-only validation for non-consuming endpoints (e.g. unsubscribe).
+     * Returns true if a matching valid token exists (not expired or indefinite).
+     */
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM TokenAuthEntity t WHERE t.token = :token AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP) AND (t.targetUserId IS NULL OR t.targetUserId = :userId)")
+    boolean existsValidToken(String token, String endpoint, int userId);
 
     /**
      * Deletes all tokens that share the same processId.
@@ -40,7 +48,7 @@ public interface TokenAuthRepository extends CrudRepository<TokenAuthEntity, Int
 
     @Modifying
     @Transactional
-    @Query("DELETE FROM TokenAuthEntity t WHERE t.expiresAt < CURRENT_TIMESTAMP")
+    @Query("DELETE FROM TokenAuthEntity t WHERE t.expiresAt IS NOT NULL AND t.expiresAt < CURRENT_TIMESTAMP")
     int deleteExpiredTokens();
 
 }

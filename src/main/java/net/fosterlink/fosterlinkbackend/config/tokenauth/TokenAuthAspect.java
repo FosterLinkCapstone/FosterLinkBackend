@@ -52,9 +52,17 @@ public class TokenAuthAspect {
 
         String hashedToken = tokenAuthService.hashToken(token);
 
-        // Look up the processId before consuming, so we can bulk-delete sibling tokens afterward.
-        // The SELECT here does not introduce a TOCTOU race: the subsequent atomic DELETE is still
-        // the exclusive gate. The SELECT is read-only and only used for cleanup.
+        if (!tokenAuth.consumeOnUse()) {
+            // Non-consuming path: validate only, do not delete the token.
+            boolean valid = tokenAuthRepository.existsValidToken(hashedToken, tokenAuth.endpointName(), userId);
+            if (!valid) return ResponseEntity.status(403).build();
+            return joinPoint.proceed(args);
+        }
+
+        // Consuming path: look up the processId before consuming, so we can bulk-delete sibling
+        // tokens afterward. The SELECT here does not introduce a TOCTOU race: the subsequent
+        // atomic DELETE is still the exclusive gate. The SELECT is read-only and only used for
+        // cleanup.
         Optional<TokenAuthEntity> entityOpt = tokenAuthRepository.findByTokenAndEndpointNonExpired(hashedToken, tokenAuth.endpointName());
         String processId = entityOpt.map(TokenAuthEntity::getProcessId).orElse(null);
 

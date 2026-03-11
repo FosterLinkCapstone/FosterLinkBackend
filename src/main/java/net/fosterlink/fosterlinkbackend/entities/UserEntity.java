@@ -54,6 +54,8 @@ public class UserEntity {
     private boolean accountDeleted = false;
     @Column(name = "unsubscribe_all", columnDefinition = "tinyint")
     private boolean unsubscribeAll = false;
+    /** Raw (unhashed) unsubscribe token embedded in every outbound email to this user. Null until first email send. */
+    private String unsubscribeToken;
     /** When the account was created. */
     private Date createdAt;
     /** When the account was last updated. */
