@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter;
@@ -21,6 +22,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.ForwardedHeaderFilter;
+import org.springframework.http.HttpStatus;
 
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
@@ -30,6 +32,7 @@ public class SecurityConfig {
     private final String[] publicEndpoints = {
             "/v1/users/register",
             "/v1/users/login",
+            "/v1/users/refresh",
             "/swagger-ui/**",
             "/v1/docs/**",
             "/v3/api-docs/**",
@@ -53,7 +56,8 @@ public class SecurityConfig {
             "/v1/users/profileMetadata",
             "/v1/threads/getThreads",
             "/v1/faq/allAuthor",
-            "/v1/threads/search-by-user"
+            "/v1/threads/search-by-user",
+            "/v1/token/**"
     };
     private final String[] privateEndpoints = {
         "/v1/users/get-all", "/v1/users/delete", "/v1/users/update", "/v1/threads/create", "/v1/threads/update", "/v1/threads/delete", "/v1/users/getInfo",
@@ -62,7 +66,11 @@ public class SecurityConfig {
             "/v1/faq/delete", "/v1/agencies/delete",
             "/v1/account-deletion/request", "/v1/account-deletion/cancel", "/v1/account-deletion/my-request",
             "/v1/account-deletion/requests", "/v1/account-deletion/approve", "/v1/account-deletion/delay",
-            "/v1/admin/users/search", "/v1/admin/users/setRole"
+            "/v1/admin/users/search", "/v1/admin/users/setRole",
+            "/v1/users/logout-all",
+            "/v1/mail/emailPreferences",
+            "/v1/mail/unsubscribeAll",
+            "/v1/mail/resubscribe"
     };
 
     @Autowired private UserService userService;
@@ -77,14 +85,15 @@ public class SecurityConfig {
                 .csrf(csrf -> {
                     CookieCsrfTokenRepository tokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
                     CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
-                    // Load token on every request so XSRF-TOKEN cookie is set on first GET (needed for SPAs with deferred CSRF)
                     requestHandler.setCsrfRequestAttributeName(null);
                     csrf.csrfTokenRepository(tokenRepository)
-                            .csrfTokenRequestHandler(requestHandler);
+                            .csrfTokenRequestHandler(requestHandler)
+                            .ignoringRequestMatchers("/v1/users/refresh")
+                            .ignoringRequestMatchers("/v1/token/**");
                 })
-                //.authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth ->
                             auth
                             .requestMatchers(publicEndpoints).permitAll()

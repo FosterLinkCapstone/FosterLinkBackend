@@ -2,13 +2,14 @@ package net.fosterlink.fosterlinkbackend.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
@@ -23,13 +24,15 @@ import net.fosterlink.fosterlinkbackend.models.web.user.ChangePasswordModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
-import net.fosterlink.fosterlinkbackend.mail.RegistrationMailService;
+import net.fosterlink.fosterlinkbackend.mail.service.UserMailService;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
 import net.fosterlink.fosterlinkbackend.service.BanStatusService;
+import net.fosterlink.fosterlinkbackend.service.RefreshTokenService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -45,7 +48,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -58,6 +60,13 @@ import java.util.Optional;
 public class UserController {
 
     private static final String DEFAULT_PROFILE_PIC = "https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg?20200418092106";
+    private static final String REFRESH_TOKEN_COOKIE = "refresh_token";
+
+    @Value("${app.refreshTokenExpirationMs}")
+    private long refreshTokenExpirationMs;
+
+    @Value("${app.refreshTokenExpirationLongMs}")
+    private long refreshTokenExpirationLongMs;
 
     @Autowired
     private UserRepository userRepository;
@@ -70,9 +79,11 @@ public class UserController {
     @Autowired
     private UserMapper userMapper;
     @Autowired(required = false)
-    private RegistrationMailService registrationMailService;
+    private UserMailService userMailService;
     @Autowired
     private BanStatusService banStatusService;
+    @Autowired
+    private RefreshTokenService refreshTokenService;
 
     @Operation(
             summary = "Register a new user",
@@ -98,7 +109,7 @@ public class UserController {
     @RateLimit(requests = 5, burstRequests = 4, burstDurationSeconds = 30)
     @DisallowRestricted
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegisterModel model) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegisterModel model, HttpServletResponse response) {
 
         if (userRepository.existsByUsernameOrEmail(model.getUsername(), model.getEmail())) {
             return ResponseEntity.status(409).build();
@@ -116,11 +127,14 @@ public class UserController {
         userEntity.setProfilePictureUrl(DEFAULT_PROFILE_PIC);
 
         UserEntity dbEntity = userRepository.save(userEntity);
-        /*if (registrationMailService != null) { TODO: uncomment once email server is configured
-            registrationMailService.sendThankYouForRegistering(dbEntity.getEmail(), dbEntity.getFirstName());
-        }*/
+        if (userMailService != null) {
+            userMailService.sendThankYouForRegistering(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName());
+        }
         try {
             String jwt = loginUser(dbEntity.getEmail(), model.getPassword());
+            // Registration never has stayLoggedIn; always issue a session-scoped refresh token
+            String refreshToken = refreshTokenService.createRefreshToken(dbEntity, false);
+            setRefreshCookie(response, refreshToken, false);
             return ResponseEntity.ok(Map.of("token", jwt));
         } catch (Exception e) {
             // TODO better logging
@@ -155,9 +169,14 @@ public class UserController {
     )
     @RateLimit(requests = 5, burstRequests = 2, burstDurationSeconds = 10)
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@Valid @RequestBody UserLoginModelEmail model) {
+    public ResponseEntity<?> loginUser(@Valid @RequestBody UserLoginModelEmail model, HttpServletResponse response) {
         try {
             String jwt = loginUser(model.getEmail(), model.getPassword());
+            UserEntity user = userRepository.findByEmail(model.getEmail());
+            if (user == null) return ResponseEntity.status(404).build();
+            boolean longLived = Boolean.TRUE.equals(model.getStayLoggedIn());
+            String refreshToken = refreshTokenService.createRefreshToken(user, longLived);
+            setRefreshCookie(response, refreshToken, longLived);
             return ResponseEntity.ok(Map.of("token", jwt));
         } catch (DisabledException | LockedException e) {
             return ResponseEntity.status(403).body(Map.of("reason", "banned"));
@@ -167,6 +186,38 @@ public class UserController {
             return ResponseEntity.status(404).build();
         }
 
+    }
+
+    @Operation(
+            summary = "Refresh access token",
+            description = "Exchanges a valid refresh token cookie for a new access token. The refresh token is rotated on every call. Rate limit: 30 requests per 60 seconds per IP.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "New access token issued",
+                            content = @Content(mediaType = "application/json",
+                                    schema = @Schema(type = "string", name = "token", description = "New access JWT"))),
+                    @ApiResponse(responseCode = "401", description = "Refresh token missing, invalid, expired, or revoked")
+            }
+    )
+    @RateLimit(requests = 30)
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(HttpServletRequest request, HttpServletResponse response) {
+        String rawToken = extractRefreshCookie(request);
+        if (rawToken == null) {
+            clearRefreshCookie(response);
+            return ResponseEntity.status(401).build();
+        }
+
+        return refreshTokenService.validateAndRotate(rawToken)
+                .<ResponseEntity<?>>map(result -> {
+                    String newAccessJwt = jwtTokenProvider.generateTokenForUsername(result.user().getEmail());
+                    setRefreshCookie(response, result.newPlainToken(), result.longLived());
+                    return ResponseEntity.ok(Map.of("token", newAccessJwt));
+                })
+                .orElseGet(() -> {
+                    clearRefreshCookie(response);
+                    return ResponseEntity.status(401).build();
+                });
     }
 
      @Operation(
@@ -358,7 +409,7 @@ public class UserController {
     public ResponseEntity<?> getUserSettings() {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        UserEntity user = userRepository.findByEmail(loggedIn.getEmail());
         if (user != null) {
             return ResponseEntity.ok(new UserSettingsResponse(user));
         } else {
@@ -542,7 +593,37 @@ public class UserController {
     )
     @RateLimit(requests = 15)
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest request) {
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+        String rawToken = extractRefreshCookie(request);
+        if (rawToken != null) {
+            refreshTokenService.revokeByRawToken(rawToken);
+        }
+        clearRefreshCookie(response);
+        SecurityContextHolder.clearContext();
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Log out from all devices",
+            description = "Revokes all refresh tokens for the currently authenticated user, logging them out on every device. Rate limit: 5 requests per 60 seconds per user.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "All sessions revoked"),
+                    @ApiResponse(responseCode = "401", description = "Not authenticated")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 5, keyType = "USER")
+    @PostMapping("/logout-all")
+    public ResponseEntity<?> logoutAll(HttpServletRequest request, HttpServletResponse response) {
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        refreshTokenService.revokeAllForUser(loggedIn.getDatabaseId());
+        clearRefreshCookie(response);
         SecurityContextHolder.clearContext();
         HttpSession session = request.getSession(false);
         if (session != null) {
@@ -735,8 +816,37 @@ public class UserController {
         SecurityContextHolder.getContext().setAuthentication(auth);
         return jwtTokenProvider.generateToken(auth);
     }
+
     private void manualLogout(HttpServletRequest request) throws ServletException {
         request.logout();
+    }
+
+    private void setRefreshCookie(HttpServletResponse response, String plainToken, boolean longLived) {
+        StringBuilder cookie = new StringBuilder();
+        cookie.append(REFRESH_TOKEN_COOKIE).append("=").append(plainToken).append("; ");
+        cookie.append("HttpOnly; Secure; SameSite=Strict; Path=/v1/users/; ");
+        if (longLived) {
+            cookie.append("Max-Age=").append(refreshTokenExpirationLongMs / 1000L);
+        } else {
+            // Session cookie: omit Max-Age so it expires when the browser closes
+            cookie.append("Max-Age=").append(refreshTokenExpirationMs / 1000L);
+        }
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private void clearRefreshCookie(HttpServletResponse response) {
+        response.addHeader("Set-Cookie",
+                REFRESH_TOKEN_COOKIE + "=; HttpOnly; Secure; SameSite=Strict; Path=/v1/users/; Max-Age=0");
+    }
+
+    private String extractRefreshCookie(HttpServletRequest request) {
+        if (request.getCookies() == null) return null;
+        for (Cookie cookie : request.getCookies()) {
+            if (REFRESH_TOKEN_COOKIE.equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+        return null;
     }
 
 

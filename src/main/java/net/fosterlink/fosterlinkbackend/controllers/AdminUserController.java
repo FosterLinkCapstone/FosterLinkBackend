@@ -9,23 +9,28 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.models.rest.AdminUserResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AdminUserStatsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.GetAdminUsersResponse;
+import net.fosterlink.fosterlinkbackend.mail.service.AdminUserMailService;
+import net.fosterlink.fosterlinkbackend.mail.service.MailingListMailService;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AdminUserMapper;
 import net.fosterlink.fosterlinkbackend.service.BanStatusService;
+import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
+import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * REST API for admin-only user management: search and role assignment.
@@ -50,12 +55,26 @@ public class AdminUserController {
             "ADMINISTRATOR", "FAQ_AUTHOR", "AGENCY_REP", "VERIFIED_FOSTER", "ID_VERIFIED"
     );
 
+    private static final String ASSIGN_ADMIN_ENDPOINT = "/assignAdmin";
+    private static final String REVOKE_ADMIN_ENDPOINT = "/revokeAdmin";
+
+    @Value("${app.frontendUrl}")
+    private String frontendUrl;
+
     private final UserRepository userRepository;
     private final BanStatusService banStatusService;
+    private final AdminUserMailService adminUserMailService;
+    private final MailingListMailService mailingListMailService;
+    private final TokenAuthService tokenAuthService;
 
-    public AdminUserController(UserRepository userRepository, BanStatusService banStatusService, AdminUserMapper adminUserMapper) {
+    public AdminUserController(UserRepository userRepository, BanStatusService banStatusService,
+                               AdminUserMapper adminUserMapper, AdminUserMailService adminUserMailService,
+                               MailingListMailService mailingListMailService, TokenAuthService tokenAuthService) {
         this.userRepository = userRepository;
         this.banStatusService = banStatusService;
+        this.adminUserMailService = adminUserMailService;
+        this.mailingListMailService = mailingListMailService;
+        this.tokenAuthService = tokenAuthService;
     }
 
     @Operation(
@@ -273,8 +292,84 @@ public class AdminUserController {
         banStatusService.evictUserDetails(target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
 
+        if (enabled) {
+            adminUserMailService.sendRoleAssignedNotification(
+                    target.getId(), target.getEmail(), target.getFirstName(), role);
+        }
+
         return ResponseEntity.ok().build();
     }
 
+    @RateLimit(requests = 5, keyType = "USER")
+    @DisallowRestricted
+    @PostMapping("/requestAdminRole")
+    public ResponseEntity<?> requestAdminRole(@RequestParam int userId) {
+        LoggedInUser caller = JwtUtil.getLoggedInUser();
+        if (caller == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+        Optional<UserEntity> targetOpt = userRepository.findById(userId);
+        if (targetOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        UserEntity target = targetOpt.get();
+        if (target.isAccountDeleted()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
+        }
+        if (target.isAdministrator()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("User is already an administrator.");
+        }
+
+        String processId = UUID.randomUUID().toString();
+        mailingListMailService.sendToMailingList("FounderMailingList", (founder) -> {
+            String rawToken = tokenAuthService.generateToken(ASSIGN_ADMIN_ENDPOINT, caller.getDatabaseId(), userId, processId);
+            adminUserMailService.sendAdminApprovalRequest(
+                    founder.getEmail(),
+                    founder.getFirstName(),
+                    target.getUsername(),
+                    userId,
+                    rawToken,
+                    frontendUrl
+            );
+        });
+
+        return ResponseEntity.ok().build();
+    }
+
+    @RateLimit(requests = 5, keyType = "USER")
+    @DisallowRestricted
+    @PostMapping("/requestRevokeAdminRole")
+    public ResponseEntity<?> requestRevokeAdminRole(@RequestParam int userId) {
+        LoggedInUser caller = JwtUtil.getLoggedInUser();
+        if (caller == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+        Optional<UserEntity> targetOpt = userRepository.findById(userId);
+        if (targetOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        UserEntity target = targetOpt.get();
+        if (target.isAccountDeleted()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
+        }
+        if (!target.isAdministrator()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("User is not an administrator.");
+        }
+
+        String processId = UUID.randomUUID().toString();
+        mailingListMailService.sendToMailingList("FounderMailingList", (founder) -> {
+            String rawToken = tokenAuthService.generateToken(REVOKE_ADMIN_ENDPOINT, caller.getDatabaseId(), userId, processId);
+            adminUserMailService.sendAdminRevocationRequest(
+                    founder.getEmail(),
+                    founder.getFirstName(),
+                    target.getUsername(),
+                    userId,
+                    rawToken,
+                    frontendUrl
+            );
+        });
+
+        return ResponseEntity.ok().build();
+    }
 
 }

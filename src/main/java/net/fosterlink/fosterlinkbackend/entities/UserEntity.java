@@ -52,6 +52,8 @@ public class UserEntity {
     /** Whether the user has requested account deletion (account is locked during pending deletion). */
     @Column(name = "account_deleted", columnDefinition = "tinyint")
     private boolean accountDeleted = false;
+    @Column(name = "unsubscribe_all", columnDefinition = "tinyint")
+    private boolean unsubscribeAll = false;
     /** When the account was created. */
     private Date createdAt;
     /** When the account was last updated. */

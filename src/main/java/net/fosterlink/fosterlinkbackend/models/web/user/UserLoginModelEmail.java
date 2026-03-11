@@ -18,5 +18,7 @@ public class UserLoginModelEmail {
     @Schema(description = "The password of the user that is logging in.", example = "P@22w0rd")
     @NotBlank
     private String password;
+    @Schema(description = "When true, issues a long-lived refresh token (365 days) stored in a persistent cookie. When false or absent, issues a session-scoped refresh token (7 days).")
+    private Boolean stayLoggedIn;
 
 }

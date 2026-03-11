@@ -23,6 +23,22 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
+    /**
+     * Generates an access token directly from an email/username string.
+     * Used by the refresh endpoint where we have already validated the refresh token
+     * and identified the user without re-authenticating their password.
+     */
+    public String generateTokenForUsername(String username) {
+        Date now = new Date();
+        Date expiration = new Date(now.getTime() + jwtExp);
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(now)
+                .expiration(expiration)
+                .signWith(getSigningKey(), Jwts.SIG.HS512)
+                .compact();
+    }
+
     public String generateToken(Authentication authentication) {
         String username = authentication.getName();
 
