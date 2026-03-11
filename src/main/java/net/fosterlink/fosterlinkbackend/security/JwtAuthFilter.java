@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.service.BanStatusService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,6 +38,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String jwt = getJwtFromRequest(request);
         if (jwt != null && jwtTokenProvider.validateToken(jwt)) {
             String username = jwtTokenProvider.getUsernameFromJWT(jwt);
+            int tokenVersion = jwtTokenProvider.getTokenVersionFromJWT(jwt);
 
             if (banStatusService.isBanned(username)) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -45,7 +47,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-            if (userDetails != null) {
+            if (userDetails != null && userDetails instanceof LoggedInUser loggedIn
+                    && loggedIn.getAuthTokenVersion() == tokenVersion) {
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 auth.setDetails(new WebAuthenticationDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);

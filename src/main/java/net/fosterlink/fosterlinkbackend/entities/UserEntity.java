@@ -56,6 +56,8 @@ public class UserEntity {
     private boolean unsubscribeAll = false;
     /** Raw (unhashed) unsubscribe token embedded in every outbound email to this user. Null until first email send. */
     private String unsubscribeToken;
+    /** Token version for session invalidation; JWTs carry this in claims and are rejected when it is incremented. */
+    private int authTokenVersion;
     /** When the account was created. */
     private Date createdAt;
     /** When the account was last updated. */

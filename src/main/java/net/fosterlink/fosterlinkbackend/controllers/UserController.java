@@ -225,7 +225,7 @@ public class UserController {
 
         return refreshTokenService.validateAndRotate(rawToken)
                 .<ResponseEntity<?>>map(result -> {
-                    String newAccessJwt = jwtTokenProvider.generateTokenForUsername(result.user().getEmail());
+                    String newAccessJwt = jwtTokenProvider.generateTokenForUsername(result.user().getEmail(), result.user().getAuthTokenVersion());
                     setRefreshCookie(response, result.newPlainToken(), result.longLived());
                     return ResponseEntity.ok(Map.of("token", newAccessJwt));
                 })
@@ -300,6 +300,9 @@ public class UserController {
             if (model.getProfilePictureUrl() != null)  {
                 user.setProfilePictureUrl(model.getProfilePictureUrl());
             }
+            if (model.getPassword() != null || model.getEmail() != null) {
+                user.setAuthTokenVersion(user.getAuthTokenVersion() + 1);
+            }
             String emailBeforeSave = user.getEmail();
             int userIdForEviction = user.getId();
             UserEntity saved = userRepository.save(user);
@@ -345,6 +348,7 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         user.setPassword(passwordEncoder.encode(model.getNewPassword()));
+        user.setAuthTokenVersion(user.getAuthTokenVersion() + 1);
         userRepository.save(user);
         refreshTokenService.revokeAllForUser(user.getId());
         banStatusService.evictUserDetails(user.getEmail());
@@ -523,6 +527,7 @@ public class UserController {
         }
         UserEntity user = userOpt.get();
         user.setPassword(passwordEncoder.encode(model.getNewPassword()));
+        user.setAuthTokenVersion(user.getAuthTokenVersion() + 1);
         userRepository.save(user);
         refreshTokenService.revokeAllForUser(userId);
         banStatusService.evictUserDetails(user.getEmail());
@@ -735,6 +740,12 @@ public class UserController {
     public ResponseEntity<?> logoutAll(HttpServletRequest request, HttpServletResponse response) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user != null) {
+            user.setAuthTokenVersion(user.getAuthTokenVersion() + 1);
+            userRepository.save(user);
+            banStatusService.evictUserDetails(user.getEmail());
+        }
         refreshTokenService.revokeAllForUser(loggedIn.getDatabaseId());
         clearRefreshCookie(response);
         SecurityContextHolder.clearContext();

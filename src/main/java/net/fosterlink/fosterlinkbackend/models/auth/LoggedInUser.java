@@ -22,6 +22,8 @@ public class LoggedInUser implements UserDetails {
     private int databaseId;
     /** User email (used as username for authentication). */
     private String email;
+    /** Token version for session invalidation; JWTs must match this version. */
+    private int authTokenVersion;
     /** Encoded password. */
     private String password;
     /** Role names (e.g. ADMINISTRATOR, FAQ_AUTHOR) for authorization. */
