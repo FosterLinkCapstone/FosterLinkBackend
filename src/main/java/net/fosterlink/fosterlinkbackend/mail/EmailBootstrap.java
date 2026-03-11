@@ -56,10 +56,19 @@ public class EmailBootstrap {
             }
         }
 
-        for (EmailTypeAnnotationMeta name : emailTypeAnnotationMetas) {
-            if (emailTypeRepository.findByName(name.getName()).isEmpty()) {
-                jdbcTemplate.update("INSERT INTO email_type (name, ui_name, can_disable) VALUES (?, ?, ?)", name.getName(), name.getUiName(), name.isCanDisable());
-                log.info("Inserted missing email_type: {}", name.getName());
+        for (EmailTypeAnnotationMeta meta : emailTypeAnnotationMetas) {
+            var existing = emailTypeRepository.findByName(meta.getName());
+            if (existing.isEmpty()) {
+                jdbcTemplate.update("INSERT INTO email_type (name, ui_name, can_disable) VALUES (?, ?, ?)", meta.getName(), meta.getUiName(), meta.isCanDisable());
+                log.info("Inserted missing email_type: {}", meta.getName());
+            } else {
+                var entity = existing.get();
+                boolean uiNameChanged = !Objects.equals(entity.getUiName(), meta.getUiName());
+                boolean canDisableChanged = entity.isCanDisable() != meta.isCanDisable();
+                if (uiNameChanged || canDisableChanged) {
+                    jdbcTemplate.update("UPDATE email_type SET ui_name = ?, can_disable = ? WHERE name = ?", meta.getUiName(), meta.isCanDisable(), meta.getName());
+                    log.info("Updated email_type '{}' (ui_name or can_disable changed)", meta.getName());
+                }
             }
         }
         for (String mailingListName : mailingListNames) {

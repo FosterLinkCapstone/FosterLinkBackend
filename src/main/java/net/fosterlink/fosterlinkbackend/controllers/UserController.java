@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
+import net.fosterlink.fosterlinkbackend.config.tokenauth.TokenAuth;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
@@ -21,6 +22,8 @@ import net.fosterlink.fosterlinkbackend.models.rest.PrivilegesResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserSettingsResponse;
 import net.fosterlink.fosterlinkbackend.models.web.user.ChangePasswordModel;
+import net.fosterlink.fosterlinkbackend.models.web.user.ForgotPasswordModel;
+import net.fosterlink.fosterlinkbackend.models.web.user.ResetPasswordModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
@@ -33,6 +36,8 @@ import net.fosterlink.fosterlinkbackend.service.BanStatusService;
 import net.fosterlink.fosterlinkbackend.service.RefreshTokenService;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -68,6 +73,8 @@ public class UserController {
 
     @Value("${app.refreshTokenExpirationLongMs}")
     private long refreshTokenExpirationLongMs;
+
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -145,7 +152,7 @@ public class UserController {
             setRefreshCookie(response, refreshToken, false);
             return ResponseEntity.ok(Map.of("token", jwt));
         } catch (Exception e) {
-            // TODO better logging
+            log.error("Authentication following registration failed for {} (DB id: {})", userEntity.getEmail(), dbEntity.getId());
             return ResponseEntity.status(500).build();
         }
 
@@ -302,7 +309,7 @@ public class UserController {
                 try {
                     manualLogout(req);
                 } catch (ServletException e) {
-                    // TODO log error somewhere
+                    log.error("Manual logout on user update failed for {} (DB id: {})", user.getEmail(), user.getId());
                     return ResponseEntity.status(500).build();
                 }
             }
@@ -339,6 +346,7 @@ public class UserController {
         }
         user.setPassword(passwordEncoder.encode(model.getNewPassword()));
         userRepository.save(user);
+        refreshTokenService.revokeAllForUser(user.getId());
         banStatusService.evictUserDetails(user.getEmail());
         try {
             manualLogout(req);
@@ -375,16 +383,21 @@ public class UserController {
     )
     @RateLimit(requests = 5, keyType = "USER")
     @DeleteMapping("/delete")
-    public ResponseEntity<?> deleteUser() {
+    public ResponseEntity<?> deleteUser(HttpServletRequest req) {
             LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
             if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
             if (user != null) {
                 String email = user.getEmail();
-                // TODO logout
-                userRepository.delete(user);
-                banStatusService.evict(email);
-                return ResponseEntity.ok().build();
+                try {
+                    manualLogout(req);
+                    userRepository.delete(user);
+                    banStatusService.evict(email);
+                    return ResponseEntity.ok().build();
+                } catch (ServletException e) {
+                    log.error("Manual logout on user delete failed for {} (DB id: {})", user.getEmail(), user.getId());
+                    return ResponseEntity.status(500).build();
+                }
             } else {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
@@ -452,6 +465,68 @@ public class UserController {
                     user.getId(), user.getId(), "verify_email_" + user.getEmail() + "_" + user.getId());
             userMailService.sendVerificationEmail(user.getId(), user.getEmail(), user.getFirstName(), verifyToken, unsubscribeToken);
         }
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Request a password reset email",
+            description = "Sends a password reset link to the provided email address if it matches a registered account. " +
+                    "Always returns 200 regardless of whether the email exists to prevent user enumeration. " +
+                    "Rate limit: 3 requests per 60 seconds per IP, with burst limit of 1 request per 30 seconds.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Request processed. If the email matches a registered account, a reset link has been sent."),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            }
+    )
+    @RateLimit(requests = 3, burstRequests = 1, burstDurationSeconds = 30)
+    @PostMapping("/forgotPassword")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordModel model) {
+        UserEntity user = userRepository.findByEmail(model.getEmail());
+        if (user != null && !user.isAccountDeleted()) {
+            String processId = "reset_password_" + user.getId() + "_" + System.currentTimeMillis();
+            String resetToken = tokenAuthService.generateToken(
+                    TokenAuthService.RESET_PASSWORD_ENDPOINT, user.getId(), user.getId(), processId);
+            if (userMailService != null) {
+                String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(user);
+                userMailService.sendPasswordResetEmail(user.getId(), user.getEmail(), user.getFirstName(), resetToken, unsubscribeToken);
+            }
+        }
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Reset a user's password via token",
+            description = "Resets the password for the user identified by userId using a single-use token from a password reset email. " +
+                    "All existing sessions (refresh tokens) are invalidated on success. " +
+                    "Rate limit: 5 requests per 60 seconds per IP.",
+            tags = {"User"},
+            parameters = {
+                    @Parameter(name = "token", description = "Raw reset token from the password reset email link", required = true),
+                    @Parameter(name = "userId", description = "ID of the user resetting their password", required = true)
+            },
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Password reset successfully. All sessions have been invalidated."),
+                    @ApiResponse(responseCode = "403", description = "The reset token is invalid, expired, or has already been used."),
+                    @ApiResponse(responseCode = "404", description = "User not found."),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            }
+    )
+    @RateLimit(requests = 5)
+    @PostMapping("/resetPassword")
+    @TokenAuth(endpointName = "/resetPassword")
+    public ResponseEntity<?> resetPassword(@RequestParam String token, @RequestParam int userId,
+                                           @Valid @RequestBody ResetPasswordModel model) {
+        Optional<UserEntity> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        UserEntity user = userOpt.get();
+        user.setPassword(passwordEncoder.encode(model.getNewPassword()));
+        userRepository.save(user);
+        refreshTokenService.revokeAllForUser(userId);
+        banStatusService.evictUserDetails(user.getEmail());
+        banStatusService.evictProfileMetadata(userId);
         return ResponseEntity.ok().build();
     }
 

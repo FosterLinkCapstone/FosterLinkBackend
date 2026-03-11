@@ -33,6 +33,8 @@ public class SecurityConfig {
             "/v1/users/register",
             "/v1/users/login",
             "/v1/users/refresh",
+            "/v1/users/forgotPassword",
+            "/v1/users/resetPassword",
             "/swagger-ui/**",
             "/v1/docs/**",
             "/v3/api-docs/**",
@@ -89,7 +91,8 @@ public class SecurityConfig {
                     csrf.csrfTokenRepository(tokenRepository)
                             .csrfTokenRequestHandler(requestHandler)
                             .ignoringRequestMatchers("/v1/users/refresh")
-                            .ignoringRequestMatchers("/v1/token/**");
+                            .ignoringRequestMatchers("/v1/token/**")
+                            .ignoringRequestMatchers("/v1/users/forgotPassword", "/v1/users/resetPassword");
                 })
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

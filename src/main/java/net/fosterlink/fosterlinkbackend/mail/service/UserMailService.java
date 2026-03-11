@@ -16,6 +16,7 @@ public class UserMailService {
 
     private static final String REGISTRATION_TEMPLATE = "mail/registration-thank-you";
     private static final String EMAIL_VERIFICATION_TEMPLATE = "mail/email-verification";
+    private static final String PASSWORD_RESET_TEMPLATE = "mail/password-reset";
 
     private final MailSendHelper mailSendHelper;
 
@@ -27,7 +28,7 @@ public class UserMailService {
      * Sends an email verification link to the given address. Does not throw; failures are logged.
      * Skipped if the user has opted out via {@link CheckEmailPreference}.
      */
-    @CheckEmailPreference("EMAIL_VERIFICATION")
+    @CheckEmailPreference(value = "EMAIL_VERIFICATION", canDisable = false)
     @Async
     public void sendVerificationEmail(int userId, String toEmail, String firstName, String verifyToken, String unsubscribeToken) {
         Context context = new Context(Locale.getDefault());
@@ -38,11 +39,26 @@ public class UserMailService {
     }
 
     /**
+     * Sends a password reset email to the given address.
+     * Not gated by @CheckEmailPreference -- password reset emails must always be delivered
+     * regardless of marketing opt-out preferences.
+     * Does not throw; failures are logged and ignored so the forgotPassword endpoint always returns 200.
+     */
+    @Async
+    public void sendPasswordResetEmail(int userId, String toEmail, String firstName, String resetToken, String unsubscribeToken) {
+        Context context = new Context(Locale.getDefault());
+        context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
+        context.setVariable("resetUrl", mailSendHelper.buildPasswordResetUrl(userId, resetToken));
+        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
+        mailSendHelper.sendTemplatedEmail(toEmail, "Reset your password - FosterLink", PASSWORD_RESET_TEMPLATE, context);
+    }
+
+    /**
      * Sends a thank-you email to the given address after registration.
      * Does not throw; failures are logged and ignored so registration is not affected.
      * Skipped if the user has opted out via {@link CheckEmailPreference}.
      */
-    @CheckEmailPreference("REGISTRATION_THANK_YOU")
+    @CheckEmailPreference(value = "REGISTRATION_THANK_YOU", canDisable = false)
     @Async
     public void sendThankYouForRegistering(int userId, String toEmail, String firstName, String unsubscribeToken) {
         Context context = new Context(Locale.getDefault());

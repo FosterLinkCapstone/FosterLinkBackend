@@ -21,6 +21,7 @@ public class MailSendHelper {
 
     private static final String UNSUBSCRIBE_ACTION = "/token-action?action=unsubscribe&token=%s&userId=%d";
     private static final String VERIFY_EMAIL_ACTION = "/token-action?action=verify-email&token=%s&userId=%d";
+    private static final String RESET_PASSWORD_ACTION = "/reset-password?token=%s&userId=%d";
     private static final String SETTINGS_PATH = "/settings";
 
     private final JavaMailSender mailSender;
@@ -58,6 +59,13 @@ public class MailSendHelper {
      */
     public String buildVerifyEmailUrl(int userId, String verifyToken) {
         return frontendUrl + String.format(VERIFY_EMAIL_ACTION, verifyToken, userId);
+    }
+
+    /**
+     * Builds the password reset URL for a user. Used in password reset emails.
+     */
+    public String buildPasswordResetUrl(int userId, String resetToken) {
+        return frontendUrl + String.format(RESET_PASSWORD_ACTION, resetToken, userId);
     }
 
     /**

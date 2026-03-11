@@ -25,6 +25,7 @@ public class TokenAuthService {
 
     static final String UNSUBSCRIBE_ENDPOINT = "/unsubscribeAll";
     public static final String VERIFY_EMAIL_ENDPOINT = "/verifyEmail";
+    public static final String RESET_PASSWORD_ENDPOINT = "/resetPassword";
 
     /**
      * Caches one MessageDigest per thread. MessageDigest is not thread-safe, so a
