@@ -254,6 +254,6 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
     @Modifying(clearAutomatically = true)
     @Transactional
     @Query(value = "UPDATE agency SET approved = NULL, approved_by_id = NULL, updated_at = :updatedAt WHERE id = :id", nativeQuery = true)
-    void setAgencyPending(@Param("id") int id, @Param("updatedAt") java.time.Instant updatedAt);
+    void setAgencyPending(@Param("id") int id, @Param("updatedAt") java.util.Date updatedAt);
 
 }

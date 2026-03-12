@@ -10,9 +10,11 @@ import net.fosterlink.fosterlinkbackend.entities.*;
 import net.fosterlink.fosterlinkbackend.models.rest.*;
 import net.fosterlink.fosterlinkbackend.models.rest.admin.*;
 import net.fosterlink.fosterlinkbackend.repositories.*;
+import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AgencyMapper;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.FaqMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -43,12 +45,15 @@ public class AdminUserContentController {
     @Autowired private FaqMapper faqMapper;
 
     @Operation(
-            summary = "Get all threads for a user (admin only)",
-            description = "Returns all threads posted by the user, including hidden and user-deleted. Visibility state is included (hidden, userDeleted, locked, verified, hiddenBy).",
+            summary = "Get threads for a user (admin only, paginated)",
+            description = "Returns threads posted by the user, including hidden and user-deleted. Visibility state is included (hidden, userDeleted, locked, verified, hiddenBy).",
             tags = {"Admin"},
-            parameters = @Parameter(name = "userId", description = "Target user ID", required = true),
+            parameters = {
+                    @Parameter(name = "userId", description = "Target user ID", required = true),
+                    @Parameter(name = "page", description = "Zero-based page index", required = true)
+            },
             responses = {
-                    @ApiResponse(responseCode = "200", description = "List of threads with visibility state"),
+                    @ApiResponse(responseCode = "200", description = "Paginated list of threads with visibility state"),
                     @ApiResponse(responseCode = "403", description = "Caller is not an administrator"),
                     @ApiResponse(responseCode = "404", description = "User not found")
             },
@@ -57,13 +62,14 @@ public class AdminUserContentController {
     @RateLimit(requests = 30, keyType = "USER")
     @DisallowRestricted
     @GetMapping("/threads")
-    public ResponseEntity<?> getThreadsForUser(@PathVariable int userId) {
+    public ResponseEntity<?> getThreadsForUser(@PathVariable int userId, @RequestParam(defaultValue = "0") int page) {
         if (userRepository.findById(userId).isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        List<ThreadEntity> threads = threadRepository.findAllByPostedByIdWithRelations(userId);
+        var pageable = PageRequest.of(page, SqlUtil.ITEMS_PER_PAGE);
+        var threadPage = threadRepository.findAllByPostedByIdWithRelationsPaginated(userId, pageable);
         List<AdminThreadForUserResponse> result = new ArrayList<>();
-        for (ThreadEntity t : threads) {
+        for (ThreadEntity t : threadPage.getContent()) {
             AdminThreadForUserResponse r = new AdminThreadForUserResponse();
             r.setId(t.getId());
             r.setTitle(t.getTitle());
@@ -79,7 +85,9 @@ public class AdminUserContentController {
             r.setHiddenBy(pm.getHidden_by());
             result.add(r);
         }
-        return ResponseEntity.ok(result);
+        int totalPages = threadPage.getTotalPages();
+        if (totalPages == 0) totalPages = 1;
+        return ResponseEntity.ok(new GetAdminThreadsForUserResponse(result, totalPages));
     }
 
     @Operation(
@@ -176,12 +184,15 @@ public class AdminUserContentController {
     }
 
     @Operation(
-            summary = "Get all FAQ answers for a user (admin only)",
-            description = "Returns all FAQs authored by the user, including pending, denied, and hidden. entityStatus: PENDING, APPROVED, DENIED, or HIDDEN.",
+            summary = "Get FAQ answers for a user (admin only, paginated)",
+            description = "Returns FAQs authored by the user, including pending, denied, and hidden. entityStatus: PENDING, APPROVED, DENIED, or HIDDEN.",
             tags = {"Admin"},
-            parameters = @Parameter(name = "userId", description = "Target user ID (author)", required = true),
+            parameters = {
+                    @Parameter(name = "userId", description = "Target user ID (author)", required = true),
+                    @Parameter(name = "page", description = "Zero-based page index", required = true)
+            },
             responses = {
-                    @ApiResponse(responseCode = "200", description = "List of FAQs with status"),
+                    @ApiResponse(responseCode = "200", description = "Paginated list of FAQs with status"),
                     @ApiResponse(responseCode = "403", description = "Caller is not an administrator"),
                     @ApiResponse(responseCode = "404", description = "User not found")
             },
@@ -190,13 +201,14 @@ public class AdminUserContentController {
     @RateLimit(requests = 30, keyType = "USER")
     @DisallowRestricted
     @GetMapping("/faq-answers")
-    public ResponseEntity<?> getFaqAnswersForUser(@PathVariable int userId) {
+    public ResponseEntity<?> getFaqAnswersForUser(@PathVariable int userId, @RequestParam(defaultValue = "0") int page) {
         if (userRepository.findById(userId).isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        List<FaqEntity> faqs = faqRepository.findByAuthor_IdOrderByCreatedAtDesc(userId);
+        var pageable = PageRequest.of(page, SqlUtil.ITEMS_PER_PAGE);
+        var faqPage = faqRepository.findByAuthor_IdOrderByCreatedAtDescPaginated(userId, pageable);
         List<AdminFaqForUserResponse> result = new ArrayList<>();
-        for (FaqEntity faq : faqs) {
+        for (FaqEntity faq : faqPage.getContent()) {
             FaqResponse faqResponse = faqMapper.mapNewFaq(faq);
             Optional<FAQApprovalEntity> approvalOpt = faqApprovalRepository.findFAQApprovalEntityByFaqId(faq.getId());
             if (approvalOpt.isPresent()) {
@@ -221,7 +233,9 @@ public class AdminUserContentController {
             }
             result.add(r);
         }
-        return ResponseEntity.ok(result);
+        int totalPages = faqPage.getTotalPages();
+        if (totalPages == 0) totalPages = 1;
+        return ResponseEntity.ok(new GetAdminFaqAnswersForUserResponse(result, totalPages));
     }
 
     @Operation(

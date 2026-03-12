@@ -40,7 +40,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -193,7 +192,7 @@ public class AgencyController {
             AgencyEntity ag = agency.get();
             ag.setApproved(model.isApproved());
             ag.setApproved_by_id(loggedIn.getDatabaseId());
-            ag.setUpdatedAt(Instant.now());
+            ag.setUpdatedAt(new Date());
             agencyRepository.save(ag);
 
             UserEntity agent = ag.getAgent();
@@ -252,7 +251,7 @@ public class AgencyController {
                     agency.setWebsiteUrl(model.getWebsiteUrl());
                     agency.setMissionStatement(model.getMissionStatement());
                     agency.setAgent(user);
-                    agency.setCreatedAt(Instant.now());
+                    agency.setCreatedAt(new Date());
 
                     LocationEntity location = new LocationEntity();
                     location.setZipCode(model.getLocationZipCode());
@@ -276,7 +275,7 @@ public class AgencyController {
                     agencyResponse.setAgencyName(savedAgency.getName());
                     agencyResponse.setAgencyMissionStatement(savedAgency.getMissionStatement());
                     agencyResponse.setAgencyWebsiteLink(savedAgency.getWebsiteUrl());
-                    agencyResponse.setCreatedAt(savedAgency.getCreatedAt() != null ? Date.from(savedAgency.getCreatedAt()) : null);
+                    agencyResponse.setCreatedAt(savedAgency.getCreatedAt() != null ? savedAgency.getCreatedAt() : null);
                     agencyResponse.setAgent(new UserResponse(user));
                     agencyResponse.setAgentInfo(new AgentInfoResponse(user));
                     agencyResponse.setLocation(savedLocation);
@@ -398,7 +397,7 @@ public class AgencyController {
         AgencyEntity agency = agencyOpt.get();
         agency.setHidden(hidden);
         agency.setHiddenByUsername(hidden ? user.getUsername() : null);
-        agency.setUpdatedAt(Instant.now());
+        agency.setUpdatedAt(new Date());
         agencyRepository.save(agency);
         return ResponseEntity.ok().build();
     }
@@ -609,7 +608,7 @@ public class AgencyController {
         if (model.getMissionStatement() != null) agency.setMissionStatement(model.getMissionStatement());
         if (model.getWebsiteUrl() != null) agency.setWebsiteUrl(model.getWebsiteUrl());
 
-        Instant now = Instant.now();
+        Date now = new Date();
         agency.setUpdatedAt(now);
         agencyRepository.save(agency);
         agencyRepository.setAgencyPending(agency.getId(), now);
@@ -652,7 +651,7 @@ public class AgencyController {
         location.setZipCode(model.getLocationZipCode());
 
         locationRepository.save(location);
-        Instant now = Instant.now();
+        Date now = new Date();
         agency.setUpdatedAt(now);
         agencyRepository.save(agency);
         agencyRepository.setAgencyPending(agency.getId(), now);

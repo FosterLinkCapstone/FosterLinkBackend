@@ -6,21 +6,28 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import net.fosterlink.fosterlinkbackend.config.audit.AuditLog;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.models.rest.AdminUserResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AdminUserStatsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.AuditLogEntryResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.GetAdminUsersResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.GetAuditLogResponse;
 import net.fosterlink.fosterlinkbackend.mail.service.AdminUserMailService;
 import net.fosterlink.fosterlinkbackend.mail.service.MailingListMailService;
+import net.fosterlink.fosterlinkbackend.repositories.AuditLogRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AdminUserMapper;
+import net.fosterlink.fosterlinkbackend.repositories.mappers.AuditLogMapper;
 import net.fosterlink.fosterlinkbackend.service.BanStatusService;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
+import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,9 +49,9 @@ import java.util.UUID;
 public class AdminUserController {
 
     private @Autowired AdminUserMapper adminUserMapper;
-
-    private static final int PAGE_SIZE = 10;
-
+    private @Autowired AuditLogRepository auditLogRepository;
+    private @Autowired AuditLogMapper auditLogMapper;
+    
     private static final List<String> ASSIGNABLE_ROLES = List.of(
             "FAQ_AUTHOR", "VERIFIED_FOSTER", "AGENCY_REP", "ID_VERIFIED"
     );
@@ -111,30 +118,30 @@ public class AdminUserController {
             return ResponseEntity.badRequest().body("Invalid role value for ROLE search.");
         }
 
-        int offset = page * PAGE_SIZE;
+        int offset = page * SqlUtil.ITEMS_PER_PAGE;
         List<Object[]> rows;
         long totalCount;
 
         switch (searchBy) {
             case "USERNAME" -> {
-                rows = userRepository.searchByUsername(query, PAGE_SIZE, offset);
+                rows = userRepository.searchByUsername(query, SqlUtil.ITEMS_PER_PAGE, offset);
                 totalCount = userRepository.countByUsername(query);
             }
             case "EMAIL" -> {
-                rows = userRepository.searchByEmail(query, PAGE_SIZE, offset);
+                rows = userRepository.searchByEmail(query, SqlUtil.ITEMS_PER_PAGE, offset);
                 totalCount = userRepository.countByEmail(query);
             }
             case "PHONE_NUMBER" -> {
-                rows = userRepository.searchByPhoneNumber(query, PAGE_SIZE, offset);
+                rows = userRepository.searchByPhoneNumber(query, SqlUtil.ITEMS_PER_PAGE, offset);
                 totalCount = userRepository.countByPhoneNumber(query);
             }
             case "ROLE" -> {
-                rows = userRepository.searchByRole(query, PAGE_SIZE, offset);
+                rows = userRepository.searchByRole(query, SqlUtil.ITEMS_PER_PAGE, offset);
                 totalCount = userRepository.countByRole(query);
             }
             default -> {
                 // FULL_NAME
-                rows = userRepository.searchByFullName(query, PAGE_SIZE, offset);
+                rows = userRepository.searchByFullName(query, SqlUtil.ITEMS_PER_PAGE, offset);
                 totalCount = userRepository.countByFullName(query);
             }
         }
@@ -144,7 +151,7 @@ public class AdminUserController {
             users.add(adminUserMapper.mapRow(row));
         }
 
-        int totalPages = (int) Math.ceil((double) totalCount / PAGE_SIZE);
+        int totalPages = (int) Math.ceil((double) totalCount / SqlUtil.ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
 
         return ResponseEntity.ok(new GetAdminUsersResponse(users, totalPages));
@@ -193,8 +200,8 @@ public class AdminUserController {
     @DisallowRestricted
     @GetMapping("/deleted")
     public ResponseEntity<?> getDeletedUsers(@RequestParam(defaultValue = "0") int page) {
-        int offset = page * PAGE_SIZE;
-        List<Object[]> rows = userRepository.findDeletedPaginated(PAGE_SIZE, offset);
+        int offset = page * SqlUtil.ITEMS_PER_PAGE;
+        List<Object[]> rows = userRepository.findDeletedPaginated(SqlUtil.ITEMS_PER_PAGE, offset);
         long totalCount = userRepository.countDeleted();
 
         List<AdminUserResponse> users = new ArrayList<>();
@@ -202,7 +209,7 @@ public class AdminUserController {
             users.add(adminUserMapper.mapRow(row));
         }
 
-        int totalPages = (int) Math.ceil((double) totalCount / PAGE_SIZE);
+        int totalPages = (int) Math.ceil((double) totalCount / SqlUtil.ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
 
         return ResponseEntity.ok(new GetAdminUsersResponse(users, totalPages));
@@ -227,8 +234,8 @@ public class AdminUserController {
     @DisallowRestricted
     @GetMapping("/all")
     public ResponseEntity<?> getAllUsers(@RequestParam(defaultValue = "0") int page) {
-        int offset = page * PAGE_SIZE;
-        List<Object[]> rows = userRepository.findAllPaginated(PAGE_SIZE, offset);
+        int offset = page * SqlUtil.ITEMS_PER_PAGE;
+        List<Object[]> rows = userRepository.findAllPaginated(SqlUtil.ITEMS_PER_PAGE, offset);
         long totalCount = userRepository.countAll();
 
         List<AdminUserResponse> users = new ArrayList<>();
@@ -236,10 +243,39 @@ public class AdminUserController {
             users.add(adminUserMapper.mapRow(row));
         }
 
-        int totalPages = (int) Math.ceil((double) totalCount / PAGE_SIZE);
+        int totalPages = (int) Math.ceil((double) totalCount / SqlUtil.ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
 
         return ResponseEntity.ok(new GetAdminUsersResponse(users, totalPages));
+    }
+
+    @Operation(
+            summary = "List audit log (admin only)",
+            description = "Returns all audit log entries in descending order by id, paginated. Requires administrator privileges.",
+            tags = {"Admin"},
+            parameters = {
+                    @Parameter(name = "page", description = "Zero-based page index", required = false)
+            },
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Paginated list of audit log entries",
+                            content = @Content(mediaType = "application/json",
+                                    schema = @Schema(implementation = GetAuditLogResponse.class))),
+                    @ApiResponse(responseCode = "403", description = "Caller is not an administrator")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 30, keyType = "USER")
+    @DisallowRestricted
+    @GetMapping("/audit-log")
+    public ResponseEntity<?> getAuditLog(@RequestParam(defaultValue = "0") int page) {
+        var pageable = PageRequest.of(page, SqlUtil.ITEMS_PER_PAGE);
+        var result = auditLogRepository.findAllForAdminDisplay(pageable);
+        List<AuditLogEntryResponse> entries = result.getContent().stream()
+                .map(auditLogMapper::mapRow)
+                .toList();
+        int totalPages = result.getTotalPages();
+        if (totalPages == 0) totalPages = 1;
+        return ResponseEntity.ok(new GetAuditLogResponse(entries, totalPages));
     }
 
     @Operation(
@@ -261,6 +297,7 @@ public class AdminUserController {
     )
     @RateLimit(requests = 30, keyType = "USER")
     @DisallowRestricted
+    @AuditLog(action = "set role on user", targetUserIdIndex = 0)
     @PostMapping("/setRole")
     public ResponseEntity<?> setUserRole(
             @RequestParam int userId,

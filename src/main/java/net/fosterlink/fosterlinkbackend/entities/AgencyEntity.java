@@ -3,7 +3,7 @@ package net.fosterlink.fosterlinkbackend.entities;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.time.Instant;
+import java.util.Date;
 
 /**
  * JPA entity for the agency table. Represents a foster care agency with contact/location
@@ -31,9 +31,9 @@ public class  AgencyEntity {
     private String hiddenByUsername;
 
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    private Date createdAt;
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Date updatedAt;
 
     /** Physical address of the agency. */
     @OneToOne(fetch = FetchType.LAZY)

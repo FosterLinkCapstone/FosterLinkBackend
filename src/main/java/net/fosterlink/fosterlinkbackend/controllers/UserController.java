@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import net.fosterlink.fosterlinkbackend.config.audit.AuditLog;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.config.tokenauth.TokenAuth;
@@ -834,6 +835,7 @@ public class UserController {
     @RateLimit(requests = 15, keyType = "USER")
     @DisallowRestricted
     @PreAuthorize("hasAuthority('ADMINISTRATOR')")
+    @AuditLog(action = "banned user", targetUserIdIndex = 0)
     @PostMapping("/ban")
     public ResponseEntity<?> banUser(@RequestParam int userId) {
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
@@ -864,6 +866,7 @@ public class UserController {
     @RateLimit(requests = 15, keyType = "USER")
     @DisallowRestricted
     @PreAuthorize("hasAuthority('ADMINISTRATOR')")
+    @AuditLog(action = "unbanned user", targetUserIdIndex = 0)
     @PostMapping("/unban")
     public ResponseEntity<?> unbanUser(@RequestParam int userId) {
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
@@ -895,6 +898,7 @@ public class UserController {
     @RateLimit(requests = 15, keyType = "USER")
     @DisallowRestricted
     @PreAuthorize("hasAuthority('ADMINISTRATOR')")
+    @AuditLog(action = "restricted user", targetUserIdIndex = 0)
     @PostMapping("/restrict")
     public ResponseEntity<?> restrictUser(@RequestParam int userId, @RequestParam(required = false) String restrictedUntil) {
         Optional<UserEntity> targetOpt = userRepository.findById(userId);
@@ -931,6 +935,7 @@ public class UserController {
     @RateLimit(requests = 15, keyType = "USER")
     @DisallowRestricted
     @PreAuthorize("hasAuthority('ADMINISTRATOR')")
+    @AuditLog(action = "unrestricted user", targetUserIdIndex = 0)
     @PostMapping("/unrestrict")
     public ResponseEntity<?> unrestrictUser(@RequestParam int userId) {
         Optional<UserEntity> targetOpt = userRepository.findById(userId);

@@ -3,6 +3,7 @@ package net.fosterlink.fosterlinkbackend.repositories;
 import jakarta.transaction.Transactional;
 import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -536,6 +537,10 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
 
     @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.postedBy.id = :userId ORDER BY t.createdAt DESC")
     List<ThreadEntity> findAllByPostedByIdWithRelations(@Param("userId") int userId);
+
+    @Query(value = "SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.postedBy.id = :userId ORDER BY t.createdAt DESC",
+            countQuery = "SELECT COUNT(t) FROM ThreadEntity t WHERE t.postedBy.id = :userId")
+    Page<ThreadEntity> findAllByPostedByIdWithRelationsPaginated(@Param("userId") int userId, Pageable pageable);
 
     @Query(value = """
     SELECT

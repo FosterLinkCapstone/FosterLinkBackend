@@ -180,8 +180,8 @@ public class AgencyMapper {
         agency.setAgencyWebsiteLink(e.getWebsiteUrl());
         agency.setApproved(e.getApproved() == null ? 0 : (e.getApproved() ? 1 : 2));
         agency.setApprovedByUsername(null);
-        agency.setCreatedAt(e.getCreatedAt() == null ? null : Date.from(e.getCreatedAt()));
-        agency.setUpdatedAt(e.getUpdatedAt() == null ? null : Date.from(e.getUpdatedAt()));
+        agency.setCreatedAt(e.getCreatedAt());
+        agency.setUpdatedAt(e.getUpdatedAt());
         agency.setLocation(e.getAddress());
         agency.setAgent(new UserResponse(e.getAgent()));
         agency.setAgentInfo(new AgentInfoResponse(e.getAgent()));

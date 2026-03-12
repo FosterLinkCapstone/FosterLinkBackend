@@ -1,6 +1,7 @@
 package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -243,5 +244,9 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
 
     @Query("SELECT f FROM FaqEntity f JOIN FETCH f.author WHERE f.author.id = :authorId ORDER BY f.createdAt DESC")
     List<FaqEntity> findByAuthor_IdOrderByCreatedAtDesc(@Param("authorId") int authorId);
+
+    @Query(value = "SELECT f FROM FaqEntity f JOIN FETCH f.author WHERE f.author.id = :authorId ORDER BY f.createdAt DESC",
+            countQuery = "SELECT COUNT(f) FROM FaqEntity f WHERE f.author.id = :authorId")
+    Page<FaqEntity> findByAuthor_IdOrderByCreatedAtDescPaginated(@Param("authorId") int authorId, Pageable pageable);
 
 }

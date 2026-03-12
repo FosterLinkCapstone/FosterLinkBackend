@@ -3,6 +3,7 @@ package net.fosterlink.fosterlinkbackend.controllers;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import net.fosterlink.fosterlinkbackend.config.audit.AuditLog;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.tokenauth.TokenAuth;
 import net.fosterlink.fosterlinkbackend.entities.TokenAuthEntity;
@@ -50,6 +51,7 @@ public class TokenAuthController {
             }
     )
     @RateLimit(requests = 30)
+    @AuditLog(action = "assigned administrator to user", targetUserIdIndex = 1, usesTokenAuth = true)
     @PostMapping("/assignAdmin")
     @TokenAuth(endpointName = "/assignAdmin")
     public ResponseEntity<?> assignAdmin(@RequestParam String token, @RequestParam int userId) {
@@ -81,6 +83,7 @@ public class TokenAuthController {
             }
     )
     @RateLimit(requests = 30)
+    @AuditLog(action = "revoked administrator from user", targetUserIdIndex = 1, usesTokenAuth = true)
     @PostMapping("/revokeAdmin")
     @TokenAuth(endpointName = "/revokeAdmin")
     public ResponseEntity<?> revokeAdmin(@RequestParam String token, @RequestParam int userId) {

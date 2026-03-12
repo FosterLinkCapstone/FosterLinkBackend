@@ -90,7 +90,7 @@ public class SecurityConfig {
                     requestHandler.setCsrfRequestAttributeName(null);
                     csrf.csrfTokenRepository(tokenRepository)
                             .csrfTokenRequestHandler(requestHandler)
-                            .ignoringRequestMatchers("/v1/users/refresh")
+                            .ignoringRequestMatchers("/v1/users/login", "/v1/users/refresh")
                             .ignoringRequestMatchers("/v1/token/**")
                             .ignoringRequestMatchers("/v1/users/forgotPassword", "/v1/users/resetPassword");
                 })
