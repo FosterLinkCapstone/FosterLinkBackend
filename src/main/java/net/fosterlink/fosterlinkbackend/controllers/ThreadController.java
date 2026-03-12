@@ -15,11 +15,11 @@ import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.*;
 import net.fosterlink.fosterlinkbackend.mail.service.AdminUserContentMailService;
 import net.fosterlink.fosterlinkbackend.mail.service.ThreadMailService;
-import net.fosterlink.fosterlinkbackend.models.rest.GetThreadsResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetHiddenThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.HiddenThreadResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadReplyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
+import net.fosterlink.fosterlinkbackend.models.web.HiddenByType;
 import net.fosterlink.fosterlinkbackend.models.web.thread.*;
 import net.fosterlink.fosterlinkbackend.repositories.*;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadMapper;
@@ -254,7 +254,7 @@ public class ThreadController {
                             description = "Paginated threads by the user",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetThreadsResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -281,7 +281,7 @@ public class ThreadController {
         var threads = threadMapper.searchByUser(sendingUserId, userId, pageNumber);
         int totalCount = threadRepository.visibleThreadCountForUser(userId);
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new GetThreadsResponse(threads, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(threads, totalPages));
     }
 
     @Operation(
@@ -441,7 +441,7 @@ public class ThreadController {
                             description = "A collection of threads with total page count",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetThreadsResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -461,7 +461,7 @@ public class ThreadController {
         var threads = threadMapper.getThreads(orderBy, userId, pageNumber);
         int totalCount = threadRepository.countVisible();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new GetThreadsResponse(threads, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(threads, totalPages));
     }
     @Operation(
             summary = "Get replies for a thread",
@@ -978,7 +978,7 @@ public class ThreadController {
                             description = "Paginated list of hidden threads",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetHiddenThreadsResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
@@ -989,9 +989,9 @@ public class ThreadController {
     @RateLimit
     @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/getHidden")
-    public ResponseEntity<?> getHiddenThreads(@RequestParam HiddenThreadType hiddenThreadType, @RequestParam int pageNumber) {
+    public ResponseEntity<?> getHiddenThreads(@RequestParam HiddenByType hiddenThreadType, @RequestParam int pageNumber) {
         int uid = JwtUtil.getLoggedInUser().getDatabaseId();
-        if (hiddenThreadType == HiddenThreadType.ADMIN) {
+        if (hiddenThreadType == HiddenByType.ADMIN) {
             return ResponseEntity.ok(threadMapper.getHiddenThreadsAdminDeleted(pageNumber, uid));
         } else {
             return ResponseEntity.ok(threadMapper.getHiddenThreadsUserDeleted(pageNumber, uid));

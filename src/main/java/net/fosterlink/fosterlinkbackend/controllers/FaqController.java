@@ -19,15 +19,13 @@ import net.fosterlink.fosterlinkbackend.models.rest.ApprovalCheckResponse;
 import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqSuggestionModel;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqRequestResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetFaqsResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetHiddenFaqsResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetPendingFaqsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PendingFaqResponse;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.models.web.faq.ApproveFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.UpdateFaqModel;
-import net.fosterlink.fosterlinkbackend.models.web.faq.HiddenFaqType;
+import net.fosterlink.fosterlinkbackend.models.web.HiddenByType;
 import net.fosterlink.fosterlinkbackend.mail.service.AdminUserContentMailService;
 import net.fosterlink.fosterlinkbackend.mail.service.FaqMailService;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
@@ -88,7 +86,7 @@ public class FaqController {
                             description = "Paginated list of approved FAQs",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetFaqsResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -108,7 +106,7 @@ public class FaqController {
         int totalCount = faqMapper.countApprovedWithSearch(normalizedSearch, normalizedSearchBy);
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         List<FaqResponse> faqs = faqMapper.allApprovedPreviewsWithSearch(pageNumber, normalizedSearch, normalizedSearchBy);
-        return ResponseEntity.ok(new GetFaqsResponse(faqs, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(faqs, totalPages));
     }
     @Operation(
             summary = "Get FAQ content by ID",
@@ -221,7 +219,7 @@ public class FaqController {
                             description = "Paginated list of pending FAQs",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetPendingFaqsResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -241,7 +239,7 @@ public class FaqController {
     public ResponseEntity<?> getPendingFaqs(@RequestParam int pageNumber) {
         int totalCount = fAQRepository.countPending();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new GetPendingFaqsResponse(faqMapper.allPendingPreviews(pageNumber), totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(faqMapper.allPendingPreviews(pageNumber), totalPages));
     }
     @Operation(
             summary = "Check approval status for logged-in user's FAQs",
@@ -485,7 +483,7 @@ public class FaqController {
                             description = "Paginated list of approved FAQs by the user",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetFaqsResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -509,7 +507,7 @@ public class FaqController {
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
         List<FaqResponse> faqs = faqMapper.allApprovedPreviewsForUser(userId, pageNumber);
 
-        return ResponseEntity.ok(new GetFaqsResponse(faqs, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(faqs, totalPages));
     }
 
     @Operation(
@@ -627,7 +625,7 @@ public class FaqController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Paginated list of hidden FAQs",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = GetHiddenFaqsResponse.class))),
+                                    schema = @Schema(implementation = PaginatedResponse.class))),
                     @ApiResponse(responseCode = "403", description = "Administrator privileges required"),
                     @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
             },
@@ -636,16 +634,16 @@ public class FaqController {
     @RateLimit
     @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/getHidden")
-    public ResponseEntity<?> getHiddenFaqs(@RequestParam HiddenFaqType type, @RequestParam int pageNumber) {
+    public ResponseEntity<?> getHiddenFaqs(@RequestParam HiddenByType type, @RequestParam int pageNumber) {
         int totalCount;
-        var faqs = type == HiddenFaqType.ADMIN
+        var faqs = type == HiddenByType.ADMIN
                 ? faqMapper.allHiddenByAdminPreviews(pageNumber)
                 : faqMapper.allHiddenByUserPreviews(pageNumber);
-        totalCount = type == HiddenFaqType.ADMIN
+        totalCount = type == HiddenByType.ADMIN
                 ? fAQRepository.countHiddenByAdmin()
                 : fAQRepository.countHiddenByUser();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new GetHiddenFaqsResponse(faqs, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(faqs, totalPages));
     }
 
     @Operation(

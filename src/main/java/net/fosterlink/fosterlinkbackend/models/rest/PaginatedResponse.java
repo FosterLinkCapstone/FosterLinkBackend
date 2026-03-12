@@ -5,16 +5,17 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Paginated list of agency deletion requests with total page count.")
-public class GetAgencyDeletionRequestsResponse {
+@Schema(description = "A paginated response wrapper.")
+public class PaginatedResponse<T> implements Serializable {
 
-    @Schema(description = "The deletion requests for the requested page.")
-    private List<AgencyDeletionRequestResponse> requests;
+    @Schema(description = "The items for the requested page.")
+    private List<T> items;
 
     @Schema(description = "Total number of pages.")
     private int totalPages;

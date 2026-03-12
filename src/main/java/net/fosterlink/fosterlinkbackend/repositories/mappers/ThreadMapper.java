@@ -1,7 +1,7 @@
 package net.fosterlink.fosterlinkbackend.repositories.mappers;
 
-import net.fosterlink.fosterlinkbackend.models.rest.GetHiddenThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.HiddenThreadResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PostMetadataResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
@@ -61,20 +61,20 @@ public class ThreadMapper {
         List<Object[]> results = threadRepository.findRandomWeightedThreadsForUser(userId);
         return results.stream().map(this::mapThread).collect(Collectors.toCollection(ArrayList::new));
     }
-    public GetHiddenThreadsResponse getHiddenThreadsAdminDeleted(int pageNumber, int userId) {
+    public PaginatedResponse<HiddenThreadResponse> getHiddenThreadsAdminDeleted(int pageNumber, int userId) {
         List<Object[]> results = threadRepository.getHiddenThreadsAdminDeleted(userId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         List<HiddenThreadResponse> threads = results.stream().map(this::mapHiddenThread).collect(Collectors.toList());
         int totalCount = threadRepository.countHiddenThreadsAdminDeleted();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return new GetHiddenThreadsResponse(threads, totalPages);
+        return new PaginatedResponse<>(threads, totalPages);
     }
 
-    public GetHiddenThreadsResponse getHiddenThreadsUserDeleted(int pageNumber, int userId) {
+    public PaginatedResponse<HiddenThreadResponse> getHiddenThreadsUserDeleted(int pageNumber, int userId) {
         List<Object[]> results = threadRepository.getHiddenThreadsUserDeleted(userId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         List<HiddenThreadResponse> threads = results.stream().map(this::mapHiddenThread).collect(Collectors.toList());
         int totalCount = threadRepository.countHiddenThreadsUserDeleted();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return new GetHiddenThreadsResponse(threads, totalPages);
+        return new PaginatedResponse<>(threads, totalPages);
     }
 
     public HiddenThreadResponse findHiddenThreadById(int threadId, int userId) {

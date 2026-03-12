@@ -2,7 +2,7 @@ package net.fosterlink.fosterlinkbackend.controllers;
 
 import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
-import net.fosterlink.fosterlinkbackend.models.rest.GetThreadsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadReplyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
 import net.fosterlink.fosterlinkbackend.repositories.*;
@@ -100,7 +100,7 @@ class ThreadControllerTest {
     }
 
     @Test
-    void testGetThreads_ReturnsOkWithGetThreadsResponse() {
+    void testGetThreads_ReturnsOkWithPaginatedResponse() {
         List<ThreadResponse> threads = Collections.singletonList(threadResponse);
         when(threadMapper.getThreads(eq("newest"), anyInt(), eq(0))).thenReturn(threads);
         when(threadRepository.countVisible()).thenReturn(25);
@@ -111,10 +111,10 @@ class ThreadControllerTest {
             ResponseEntity<?> response = threadController.getThreads("newest", 0);
 
             assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertInstanceOf(GetThreadsResponse.class, response.getBody());
-            GetThreadsResponse body = (GetThreadsResponse) response.getBody();
-            assertNotNull(body.getThreads());
-            assertEquals(1, body.getThreads().size());
+            assertInstanceOf(PaginatedResponse.class, response.getBody());
+            PaginatedResponse<?> body = (PaginatedResponse<?>) response.getBody();
+            assertNotNull(body.getItems());
+            assertEquals(1, body.getItems().size());
             // Pagination: 25 total items, 10 per page -> 3 pages
             assertEquals(3, body.getTotalPages());
         }
@@ -147,7 +147,7 @@ class ThreadControllerTest {
     }
 
     @Test
-    void testSearchByUser_UserExists_ReturnsOkWithGetThreadsResponse() {
+    void testSearchByUser_UserExists_ReturnsOkWithPaginatedResponse() {
         List<ThreadResponse> threads = Collections.singletonList(threadResponse);
         when(userRepository.existsById(1)).thenReturn(true);
         when(threadMapper.searchByUser(anyInt(), eq(1), eq(0))).thenReturn(threads);
@@ -159,9 +159,9 @@ class ThreadControllerTest {
             ResponseEntity<?> response = threadController.searchByUser(1, 0);
 
             assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertInstanceOf(GetThreadsResponse.class, response.getBody());
-            GetThreadsResponse body = (GetThreadsResponse) response.getBody();
-            assertEquals(threads, body.getThreads());
+            assertInstanceOf(PaginatedResponse.class, response.getBody());
+            PaginatedResponse<?> body = (PaginatedResponse<?>) response.getBody();
+            assertEquals(threads, body.getItems());
             // Pagination: 5 items, 10 per page -> 1 page
             assertEquals(1, body.getTotalPages());
         }

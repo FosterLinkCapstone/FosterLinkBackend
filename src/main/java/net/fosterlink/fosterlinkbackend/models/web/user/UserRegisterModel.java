@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import net.fosterlink.fosterlinkbackend.models.validation.ValidPassword;
 import lombok.RequiredArgsConstructor;
 import net.fosterlink.fosterlinkbackend.config.validation.Blacklist;
 import net.fosterlink.fosterlinkbackend.config.validation.BlacklistMatchBy;
@@ -43,9 +44,7 @@ public class UserRegisterModel {
     @NotBlank
     private String phoneNumber;
     @Schema(description = "The password of the user.", example = "P@22w0rd")
-    // one number, one uppercase, one lowercase, one special char, 12 chars min (TODO - needs documentation)
-    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{12,}$", message = "Password does not meet complexity requirements!")
-    @Size(min=12, max=128)
+    @ValidPassword
     @NotBlank
     private String password;
 

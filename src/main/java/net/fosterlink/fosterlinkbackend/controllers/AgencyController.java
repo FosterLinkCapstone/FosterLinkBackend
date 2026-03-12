@@ -18,9 +18,9 @@ import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ApproveAgencyResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetAgenciesResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetAgencyDeletionRequestsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
+import net.fosterlink.fosterlinkbackend.models.web.agency.LocationInput;
 import net.fosterlink.fosterlinkbackend.models.web.agency.UpdateAgencyLocationModel;
 import net.fosterlink.fosterlinkbackend.models.web.agency.UpdateAgencyModel;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
@@ -90,7 +90,7 @@ public class AgencyController {
                             description = "Paginated list of approved agencies",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetAgenciesResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -119,7 +119,7 @@ public class AgencyController {
         List<AgencyResponse> agencies = (normalizedSearch == null || normalizedSearch.isEmpty())
                 ? agencyMapper.getAllApprovedAgencies(pageNumber, includeDeletionRequestForAdmin, currentUserId)
                 : agencyMapper.getAllApprovedAgenciesWithSearch(pageNumber, normalizedSearch, normalizedSearchBy, includeDeletionRequestForAdmin, currentUserId);
-        return ResponseEntity.ok(new GetAgenciesResponse(agencies, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(agencies, totalPages));
     }
     @Operation(
             summary = "Get all pending agencies",
@@ -134,7 +134,7 @@ public class AgencyController {
                             description = "Paginated list of pending agencies",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetAgenciesResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(
@@ -154,7 +154,7 @@ public class AgencyController {
     public ResponseEntity<?> getPendingAgencies(@RequestParam int pageNumber) {
         int totalCount = agencyRepository.countPendingOrDenied();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllPendingAgencies(pageNumber), totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(agencyMapper.getAllPendingAgencies(pageNumber), totalPages));
     }
     @Operation(
             summary = "Approve or deny an agency",
@@ -254,11 +254,12 @@ public class AgencyController {
                     agency.setCreatedAt(new Date());
 
                     LocationEntity location = new LocationEntity();
-                    location.setZipCode(model.getLocationZipCode());
-                    location.setCity(model.getLocationCity());
-                    location.setState(model.getLocationState());
-                    location.setAddrLine1(model.getLocationAddrLine1());
-                    location.setAddrLine2(model.getLocationAddrLine2());
+                    LocationInput loc = model.getLocation();
+                    location.setZipCode(loc.getZipCode());
+                    location.setCity(loc.getCity());
+                    location.setState(loc.getState());
+                    location.setAddrLine1(loc.getAddrLine1());
+                    location.setAddrLine2(loc.getAddrLine2());
 
                     LocationEntity savedLocation = locationRepository.save(location);
 
@@ -415,7 +416,7 @@ public class AgencyController {
                             description = "Paginated list of hidden agencies",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetAgenciesResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
@@ -429,7 +430,7 @@ public class AgencyController {
     public ResponseEntity<?> getHiddenAgencies(@RequestParam int pageNumber) {
         int totalCount = agencyRepository.countHidden();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new GetAgenciesResponse(agencyMapper.getAllHiddenAgencies(pageNumber), totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(agencyMapper.getAllHiddenAgencies(pageNumber), totalPages));
     }
 
     @Operation(
@@ -521,7 +522,7 @@ public class AgencyController {
                             description = "Paginated list of deletion requests",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = GetAgencyDeletionRequestsResponse.class)
+                                    schema = @Schema(implementation = PaginatedResponse.class)
                             )
                     ),
                     @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
@@ -535,7 +536,7 @@ public class AgencyController {
     public ResponseEntity<?> getDeletionRequests(@RequestParam int pageNumber) {
         int totalCount = deletionRequestRepository.countPending();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new GetAgencyDeletionRequestsResponse(agencyMapper.getAllDeletionRequests(pageNumber), totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(agencyMapper.getAllDeletionRequests(pageNumber), totalPages));
     }
 
     @Operation(
@@ -644,11 +645,12 @@ public class AgencyController {
             location = new LocationEntity();
             agency.setAddress(location);
         }
-        location.setAddrLine1(model.getLocationAddrLine1());
-        location.setAddrLine2(model.getLocationAddrLine2());
-        location.setCity(model.getLocationCity());
-        location.setState(model.getLocationState());
-        location.setZipCode(model.getLocationZipCode());
+        LocationInput loc = model.getLocation();
+        location.setAddrLine1(loc.getAddrLine1());
+        location.setAddrLine2(loc.getAddrLine2());
+        location.setCity(loc.getCity());
+        location.setState(loc.getState());
+        location.setZipCode(loc.getZipCode());
 
         locationRepository.save(location);
         Date now = new Date();

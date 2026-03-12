@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import net.fosterlink.fosterlinkbackend.models.validation.ValidPassword;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.hibernate.validator.constraints.URL;
@@ -39,8 +40,7 @@ public class UpdateUserModel {
     private String phoneNumber;
     @Schema(description = "The updated password. Can be null.")
     @Nullable
-    @Size(min=12, max=128)
-    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{12,}$")
+    @ValidPassword
     private String password;
     @Schema(description = "The updated username. Can be null.")
     @Nullable

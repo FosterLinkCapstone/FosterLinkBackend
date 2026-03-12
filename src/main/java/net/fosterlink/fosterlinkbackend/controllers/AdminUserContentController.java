@@ -87,7 +87,7 @@ public class AdminUserContentController {
         }
         int totalPages = threadPage.getTotalPages();
         if (totalPages == 0) totalPages = 1;
-        return ResponseEntity.ok(new GetAdminThreadsForUserResponse(result, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(result, totalPages));
     }
 
     @Operation(
@@ -164,10 +164,10 @@ public class AdminUserContentController {
             return ResponseEntity.notFound().build();
         }
         List<AgencyEntity> agencies = agencyRepository.findByAgentIdWithRelations(userId);
-        List<AdminAgencyForUserResponse> result = new ArrayList<>();
+        List<AdminEntityForUserResponse<AgencyResponse>> result = new ArrayList<>();
         for (AgencyEntity e : agencies) {
-            AdminAgencyForUserResponse r = new AdminAgencyForUserResponse();
-            r.setAgency(agencyMapper.fromEntity(e));
+            AdminEntityForUserResponse<AgencyResponse> r = new AdminEntityForUserResponse<>();
+            r.setEntity(agencyMapper.fromEntity(e));
             r.setHidden(e.isHidden());
             if (e.isHidden()) {
                 r.setEntityStatus("HIDDEN");
@@ -217,7 +217,7 @@ public class AdminUserContentController {
                 faqResponse.setApprovedByUsername(null);
             }
             AdminFaqForUserResponse r = new AdminFaqForUserResponse();
-            r.setFaq(faqResponse);
+            r.setEntity(faqResponse);
             boolean hidden = approvalOpt.map(a -> a.getHiddenBy() != null).orElse(false);
             boolean hiddenByAuthor = approvalOpt.map(FAQApprovalEntity::isHiddenByAuthor).orElse(false);
             r.setHidden(hidden);
@@ -235,7 +235,7 @@ public class AdminUserContentController {
         }
         int totalPages = faqPage.getTotalPages();
         if (totalPages == 0) totalPages = 1;
-        return ResponseEntity.ok(new GetAdminFaqAnswersForUserResponse(result, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(result, totalPages));
     }
 
     @Operation(

@@ -4,8 +4,7 @@ import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.ApprovalCheckResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.FaqResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetFaqsResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetPendingFaqsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PendingFaqResponse;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
@@ -29,6 +28,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,20 +72,20 @@ class FaqControllerTest {
     }
 
     @Test
-    void testGetAllFaqs_ReturnsOkWithGetFaqsResponse() {
+    void testGetAllFaqs_ReturnsOkWithPaginatedResponse() {
         List<FaqResponse> faqs = Collections.singletonList(new FaqResponse());
-        when(faqMapper.allApprovedPreviews(0)).thenReturn(faqs);
-        when(fAQRepository.countApproved()).thenReturn(25);
+        when(faqMapper.allApprovedPreviewsWithSearch(eq(0), isNull(), isNull())).thenReturn(faqs);
+        when(faqMapper.countApprovedWithSearch(isNull(), isNull())).thenReturn(25);
 
-        ResponseEntity<?> response = faqController.getAllFaqs(0);
+        ResponseEntity<?> response = faqController.getAllFaqs(0, null, null);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertInstanceOf(GetFaqsResponse.class, response.getBody());
-        GetFaqsResponse body = (GetFaqsResponse) response.getBody();
-        assertEquals(faqs, body.getFaqs());
+        assertInstanceOf(PaginatedResponse.class, response.getBody());
+        PaginatedResponse<?> body = (PaginatedResponse<?>) response.getBody();
+        assertEquals(faqs, body.getItems());
         // Pagination: 25 total items, 10 per page -> 3 pages
         assertEquals(3, body.getTotalPages());
-        verify(faqMapper, times(1)).allApprovedPreviews(0);
+        verify(faqMapper, times(1)).allApprovedPreviewsWithSearch(eq(0), isNull(), isNull());
     }
 
     @Test

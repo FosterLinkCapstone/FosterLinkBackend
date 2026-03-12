@@ -12,7 +12,7 @@ import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.AccountDeletionRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AccountDeletionRequestResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetAccountDeletionRequestsResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.web.accountdeletion.DelayDeletionModel;
 import net.fosterlink.fosterlinkbackend.repositories.AccountDeletionRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
@@ -150,7 +150,7 @@ public class AccountDeletionController {
                     @ApiResponse(
                             responseCode = "200",
                             description = "Paginated list of pending account deletion requests",
-                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = GetAccountDeletionRequestsResponse.class))
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaginatedResponse.class))
                     ),
                     @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
                     @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
@@ -170,7 +170,7 @@ public class AccountDeletionController {
                 ? deletionRequestMapper.getAllPendingByUrgency(pageNumber)
                 : deletionRequestMapper.getAllPendingByRecency(pageNumber);
 
-        return ResponseEntity.ok(new GetAccountDeletionRequestsResponse(requests, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(requests, totalPages));
     }
 
     @Operation(

@@ -14,8 +14,7 @@ import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.models.rest.AdminUserResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AdminUserStatsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AuditLogEntryResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetAdminUsersResponse;
-import net.fosterlink.fosterlinkbackend.models.rest.GetAuditLogResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.mail.service.AdminUserMailService;
 import net.fosterlink.fosterlinkbackend.mail.service.MailingListMailService;
 import net.fosterlink.fosterlinkbackend.repositories.AuditLogRepository;
@@ -96,7 +95,7 @@ public class AdminUserController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Paginated list of matching users",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = GetAdminUsersResponse.class))),
+                                    schema = @Schema(implementation = PaginatedResponse.class))),
                     @ApiResponse(responseCode = "400", description = "Invalid searchBy or query value"),
                     @ApiResponse(responseCode = "403", description = "Caller is not an administrator")
             },
@@ -154,7 +153,7 @@ public class AdminUserController {
         int totalPages = (int) Math.ceil((double) totalCount / SqlUtil.ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
 
-        return ResponseEntity.ok(new GetAdminUsersResponse(users, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(users, totalPages));
     }
 
     @Operation(
@@ -191,7 +190,7 @@ public class AdminUserController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Paginated list of deleted accounts",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = GetAdminUsersResponse.class))),
+                                    schema = @Schema(implementation = PaginatedResponse.class))),
                     @ApiResponse(responseCode = "403", description = "Caller is not an administrator")
             },
             security = {@SecurityRequirement(name = "bearerAuth")}
@@ -212,7 +211,7 @@ public class AdminUserController {
         int totalPages = (int) Math.ceil((double) totalCount / SqlUtil.ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
 
-        return ResponseEntity.ok(new GetAdminUsersResponse(users, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(users, totalPages));
     }
 
     @Operation(
@@ -225,7 +224,7 @@ public class AdminUserController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Paginated list of all users",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = GetAdminUsersResponse.class))),
+                                    schema = @Schema(implementation = PaginatedResponse.class))),
                     @ApiResponse(responseCode = "403", description = "Caller is not an administrator")
             },
             security = {@SecurityRequirement(name = "bearerAuth")}
@@ -246,7 +245,7 @@ public class AdminUserController {
         int totalPages = (int) Math.ceil((double) totalCount / SqlUtil.ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
 
-        return ResponseEntity.ok(new GetAdminUsersResponse(users, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(users, totalPages));
     }
 
     @Operation(
@@ -259,7 +258,7 @@ public class AdminUserController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Paginated list of audit log entries",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = GetAuditLogResponse.class))),
+                                    schema = @Schema(implementation = PaginatedResponse.class))),
                     @ApiResponse(responseCode = "403", description = "Caller is not an administrator")
             },
             security = {@SecurityRequirement(name = "bearerAuth")}
@@ -275,7 +274,7 @@ public class AdminUserController {
                 .toList();
         int totalPages = result.getTotalPages();
         if (totalPages == 0) totalPages = 1;
-        return ResponseEntity.ok(new GetAuditLogResponse(entries, totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(entries, totalPages));
     }
 
     @Operation(
