@@ -38,6 +38,7 @@ import net.fosterlink.fosterlinkbackend.service.BanStatusService;
 import net.fosterlink.fosterlinkbackend.service.RefreshTokenService;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
+import net.fosterlink.fosterlinkbackend.util.UserConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -67,7 +68,7 @@ import java.util.Optional;
 @RequestMapping("/v1/users/")
 public class UserController {
 
-    private static final String DEFAULT_PROFILE_PIC = "https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg?20200418092106";
+    private static final String DEFAULT_PROFILE_PIC = UserConstants.DEFAULT_PROFILE_PIC;
     private static final String REFRESH_TOKEN_COOKIE = "refresh_token";
 
     @Value("${app.refreshTokenExpirationMs}")

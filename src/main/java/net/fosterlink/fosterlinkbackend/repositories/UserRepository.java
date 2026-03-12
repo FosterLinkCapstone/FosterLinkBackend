@@ -200,4 +200,18 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
 
     @Query("SELECT u FROM UserEntity u WHERE u.administrator = true AND u.accountDeleted = false")
     List<UserEntity> findAllAdministrators();
+
+    @Query(value = """
+            SELECT u.id, u.first_name, u.last_name, u.username, u.email, u.phone_number,
+                   u.profile_picture_url, u.administrator, u.faq_author, u.verified_agency_rep,
+                   u.verified_foster, u.id_verified, u.banned_at, u.restricted_at, u.restricted_until,
+                   (SELECT COUNT(*) FROM thread t WHERE t.posted_by = u.id) AS post_count,
+                   (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
+                   (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
+                   (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+            FROM user u
+            WHERE u.id = :userId
+            """, nativeQuery = true)
+    List<Object[]> findAdminUserById(@Param("userId") int userId);
 }

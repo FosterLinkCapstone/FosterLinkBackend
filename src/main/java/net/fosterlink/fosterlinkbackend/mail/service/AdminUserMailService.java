@@ -19,6 +19,7 @@ public class AdminUserMailService {
     private static final String ROLE_REVOKED_TEMPLATE = "mail/role-revoked";
     private static final String ADMIN_APPROVAL_TEMPLATE = "mail/admin-role-approval";
     private static final String ADMIN_REVOCATION_TEMPLATE = "mail/admin-role-revocation";
+    private static final String PROFILE_CLEARED_TEMPLATE = "mail/profile-cleared";
 
     private static final Map<String, String> ROLE_DISPLAY_NAMES = Map.of(
             "FAQ_AUTHOR", "FAQ Author",
@@ -89,5 +90,16 @@ public class AdminUserMailService {
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
 
         mailSendHelper.sendTemplatedEmail(toEmail, "Your role has been updated on FosterLink", ROLE_REVOKED_TEMPLATE, context);
+    }
+
+    @CheckEmailPreference(value = "PROFILE_CLEARED", uiName = "Profile cleared by administrator")
+    @Async
+    public void sendProfileClearedNotification(int userId, String toEmail, String firstName, String clearedFields, String unsubscribeToken) {
+        Context context = new Context(Locale.getDefault());
+        context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
+        context.setVariable("clearedFields", clearedFields);
+        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
+
+        mailSendHelper.sendTemplatedEmail(toEmail, "Your profile has been updated by an administrator", PROFILE_CLEARED_TEMPLATE, context);
     }
 }

@@ -22,17 +22,18 @@ public class UserRegisterModel {
     @NotBlank(message = "Please provide a username!", groups = {Order1.class})
     @Size(min=3, max=30)
     @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "Username must be alphanumeric including underscores.")
-    @Blacklist(matchBy = BlacklistMatchBy.STARTS_WITH, value = {"deleted_account", "deleted-account", "deletedaccount"})
+    @Blacklist(matchBy = BlacklistMatchBy.STARTS_WITH, value = {"deleted_account", "deleted-account", "deletedaccount", "anonymized_user", "anonymized-user", "anonymizeduser"})
     private final String username;
     @Schema(description = "First name of the user.", example = "Jacob")
     @NotBlank
     @Size(min=1, max=50)
-    @Blacklist(value = {"deleted", "account", "deleted_account", "deletedaccount", "deleted-account"})
+    @Blacklist(value = {"deleted", "account", "deleted_account", "deletedaccount", "deleted-account", "anonymized"})
     private final String firstName;
     @Schema(description = "Last name of the user.", example = "Blair")
     @NotBlank
     @Size(min=1, max=50)
     @Blacklist(value = {"deleted", "account", "deleted_account", "deletedaccount", "deleted-account"})
+    @Blacklist(matchBy = BlacklistMatchBy.STARTS_WITH, value = {"user-"})
     private final String lastName;
     @Schema(description = "Email of the user.", example = "jacob@fosterlink.net")
     @NotBlank

@@ -17,6 +17,7 @@ import net.fosterlink.fosterlinkbackend.models.rest.AuditLogEntryResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.mail.service.AdminUserMailService;
 import net.fosterlink.fosterlinkbackend.mail.service.MailingListMailService;
+import net.fosterlink.fosterlinkbackend.util.UserConstants;
 import net.fosterlink.fosterlinkbackend.repositories.AuditLogRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AdminUserMapper;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * REST API for admin-only user management: search and role assignment.
@@ -377,6 +379,66 @@ public class AdminUserController {
         });
 
         return ResponseEntity.ok().build();
+    }
+
+    @RateLimit(requests = 20, keyType = "USER")
+    @DisallowRestricted
+    @AuditLog(action = "clear user profile", targetUserIdIndex = 0)
+    @PostMapping("/clearProfile")
+    public ResponseEntity<?> clearUserProfile(
+            @RequestParam int userId,
+            @RequestParam(defaultValue = "false") boolean clearFullName,
+            @RequestParam(defaultValue = "false") boolean clearUsername,
+            @RequestParam(defaultValue = "false") boolean clearProfilePicture) {
+
+        if (!clearFullName && !clearUsername && !clearProfilePicture) {
+            return ResponseEntity.badRequest().body("At least one field must be selected for clearing.");
+        }
+
+        Optional<UserEntity> targetOpt = userRepository.findById(userId);
+        if (targetOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        UserEntity target = targetOpt.get();
+        if (target.isAccountDeleted()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
+        }
+
+        String shortId = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String originalFirstName = target.getFirstName();
+
+        List<String> clearedFieldLabels = new ArrayList<>();
+
+        if (clearFullName) {
+            target.setFirstName("Anonymized");
+            target.setLastName("User-" + shortId);
+            clearedFieldLabels.add("Full name");
+        }
+        if (clearUsername) {
+            target.setUsername("anonymized-user-" + shortId);
+            clearedFieldLabels.add("Username");
+        }
+        if (clearProfilePicture) {
+            target.setProfilePictureUrl(UserConstants.DEFAULT_PROFILE_PIC);
+            clearedFieldLabels.add("Profile picture");
+        }
+
+        userRepository.save(target);
+        banStatusService.evictUserDetails(target.getEmail());
+        banStatusService.evictProfileMetadata(target.getId());
+
+        String clearedFields = clearedFieldLabels.stream().collect(Collectors.joining(", "));
+        String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
+        adminUserMailService.sendProfileClearedNotification(
+                target.getId(), target.getEmail(), originalFirstName, clearedFields, unsubscribeToken);
+
+        List<Object[]> rows = userRepository.findAdminUserById(userId);
+        if (rows.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        AdminUserResponse response = adminUserMapper.mapRow(rows.get(0));
+        return ResponseEntity.ok(response);
     }
 
     @RateLimit(requests = 5, keyType = "USER")
