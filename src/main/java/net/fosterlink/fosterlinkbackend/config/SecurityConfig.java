@@ -52,6 +52,7 @@ public class SecurityConfig {
             "/v1/faq/content",
             "/v1/users/isAdmin",
             "/v1/users/isFaqAuthor",
+            "/v1/users/privileges",
             "/v1/faq/unapprovedCount",
             "/v1/users/agentInfo",
             "/v1/agencies/all",

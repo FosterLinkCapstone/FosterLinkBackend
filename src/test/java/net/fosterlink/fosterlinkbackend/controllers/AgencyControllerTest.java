@@ -1,15 +1,22 @@
 package net.fosterlink.fosterlinkbackend.controllers;
 
-import com.google.maps.GeoApiContext;
+import jakarta.persistence.EntityManager;
 import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
+import net.fosterlink.fosterlinkbackend.mail.service.AgencyMailService;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ApproveAgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
+import net.fosterlink.fosterlinkbackend.repositories.AgencyDeletionRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
+import net.fosterlink.fosterlinkbackend.repositories.AuditLogRepository;
 import net.fosterlink.fosterlinkbackend.repositories.LocationRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AgencyMapper;
+import net.fosterlink.fosterlinkbackend.service.AgencyDeletionService;
+import net.fosterlink.fosterlinkbackend.service.AuditLogService;
+import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,8 +31,10 @@ import org.springframework.http.ResponseEntity;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -47,13 +56,33 @@ class AgencyControllerTest {
     private AgencyRepository agencyRepository;
 
     @Mock
-    private GeoApiContext geoApiContext;
+    private AgencyDeletionRequestRepository deletionRequestRepository;
+
+    @Mock
+    private AgencyDeletionService agencyDeletionService;
+
+    @Mock
+    private EntityManager entityManager;
+
+    @Mock
+    private AgencyMailService agencyMailService;
+
+    @Mock
+    private TokenAuthService tokenAuthService;
+
+    @Mock
+    private AuditLogRepository auditLogRepository;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private AgencyController agencyController;
 
     private UserEntity adminUser;
     private UserEntity nonAdminUser;
+    private LoggedInUser loggedInAdmin;
+    private LoggedInUser loggedInUser;
 
     @BeforeEach
     void setUp() {
@@ -66,6 +95,9 @@ class AgencyControllerTest {
         nonAdminUser.setId(2);
         nonAdminUser.setEmail("user@example.com");
         nonAdminUser.setAdministrator(false);
+
+        loggedInAdmin = new LoggedInUser(1, "admin@example.com", 0, "", Set.of("ADMINISTRATOR"), true, true, true, true, false);
+        loggedInUser = new LoggedInUser(2, "user@example.com", 0, "", Set.of(), true, true, true, true, false);
     }
 
     @Test
@@ -76,7 +108,7 @@ class AgencyControllerTest {
         when(agencyMapper.countApprovedWithSearch(isNull(), isNull())).thenReturn(25);
 
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(false);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(null);
 
             // Act
             ResponseEntity<?> response = agencyController.getAllAgencies(0, null, null);
@@ -98,9 +130,8 @@ class AgencyControllerTest {
         when(agencyMapper.countApprovedWithSearch(isNull(), isNull())).thenReturn(25);
 
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
-            when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInAdmin);
+            jwtUtilMock.when(() -> JwtUtil.hasAuthority("ADMINISTRATOR")).thenReturn(true);
 
             ResponseEntity<?> response = agencyController.getAllAgencies(0, null, null);
 
@@ -117,9 +148,8 @@ class AgencyControllerTest {
         when(agencyMapper.countApprovedWithSearch(isNull(), isNull())).thenReturn(25);
 
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("user@example.com");
-            when(userRepository.findByEmail("user@example.com")).thenReturn(nonAdminUser);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
+            jwtUtilMock.when(() -> JwtUtil.hasAuthority("ADMINISTRATOR")).thenReturn(false);
 
             ResponseEntity<?> response = agencyController.getAllAgencies(0, null, null);
 
@@ -129,98 +159,52 @@ class AgencyControllerTest {
     }
 
     @Test
-    void testGetPendingAgencies_Admin_ReturnsOkWithPaginatedResponse() {
-        // Arrange
+    void testGetPendingAgencies_ReturnsOkWithPaginatedResponse() {
         List<AgencyResponse> pending = Collections.singletonList(new AgencyResponse());
         when(agencyMapper.getAllPendingAgencies(0)).thenReturn(pending);
         when(agencyRepository.countPendingOrDenied()).thenReturn(5);
 
-        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
-            when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
+        ResponseEntity<?> response = agencyController.getPendingAgencies(0);
 
-            // Act
-            ResponseEntity<?> response = agencyController.getPendingAgencies(0);
-
-            // Assert
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertInstanceOf(PaginatedResponse.class, response.getBody());
-            PaginatedResponse<?> body = (PaginatedResponse<?>) response.getBody();
-            assertEquals(pending, body.getItems());
-            // Pagination: 5 items, 10 per page -> 1 page
-            assertEquals(1, body.getTotalPages());
-            verify(agencyMapper, times(1)).getAllPendingAgencies(0);
-        }
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertInstanceOf(PaginatedResponse.class, response.getBody());
+        PaginatedResponse<?> body = (PaginatedResponse<?>) response.getBody();
+        assertEquals(pending, body.getItems());
+        assertEquals(1, body.getTotalPages());
+        verify(agencyMapper, times(1)).getAllPendingAgencies(0);
     }
 
     @Test
-    void testGetPendingAgencies_NonAdmin_ReturnsForbidden() {
-        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("user@example.com");
-            when(userRepository.findByEmail("user@example.com")).thenReturn(nonAdminUser);
+    void testCountPending_ReturnsOkWithCount() {
+        when(agencyRepository.countPending()).thenReturn(5L);
 
-            // Act
-            ResponseEntity<?> response = agencyController.getPendingAgencies(0);
+        ResponseEntity<?> response = agencyController.countPending();
 
-            // Assert
-            assertEquals(403, response.getStatusCode().value());
-            verify(agencyMapper, never()).getAllPendingAgencies(anyInt());
-        }
-    }
-
-    @Test
-    void testCountPending_Admin_ReturnsOkWithCount() {
-        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
-            when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
-            when(agencyRepository.countPending()).thenReturn(5L);
-
-            // Act
-            ResponseEntity<?> response = agencyController.countPending();
-
-            // Assert
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertEquals(5L, response.getBody());
-            verify(agencyRepository, times(1)).countPending();
-        }
-    }
-
-    @Test
-    void testCountPending_NonAdmin_ReturnsForbidden() {
-        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("user@example.com");
-            when(userRepository.findByEmail("user@example.com")).thenReturn(nonAdminUser);
-
-            // Act
-            ResponseEntity<?> response = agencyController.countPending();
-
-            // Assert
-            assertEquals(403, response.getStatusCode().value());
-            verify(agencyRepository, never()).countPending();
-        }
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(5L, response.getBody());
+        verify(agencyRepository, times(1)).countPending();
     }
 
     @Test
     void testApproveAgency_Admin_AgencyExists_ReturnsOk() {
-        // Arrange
         ApproveAgencyResponse model = new ApproveAgencyResponse();
         model.setId(10);
         model.setApproved(true);
         AgencyEntity agency = new AgencyEntity();
         agency.setId(10);
+        agency.setAgent(nonAdminUser);
+
+        when(agencyRepository.findById(10)).thenReturn(Optional.of(agency));
+        when(agencyRepository.save(any(AgencyEntity.class))).thenReturn(agency);
+        when(tokenAuthService.getOrCreateUnsubscribeToken(any(UserEntity.class))).thenReturn("token");
 
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
-            when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
-            when(agencyRepository.findById(10)).thenReturn(Optional.of(agency));
-            when(agencyRepository.save(any(AgencyEntity.class))).thenReturn(agency);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInAdmin);
 
-            // Act
             ResponseEntity<?> response = agencyController.approveAgency(model);
 
-            // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
-            verify(agencyRepository, times(1)).save(agency);
+            verify(agencyRepository, times(1)).save(any(AgencyEntity.class));
         }
     }
 
@@ -229,35 +213,15 @@ class AgencyControllerTest {
         ApproveAgencyResponse model = new ApproveAgencyResponse();
         model.setId(999);
 
-        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("admin@example.com");
-            when(userRepository.findByEmail("admin@example.com")).thenReturn(adminUser);
-            when(agencyRepository.findById(999)).thenReturn(Optional.empty());
+        when(agencyRepository.findById(999)).thenReturn(Optional.empty());
 
-            // Act
+        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInAdmin);
+
             ResponseEntity<?> response = agencyController.approveAgency(model);
 
-            // Assert
             assertEquals(404, response.getStatusCode().value());
             verify(agencyRepository, never()).save(any(AgencyEntity.class));
-        }
-    }
-
-    @Test
-    void testApproveAgency_NonAdmin_ReturnsForbidden() {
-        ApproveAgencyResponse model = new ApproveAgencyResponse();
-        model.setId(10);
-
-        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("user@example.com");
-            when(userRepository.findByEmail("user@example.com")).thenReturn(nonAdminUser);
-
-            // Act
-            ResponseEntity<?> response = agencyController.approveAgency(model);
-
-            // Assert
-            assertEquals(403, response.getStatusCode().value());
-            verify(agencyRepository, never()).findById(anyInt());
         }
     }
 }

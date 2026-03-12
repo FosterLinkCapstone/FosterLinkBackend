@@ -30,7 +30,7 @@ class JwtTokenProviderTest {
         // Arrange
         Set<String> authorities = new HashSet<>();
         authorities.add("USER");
-        LoggedInUser user = new LoggedInUser(1, "test@example.com", "password", authorities, true, true, true, true);
+        LoggedInUser user = new LoggedInUser(1, "test@example.com", 0, "password", authorities, true, true, true, true, false);
         Authentication auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
 
         // Act
@@ -49,7 +49,7 @@ class JwtTokenProviderTest {
         // Arrange
         Set<String> authorities = new HashSet<>();
         authorities.add("USER");
-        LoggedInUser user = new LoggedInUser(1, "test@example.com", "password", authorities, true, true, true, true);
+        LoggedInUser user = new LoggedInUser(1, "test@example.com", 0, "password", authorities, true, true, true, true, false);
         Authentication auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
         String token = jwtTokenProvider.generateToken(auth);
 
@@ -66,7 +66,7 @@ class JwtTokenProviderTest {
         // Arrange
         Set<String> authorities = new HashSet<>();
         authorities.add("USER");
-        LoggedInUser user = new LoggedInUser(1, "test@example.com", "password", authorities, true, true, true, true);
+        LoggedInUser user = new LoggedInUser(1, "test@example.com", 0, "password", authorities, true, true, true, true, false);
         Authentication auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
         String token = jwtTokenProvider.generateToken(auth);
 
@@ -118,12 +118,12 @@ class JwtTokenProviderTest {
         // Arrange
         Set<String> authorities1 = new HashSet<>();
         authorities1.add("USER");
-        LoggedInUser user1 = new LoggedInUser(1, "user1@example.com", "password", authorities1, true, true, true, true);
+        LoggedInUser user1 = new LoggedInUser(1, "user1@example.com", 0, "password", authorities1, true, true, true, true, false);
         Authentication auth1 = new UsernamePasswordAuthenticationToken(user1, null, user1.getAuthorities());
 
         Set<String> authorities2 = new HashSet<>();
         authorities2.add("USER");
-        LoggedInUser user2 = new LoggedInUser(2, "user2@example.com", "password", authorities2, true, true, true, true);
+        LoggedInUser user2 = new LoggedInUser(2, "user2@example.com", 0, "password", authorities2, true, true, true, true, false);
         Authentication auth2 = new UsernamePasswordAuthenticationToken(user2, null, user2.getAuthorities());
 
         // Act
