@@ -28,12 +28,15 @@ import net.fosterlink.fosterlinkbackend.models.web.faq.ApproveFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.CreateFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.UpdateFaqModel;
 import net.fosterlink.fosterlinkbackend.models.web.faq.HiddenFaqType;
+import net.fosterlink.fosterlinkbackend.mail.service.AdminUserContentMailService;
+import net.fosterlink.fosterlinkbackend.mail.service.FaqMailService;
 import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.FaqMapper;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
+import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -62,6 +65,12 @@ public class FaqController {
     private FAQApprovalRepository fAQApprovalRepository;
     @Autowired
     private FAQRequestRepository fAQRequestRepository;
+    @Autowired
+    private FaqMailService faqMailService;
+    @Autowired
+    private AdminUserContentMailService adminUserContentMailService;
+    @Autowired
+    private TokenAuthService tokenAuthService;
 
 
     @Operation(
@@ -301,6 +310,17 @@ public class FaqController {
             entity.setApprovedById(loggedIn.getDatabaseId());
             entity.setFaqId(faqEntity.get().getId());
             fAQApprovalRepository.save(entity);
+
+            UserEntity author = faqEntity.get().getAuthor();
+            if (author != null) {
+                String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(author);
+                if (faq.isApproved()) {
+                    faqMailService.sendFaqApproved(author.getId(), author.getEmail(), author.getFirstName(), faqEntity.get().getTitle(), unsubToken);
+                } else {
+                    faqMailService.sendFaqDenied(author.getId(), author.getEmail(), author.getFirstName(), faqEntity.get().getTitle(), unsubToken);
+                }
+            }
+
             return ResponseEntity.ok().build();
         } else {
             return ResponseEntity.notFound().build();
@@ -437,6 +457,18 @@ public class FaqController {
         faqRequestResponse.setRequestedById(loggedIn.getDatabaseId());
         faqRequestResponse.setCreatedAt(new Date());
         fAQRequestRepository.save(faqRequestResponse);
+
+        UserEntity requester = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (requester != null) {
+            String requesterToken = tokenAuthService.getOrCreateUnsubscribeToken(requester);
+            faqMailService.sendFaqSuggestionReceived(requester.getId(), requester.getEmail(), requester.getFirstName(), model.getSuggested(), requesterToken);
+        }
+
+        userRepository.findAllAdministrators().forEach(admin -> {
+            String adminToken = tokenAuthService.getOrCreateUnsubscribeToken(admin);
+            faqMailService.sendFaqSuggestionReceivedNotice(admin.getId(), admin.getEmail(), admin.getFirstName(), model.getSuggested(), adminToken);
+        });
+
         return ResponseEntity.ok().build();
     }
     @Operation(
@@ -573,6 +605,15 @@ public class FaqController {
                 approval.setHiddenBy(null);
             }
             fAQApprovalRepository.save(approval);
+
+            if (hidden && !hiddenByAuthor && user.isAdministrator()) {
+                UserEntity author = faqOpt.get().getAuthor();
+                String preview = faqOpt.get().getSummary() != null ? faqOpt.get().getSummary() : faqOpt.get().getTitle();
+                String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(author);
+                adminUserContentMailService.sendContentModeratedNotification(
+                        author.getId(), author.getEmail(), author.getFirstName(), "FAQ", preview, unsubToken);
+            }
+
             return ResponseEntity.ok().build();
         } else {
             return ResponseEntity.status(403).build();

@@ -90,4 +90,15 @@ public interface AccountDeletionRequestRepository extends CrudRepository<Account
     @Transactional
     @Query(value = "DELETE FROM account_deletion_request WHERE requested_by = :userId", nativeQuery = true)
     void deleteByUserId(@Param("userId") int userId);
+
+    /**
+     * Finds pending requests whose auto-approval date falls within the next 7 days
+     * and is still at least 1 day away (to avoid re-sending the warning repeatedly).
+     */
+    @Query("SELECT dr FROM AccountDeletionRequestEntity dr JOIN FETCH dr.requestedBy " +
+           "WHERE dr.approved = false AND dr.reviewedAt IS NULL " +
+           "AND dr.autoApproveBy > :now AND dr.autoApproveBy <= :sevenDaysFromNow")
+    List<AccountDeletionRequestEntity> findApproachingAutoApproval(
+            @Param("now") java.util.Date now,
+            @Param("sevenDaysFromNow") java.util.Date sevenDaysFromNow);
 }

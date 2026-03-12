@@ -1,6 +1,7 @@
 package net.fosterlink.fosterlinkbackend.service;
 
 import net.fosterlink.fosterlinkbackend.entities.*;
+import net.fosterlink.fosterlinkbackend.mail.service.AccountDeletionMailService;
 import net.fosterlink.fosterlinkbackend.repositories.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +29,8 @@ public class AccountDeletionService {
     @Value("${app.emailHashPepper}")
     private String emailHashPepper;
 
+    @Autowired private AccountDeletionMailService accountDeletionMailService;
+    @Autowired private TokenAuthService tokenAuthService;
     @Autowired private AccountDeletionRequestRepository deletionRequestRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private ThreadRepository threadRepository;
@@ -62,6 +65,17 @@ public class AccountDeletionService {
 
         hideUserContent(user);
 
+        accountDeletionMailService.sendDeletionRequestedConfirmation(
+                user.getId(), user.getEmail(), user.getFirstName(), saved.getAutoApproveBy());
+
+        List<UserEntity> admins = userRepository.findAllAdministrators();
+        for (UserEntity admin : admins) {
+            String adminToken = tokenAuthService.getOrCreateUnsubscribeToken(admin);
+            accountDeletionMailService.sendDeletionRequestAdminNotice(
+                    admin.getId(), admin.getEmail(), admin.getFirstName(),
+                    user.getUsername(), saved.getAutoApproveBy(), adminToken);
+        }
+
         return saved;
     }
 
@@ -76,16 +90,24 @@ public class AccountDeletionService {
 
         unhideUserContent(user.getId());
         agencyDeletionRequestRepository.deletePendingByAgencyAgentId(user.getId());
+
+        accountDeletionMailService.sendDeletionCancelledConfirmation(user.getId(), user.getEmail(), user.getFirstName());
     }
 
     /** Admin approves a deletion request. Marks it as approved, then executes the deletion. */
     @Transactional
     public void approveDeletion(AccountDeletionRequestEntity request, UserEntity admin) {
+        UserEntity user = request.getRequestedBy();
+        String email = user.getEmail();
+        String firstName = user.getFirstName();
+
         request.setApproved(true);
         request.setReviewedAt(new Date());
         request.setReviewedBy(admin);
         deletionRequestRepository.save(request);
         executeAccountDeletion(request);
+
+        accountDeletionMailService.sendDeletionApprovedNotification(email, firstName);
     }
 
     /**
@@ -98,6 +120,10 @@ public class AccountDeletionService {
         request.setAutoApproveBy(thirtyDaysFromNow());
         request.setReviewedBy(admin);
         deletionRequestRepository.save(request);
+
+        UserEntity user = request.getRequestedBy();
+        accountDeletionMailService.sendDeletionDelayedNotification(
+                user.getId(), user.getEmail(), user.getFirstName(), request.getAutoApproveBy(), reason);
     }
 
     /**
@@ -108,11 +134,37 @@ public class AccountDeletionService {
     public void processAutoApprovals() {
         List<AccountDeletionRequestEntity> expired = deletionRequestRepository.findAllPastAutoApproveDate();
         for (AccountDeletionRequestEntity request : expired) {
+            UserEntity user = request.getRequestedBy();
+            String email = user.getEmail();
+            String firstName = user.getFirstName();
+
             request.setAutoApproved(true);
             request.setApproved(true);
             request.setReviewedAt(new Date());
             deletionRequestRepository.save(request);
             executeAccountDeletion(request);
+
+            accountDeletionMailService.sendDeletionApprovedNotification(email, firstName);
+        }
+    }
+
+    /**
+     * Sends 7-day auto-approval warnings for pending deletion requests approaching their deadline.
+     * Called by the scheduler independently of processAutoApprovals.
+     */
+    @Transactional(readOnly = true)
+    public void processAutoApprovalWarnings() {
+        Date now = new Date();
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DAY_OF_MONTH, 7);
+        Date sevenDaysFromNow = cal.getTime();
+
+        List<AccountDeletionRequestEntity> approaching =
+                deletionRequestRepository.findApproachingAutoApproval(now, sevenDaysFromNow);
+        for (AccountDeletionRequestEntity request : approaching) {
+            UserEntity user = request.getRequestedBy();
+            accountDeletionMailService.sendAutoApprovalWarning(
+                    user.getId(), user.getEmail(), user.getFirstName(), request.getAutoApproveBy());
         }
     }
 

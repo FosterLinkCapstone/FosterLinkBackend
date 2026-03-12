@@ -13,6 +13,8 @@ import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.*;
+import net.fosterlink.fosterlinkbackend.mail.service.AdminUserContentMailService;
+import net.fosterlink.fosterlinkbackend.mail.service.ThreadMailService;
 import net.fosterlink.fosterlinkbackend.models.rest.GetThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.GetHiddenThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.HiddenThreadResponse;
@@ -23,6 +25,7 @@ import net.fosterlink.fosterlinkbackend.repositories.*;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadMapper;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.ThreadReplyMapper;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
+import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.util.StringUtil;
@@ -64,6 +67,12 @@ public class ThreadController {
     private ThreadReplyRepository threadReplyRepository;
     @Autowired
     private EntityManager entityManager;
+    @Autowired
+    private ThreadMailService threadMailService;
+    @Autowired
+    private AdminUserContentMailService adminUserContentMailService;
+    @Autowired
+    private TokenAuthService tokenAuthService;
 
 
     @Operation(
@@ -538,6 +547,20 @@ public class ThreadController {
             dbReply.setThread_id(reply.getThreadId());
 
             ThreadReplyEntity replyEntity = threadReplyRepository.save(dbReply);
+
+            threadRepository.findByIdWithRelations(reply.getThreadId()).ifPresent(thread -> {
+                UserEntity threadAuthor = thread.getPostedBy();
+                if (threadAuthor != null && threadAuthor.getId() != user.getId()) {
+                    String preview = reply.getContent() != null && reply.getContent().length() > 200
+                            ? reply.getContent().substring(0, 200) + "…"
+                            : reply.getContent();
+                    String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(threadAuthor);
+                    threadMailService.sendThreadReplyNotification(
+                            threadAuthor.getId(), threadAuthor.getEmail(), threadAuthor.getFirstName(),
+                            thread.getTitle(), preview, unsubToken);
+                }
+            });
+
             return ResponseEntity.ok(new ThreadReplyResponse(replyEntity, 0));
         } else {
             return ResponseEntity.status(403).build();
@@ -706,6 +729,17 @@ public class ThreadController {
             }
             reply.getMetadata().setHidden(hidden);
             threadReplyRepository.save(reply);
+
+            if (hidden && !hiddenByAuthor && user.isAdministrator()) {
+                UserEntity author = reply.getPostedBy();
+                String preview = reply.getContent() != null && reply.getContent().length() > 200
+                        ? reply.getContent().substring(0, 200) + "…"
+                        : reply.getContent();
+                String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(author);
+                adminUserContentMailService.sendContentModeratedNotification(
+                        author.getId(), author.getEmail(), author.getFirstName(), "reply", preview, unsubToken);
+            }
+
             return ResponseEntity.ok().build();
         } else {
             return ResponseEntity.status(403).build();
@@ -910,6 +944,17 @@ public class ThreadController {
                 thread.get().getPostMetadata().setHidden(hidden);
                 postMetadataRepository.save(thread.get().getPostMetadata());
                 threadRepository.save(thread.get());
+
+                if (hidden && !hiddenByAuthor && user.isAdministrator()) {
+                    UserEntity author = thread.get().getPostedBy();
+                    String preview = thread.get().getContent() != null && thread.get().getContent().length() > 200
+                            ? thread.get().getContent().substring(0, 200) + "…"
+                            : thread.get().getContent();
+                    String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(author);
+                    adminUserContentMailService.sendContentModeratedNotification(
+                            author.getId(), author.getEmail(), author.getFirstName(), "thread", preview, unsubToken);
+                }
+
                 return ResponseEntity.ok().build();
             } else {
                 return ResponseEntity.status(403).build();

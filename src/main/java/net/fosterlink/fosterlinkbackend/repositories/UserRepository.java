@@ -197,4 +197,7 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
 
     @Query(value = "SELECT COUNT(*) FROM user u WHERE u.account_deleted = true", nativeQuery = true)
     long countDeleted();
+
+    @Query("SELECT u FROM UserEntity u WHERE u.administrator = true AND u.accountDeleted = false")
+    List<UserEntity> findAllAdministrators();
 }

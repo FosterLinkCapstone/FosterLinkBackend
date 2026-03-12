@@ -292,9 +292,12 @@ public class AdminUserController {
         banStatusService.evictUserDetails(target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
 
+        String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
         if (enabled) {
-            String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
             adminUserMailService.sendRoleAssignedNotification(
+                    target.getId(), target.getEmail(), target.getFirstName(), role, unsubscribeToken);
+        } else {
+            adminUserMailService.sendRoleRevokedNotification(
                     target.getId(), target.getEmail(), target.getFirstName(), role, unsubscribeToken);
         }
 

@@ -27,6 +27,7 @@ import net.fosterlink.fosterlinkbackend.models.web.user.ResetPasswordModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UpdateUserModel;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
+import net.fosterlink.fosterlinkbackend.mail.service.HomeMailService;
 import net.fosterlink.fosterlinkbackend.mail.service.UserMailService;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
@@ -88,6 +89,8 @@ public class UserController {
     private UserMapper userMapper;
     @Autowired(required = false)
     private UserMailService userMailService;
+    @Autowired(required = false)
+    private HomeMailService homeMailService;
     @Autowired
     private BanStatusService banStatusService;
     @Autowired
@@ -841,6 +844,9 @@ public class UserController {
         userRepository.save(target);
         banStatusService.evict(target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
+        if (homeMailService != null) {
+            homeMailService.sendAccountBannedNotification(target.getId(), target.getEmail(), target.getFirstName());
+        }
         return ResponseEntity.ok().build();
     }
 
@@ -868,6 +874,10 @@ public class UserController {
         userRepository.save(target);
         banStatusService.evict(target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
+        if (homeMailService != null) {
+            String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
+            homeMailService.sendAccountUnbannedNotification(target.getId(), target.getEmail(), target.getFirstName(), unsubToken);
+        }
         return ResponseEntity.ok().build();
     }
 
@@ -900,6 +910,10 @@ public class UserController {
         userRepository.save(target);
         banStatusService.evict(target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
+        if (homeMailService != null) {
+            String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
+            homeMailService.sendAccountRestrictedNotification(target.getId(), target.getEmail(), target.getFirstName(), target.getRestrictedUntil(), unsubToken);
+        }
         return ResponseEntity.ok().build();
     }
 
@@ -928,6 +942,10 @@ public class UserController {
         userRepository.save(target);
         banStatusService.evict(target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
+        if (homeMailService != null) {
+            String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
+            homeMailService.sendAccountUnrestrictedNotification(target.getId(), target.getEmail(), target.getFirstName(), unsubToken);
+        }
         return ResponseEntity.ok().build();
     }
 

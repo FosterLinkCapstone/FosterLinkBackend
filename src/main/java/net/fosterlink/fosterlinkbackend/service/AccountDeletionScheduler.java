@@ -5,8 +5,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Scheduled job that runs every hour and automatically approves any account deletion requests
- * that have passed their auto-approval deadline.
+ * Scheduled jobs for account deletion lifecycle management.
+ * Auto-approvals run every hour; 7-day warnings run once per day at midnight.
  */
 @Component
 public class AccountDeletionScheduler {
@@ -17,5 +17,10 @@ public class AccountDeletionScheduler {
     @Scheduled(cron = "0 0 * * * *")
     public void runAutoApprovals() {
         accountDeletionService.processAutoApprovals();
+    }
+
+    @Scheduled(cron = "0 0 0 * * *")
+    public void runAutoApprovalWarnings() {
+        accountDeletionService.processAutoApprovalWarnings();
     }
 }

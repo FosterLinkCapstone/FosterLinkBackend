@@ -25,12 +25,14 @@ import net.fosterlink.fosterlinkbackend.models.web.agency.UpdateAgencyLocationMo
 import net.fosterlink.fosterlinkbackend.models.web.agency.UpdateAgencyModel;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
 import net.fosterlink.fosterlinkbackend.models.web.agency.CreateAgencyModel;
+import net.fosterlink.fosterlinkbackend.mail.service.AgencyMailService;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyDeletionRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
 import net.fosterlink.fosterlinkbackend.repositories.LocationRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AgencyMapper;
+import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.ResponseEntity;
@@ -58,14 +60,20 @@ public class AgencyController {
     private final AgencyRepository agencyRepository;
     private final AgencyDeletionRequestRepository deletionRequestRepository;
     private final EntityManager entityManager;
+    private final AgencyMailService agencyMailService;
+    private final TokenAuthService tokenAuthService;
 
-    public AgencyController(AgencyMapper agencyMapper, UserRepository userRepository, LocationRepository locationRepository, AgencyRepository agencyRepository, AgencyDeletionRequestRepository deletionRequestRepository, EntityManager entityManager) {
+    public AgencyController(AgencyMapper agencyMapper, UserRepository userRepository, LocationRepository locationRepository,
+                            AgencyRepository agencyRepository, AgencyDeletionRequestRepository deletionRequestRepository,
+                            EntityManager entityManager, AgencyMailService agencyMailService, TokenAuthService tokenAuthService) {
         this.agencyMapper = agencyMapper;
         this.userRepository = userRepository;
         this.locationRepository = locationRepository;
         this.agencyRepository = agencyRepository;
         this.deletionRequestRepository = deletionRequestRepository;
         this.entityManager = entityManager;
+        this.agencyMailService = agencyMailService;
+        this.tokenAuthService = tokenAuthService;
     }
 
     @Operation(
@@ -182,10 +190,22 @@ public class AgencyController {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         Optional<AgencyEntity> agency = agencyRepository.findById(model.getId());
         if (agency.isPresent()) {
-            agency.get().setApproved(model.isApproved());
-            agency.get().setApproved_by_id(loggedIn.getDatabaseId());
-            agency.get().setUpdatedAt(Instant.now());
-            agencyRepository.save(agency.get());
+            AgencyEntity ag = agency.get();
+            ag.setApproved(model.isApproved());
+            ag.setApproved_by_id(loggedIn.getDatabaseId());
+            ag.setUpdatedAt(Instant.now());
+            agencyRepository.save(ag);
+
+            UserEntity agent = ag.getAgent();
+            if (agent != null) {
+                String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(agent);
+                if (model.isApproved()) {
+                    agencyMailService.sendAgencyApproved(agent.getId(), agent.getEmail(), agent.getFirstName(), ag.getName(), unsubToken);
+                } else {
+                    agencyMailService.sendAgencyDenied(agent.getId(), agent.getEmail(), agent.getFirstName(), ag.getName(), unsubToken);
+                }
+            }
+
             return ResponseEntity.ok().build();
         } else {
             return ResponseEntity.status(404).build();
@@ -246,6 +266,10 @@ public class AgencyController {
                     agency.setAddress(savedLocation);
 
                     AgencyEntity savedAgency = agencyRepository.save(agency);
+
+                    String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(user);
+                    agencyMailService.sendAgencySubmittedConfirmation(
+                            user.getId(), user.getEmail(), user.getFirstName(), agency.getName(), unsubToken);
 
                     AgencyResponse agencyResponse = new AgencyResponse();
                     agencyResponse.setId(savedAgency.getId());
@@ -543,9 +567,12 @@ public class AgencyController {
 
         AgencyDeletionRequestEntity deletionRequest = requestOpt.get();
 
+        AgencyEntity agency = deletionRequest.getAgency();
+        UserEntity agent = agency != null ? agency.getAgent() : null;
+        String agencyName = agency != null ? agency.getName() : "";
+
         if (approved) {
-            AgencyEntity agency = deletionRequest.getAgency();
-            LocationEntity address = agency.getAddress();
+            LocationEntity address = agency != null ? agency.getAddress() : null;
             deletionRequestRepository.deleteByAgencyId(agency.getId());
             agencyRepository.deleteAgencyById(agency.getId());
             entityManager.flush();
@@ -555,6 +582,16 @@ public class AgencyController {
         } else {
             deletionRequestRepository.deleteRequestById(requestId);
         }
+
+        if (agent != null) {
+            String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(agent);
+            if (approved) {
+                agencyMailService.sendAgencyDeletionApproved(agent.getId(), agent.getEmail(), agent.getFirstName(), agencyName, unsubToken);
+            } else {
+                agencyMailService.sendAgencyDeletionDenied(agent.getId(), agent.getEmail(), agent.getFirstName(), agencyName, unsubToken);
+            }
+        }
+
         return ResponseEntity.ok().build();
     }
     @RateLimit(requests = 15, keyType = "USER")
