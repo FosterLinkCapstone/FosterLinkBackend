@@ -13,6 +13,7 @@ import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.AgencyDeletionRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
+import net.fosterlink.fosterlinkbackend.entities.AuditLogEntity;
 import net.fosterlink.fosterlinkbackend.entities.LocationEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
@@ -21,6 +22,7 @@ import net.fosterlink.fosterlinkbackend.models.rest.ApproveAgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.web.agency.LocationInput;
+import net.fosterlink.fosterlinkbackend.models.web.agency.DelayAgencyDeletionModel;
 import net.fosterlink.fosterlinkbackend.models.web.agency.UpdateAgencyLocationModel;
 import net.fosterlink.fosterlinkbackend.models.web.agency.UpdateAgencyModel;
 import net.fosterlink.fosterlinkbackend.util.SqlUtil;
@@ -28,10 +30,13 @@ import net.fosterlink.fosterlinkbackend.models.web.agency.CreateAgencyModel;
 import net.fosterlink.fosterlinkbackend.mail.service.AgencyMailService;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyDeletionRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
+import net.fosterlink.fosterlinkbackend.repositories.AuditLogRepository;
 import net.fosterlink.fosterlinkbackend.repositories.LocationRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.AgencyMapper;
+import net.fosterlink.fosterlinkbackend.service.AuditLogService;
+import net.fosterlink.fosterlinkbackend.service.AgencyDeletionService;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.cache.annotation.CacheEvict;
@@ -58,21 +63,29 @@ public class AgencyController {
     private final LocationRepository locationRepository;
     private final AgencyRepository agencyRepository;
     private final AgencyDeletionRequestRepository deletionRequestRepository;
+    private final AgencyDeletionService agencyDeletionService;
     private final EntityManager entityManager;
     private final AgencyMailService agencyMailService;
     private final TokenAuthService tokenAuthService;
+    private final AuditLogRepository auditLogRepository;
+    private final AuditLogService auditLogService;
 
     public AgencyController(AgencyMapper agencyMapper, UserRepository userRepository, LocationRepository locationRepository,
                             AgencyRepository agencyRepository, AgencyDeletionRequestRepository deletionRequestRepository,
-                            EntityManager entityManager, AgencyMailService agencyMailService, TokenAuthService tokenAuthService) {
+                            AgencyDeletionService agencyDeletionService, EntityManager entityManager,
+                            AgencyMailService agencyMailService, TokenAuthService tokenAuthService,
+                            AuditLogRepository auditLogRepository, AuditLogService auditLogService) {
         this.agencyMapper = agencyMapper;
         this.userRepository = userRepository;
         this.locationRepository = locationRepository;
         this.agencyRepository = agencyRepository;
         this.deletionRequestRepository = deletionRequestRepository;
+        this.agencyDeletionService = agencyDeletionService;
         this.entityManager = entityManager;
         this.agencyMailService = agencyMailService;
         this.tokenAuthService = tokenAuthService;
+        this.auditLogRepository = auditLogRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Operation(
@@ -356,6 +369,7 @@ public class AgencyController {
             return ResponseEntity.notFound().build();
         }
         AgencyEntity agency = agencyOpt.get();
+        int agentId = agency.getAgent().getId();
         LocationEntity address = agency.getAddress();
         deletionRequestRepository.deleteByAgencyId(id);
         agencyRepository.deleteAgencyById(id);
@@ -363,6 +377,7 @@ public class AgencyController {
         if (address != null) {
             locationRepository.deleteById(address.getId());
         }
+        auditLogService.log("permanently deleted agency", agentId);
         return ResponseEntity.ok().build();
     }
 
@@ -400,6 +415,11 @@ public class AgencyController {
         agency.setHiddenByUsername(hidden ? user.getUsername() : null);
         agency.setUpdatedAt(new Date());
         agencyRepository.save(agency);
+        if (hidden) {
+            auditLogService.log("hid agency", agency.getAgent().getId());
+        } else {
+            auditLogService.log("restored agency", agency.getAgent().getId());
+        }
         return ResponseEntity.ok().build();
     }
 
@@ -470,6 +490,7 @@ public class AgencyController {
         request.setAgency(agency);
         request.setRequestedBy(user);
         request.setCreatedAt(new Date());
+        request.setAutoApproveBy(AgencyDeletionService.thirtyDaysFromNow());
         deletionRequestRepository.save(request);
         return ResponseEntity.ok().build();
     }
@@ -533,22 +554,22 @@ public class AgencyController {
     @RateLimit
     @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @GetMapping("/deletion-requests")
-    public ResponseEntity<?> getDeletionRequests(@RequestParam int pageNumber) {
+    public ResponseEntity<?> getDeletionRequests(@RequestParam int pageNumber,
+                                                  @RequestParam(defaultValue = "recency") String sortBy) {
         int totalCount = deletionRequestRepository.countPending();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return ResponseEntity.ok(new PaginatedResponse<>(agencyMapper.getAllDeletionRequests(pageNumber), totalPages));
+        return ResponseEntity.ok(new PaginatedResponse<>(agencyMapper.getAllDeletionRequests(pageNumber, sortBy), totalPages));
     }
 
     @Operation(
-            summary = "Approve or deny a deletion request",
-            description = "Approves or denies a pending agency deletion request. If approved, the agency and its address are permanently deleted. Only accessible to administrators. Rate limit: 15 requests per 60 seconds per user.",
+            summary = "Approve a deletion request",
+            description = "Approves a pending agency deletion request. The agency and its address are permanently deleted. Only accessible to administrators. Rate limit: 15 requests per 60 seconds per user.",
             tags = {"Agency", "Admin"},
             parameters = {
-                    @Parameter(name = "requestId", description = "The internal ID of the deletion request to approve or deny", required = true),
-                    @Parameter(name = "approved", description = "true to approve (delete the agency), false to deny (cancel the request)", required = true)
+                    @Parameter(name = "requestId", description = "The internal ID of the deletion request to approve", required = true)
             },
             responses = {
-                    @ApiResponse(responseCode = "200", description = "The deletion request was processed (agency deleted if approved, request cancelled if denied)"),
+                    @ApiResponse(responseCode = "200", description = "The deletion request was approved and the agency was deleted"),
                     @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
                     @ApiResponse(responseCode = "404", description = "The deletion request was not found"),
                     @ApiResponse(responseCode = "429", description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user.")
@@ -559,39 +580,64 @@ public class AgencyController {
     @DisallowRestricted
     @PreAuthorize("hasAuthority('ADMINISTRATOR')")
     @PostMapping("/deletion-request/approve")
-    @Transactional
-    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
-    public ResponseEntity<?> approveDeletionRequest(@RequestParam int requestId, @RequestParam boolean approved) {
+    public ResponseEntity<?> approveDeletionRequest(@RequestParam int requestId) {
         Optional<AgencyDeletionRequestEntity> requestOpt = deletionRequestRepository.findById(requestId);
         if (requestOpt.isEmpty()) return ResponseEntity.notFound().build();
 
-        AgencyDeletionRequestEntity deletionRequest = requestOpt.get();
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
+        UserEntity admin = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (admin == null) return ResponseEntity.status(403).build();
 
-        AgencyEntity agency = deletionRequest.getAgency();
-        UserEntity agent = agency != null ? agency.getAgent() : null;
-        String agencyName = agency != null ? agency.getName() : "";
+        AgencyDeletionRequestEntity request = requestOpt.get();
+        Integer agentId = request.getAgency() != null && request.getAgency().getAgent() != null
+                ? request.getAgency().getAgent().getId() : null;
+        agencyDeletionService.approveDeletion(request, admin);
+        if (agentId != null) {
+            auditLogService.log("permanently deleted agency", agentId);
+        }
+        return ResponseEntity.ok().build();
+    }
 
-        if (approved) {
-            LocationEntity address = agency != null ? agency.getAddress() : null;
-            deletionRequestRepository.deleteByAgencyId(agency.getId());
-            agencyRepository.deleteAgencyById(agency.getId());
-            entityManager.flush();
-            if (address != null) {
-                locationRepository.deleteById(address.getId());
-            }
-        } else {
-            deletionRequestRepository.deleteRequestById(requestId);
+    @Operation(
+            summary = "Delay a deletion request",
+            description = "Delays a pending agency deletion request by 30 days with an administrator-provided reason. Only accessible to administrators. Rate limit: 15 requests per 60 seconds per user.",
+            tags = {"Agency", "Admin"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "The deletion request was delayed by 30 days"),
+                    @ApiResponse(responseCode = "400", description = "Invalid request body"),
+                    @ApiResponse(responseCode = "403", description = "Not logged in or not an administrator"),
+                    @ApiResponse(responseCode = "404", description = "The deletion request was not found"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded. Maximum 15 requests per 60 seconds per user.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 15, keyType = "USER")
+    @DisallowRestricted
+    @PreAuthorize("hasAuthority('ADMINISTRATOR')")
+    @PostMapping("/deletion-request/delay")
+    public ResponseEntity<?> delayDeletionRequest(@Valid @RequestBody DelayAgencyDeletionModel model) {
+        Optional<AgencyDeletionRequestEntity> requestOpt = deletionRequestRepository.findById(model.getRequestId());
+        if (requestOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(403).build();
+        UserEntity admin = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (admin == null) return ResponseEntity.status(403).build();
+
+        AgencyDeletionRequestEntity request = requestOpt.get();
+        Integer agentId = request.getAgency() != null && request.getAgency().getAgent() != null
+                ? request.getAgency().getAgent().getId() : null;
+        if (agentId != null) {
+            AuditLogEntity auditEntry = new AuditLogEntity();
+            auditEntry.setAction("delayed agency deletion");
+            auditEntry.setActingUserId(admin.getId());
+            auditEntry.setTargetUserId(agentId);
+            auditEntry.setCreatedAt(new Date());
+            auditLogRepository.save(auditEntry);
         }
 
-        if (agent != null) {
-            String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(agent);
-            if (approved) {
-                agencyMailService.sendAgencyDeletionApproved(agent.getId(), agent.getEmail(), agent.getFirstName(), agencyName, unsubToken);
-            } else {
-                agencyMailService.sendAgencyDeletionDenied(agent.getId(), agent.getEmail(), agent.getFirstName(), agencyName, unsubToken);
-            }
-        }
-
+        agencyDeletionService.delayDeletion(request, admin, model.getReason());
         return ResponseEntity.ok().build();
     }
     @RateLimit(requests = 15, keyType = "USER")

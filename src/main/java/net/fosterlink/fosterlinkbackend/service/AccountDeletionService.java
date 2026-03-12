@@ -207,6 +207,7 @@ public class AccountDeletionService {
                 adr.setAgency(agency);
                 adr.setRequestedBy(user);
                 adr.setCreatedAt(new Date());
+                adr.setAutoApproveBy(AgencyDeletionService.thirtyDaysFromNow());
                 agencyDeletionRequestRepository.save(adr);
             }
         }

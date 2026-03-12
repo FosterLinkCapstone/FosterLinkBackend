@@ -32,6 +32,7 @@ import net.fosterlink.fosterlinkbackend.repositories.FAQApprovalRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
 import net.fosterlink.fosterlinkbackend.repositories.FAQRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import net.fosterlink.fosterlinkbackend.service.AuditLogService;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.FaqMapper;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
@@ -69,6 +70,8 @@ public class FaqController {
     private AdminUserContentMailService adminUserContentMailService;
     @Autowired
     private TokenAuthService tokenAuthService;
+    @Autowired
+    private AuditLogService auditLogService;
 
 
     @Operation(
@@ -571,7 +574,8 @@ public class FaqController {
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/hide")
     @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
-    public ResponseEntity<?> hideFaq(@RequestParam int faqId, @RequestParam boolean hidden) {
+    public ResponseEntity<?> hideFaq(@RequestParam int faqId, @RequestParam boolean hidden,
+                                     @RequestParam(required = false) Boolean markAsUserDeleted) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn == null) return ResponseEntity.status(403).build();
         UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
@@ -582,6 +586,7 @@ public class FaqController {
         Optional<FAQApprovalEntity> approvalOpt = fAQApprovalRepository.findFAQApprovalEntityByFaqId(faqId);
         boolean isAuthor = faqOpt.get().getAuthor().getId() == user.getId();
         boolean hiddenByAuthor = isAuthor && !user.isAdministrator();
+        boolean asUserDelete = Boolean.TRUE.equals(markAsUserDeleted) && user.isAdministrator();
 
         FAQApprovalEntity approval;
         if (approvalOpt.isEmpty()) {
@@ -596,16 +601,20 @@ public class FaqController {
         boolean canRestore = !hidden && approvalOpt.isPresent() && ((approval.getHiddenBy() != null && faqOpt.get().getAuthor().getId() == user.getId()) || (approval.getHiddenBy() == null && user.isAdministrator()));
         if (canHide || canRestore) {
             if (hidden) {
-                approval.setHiddenByAuthor(hiddenByAuthor);
-                approval.setHiddenBy(user.getUsername());
+                approval.setHiddenByAuthor(hiddenByAuthor || asUserDelete);
+                approval.setHiddenBy(asUserDelete ? null : user.getUsername());
             } else {
                 approval.setHiddenByAuthor(false);
                 approval.setHiddenBy(null);
             }
             fAQApprovalRepository.save(approval);
 
-            if (hidden && !hiddenByAuthor && user.isAdministrator()) {
+            if (!hidden) {
+                auditLogService.log("restored FAQ", faqOpt.get().getAuthor().getId());
+            }
+            if (hidden && !hiddenByAuthor && user.isAdministrator() && !asUserDelete) {
                 UserEntity author = faqOpt.get().getAuthor();
+                auditLogService.log("hid FAQ", author.getId());
                 String preview = faqOpt.get().getSummary() != null ? faqOpt.get().getSummary() : faqOpt.get().getTitle();
                 String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(author);
                 adminUserContentMailService.sendContentModeratedNotification(
@@ -665,15 +674,18 @@ public class FaqController {
     @Transactional
     @CacheEvict(value = "faqApprovedPreviews", allEntries = true)
     public ResponseEntity<?> deleteHiddenFaq(@RequestParam int id) {
-        if (!fAQRepository.existsById(id)) return ResponseEntity.notFound().build();
+        Optional<FaqEntity> faqOpt = fAQRepository.findById(id);
+        if (faqOpt.isEmpty()) return ResponseEntity.notFound().build();
 
         Optional<FAQApprovalEntity> approvalOpt = fAQApprovalRepository.findFAQApprovalEntityByFaqId(id);
-        if (approvalOpt.isEmpty() || approvalOpt.get().getHiddenBy() == null) {
+        if (approvalOpt.isEmpty() || (approvalOpt.get().getHiddenBy() == null && !approvalOpt.get().isHiddenByAuthor())) {
             return ResponseEntity.notFound().build();
         }
 
+        int authorId = faqOpt.get().getAuthor().getId();
         fAQApprovalRepository.deleteByFaqId(id);
         fAQRepository.deleteById(id);
+        auditLogService.log("permanently deleted FAQ", authorId);
         return ResponseEntity.ok().build();
     }
 

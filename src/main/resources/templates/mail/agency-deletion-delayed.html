@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Your agency deletion request has been denied</title>
+    <title>Your agency deletion request has been delayed</title>
 </head>
 <body style="margin:0;padding:0;background-color:#6b7280;font-family:system-ui,-apple-system,sans-serif;">
 
@@ -18,11 +18,17 @@
                                 Hi <span th:text="${greetingName}">there</span>,
                             </p>
                             <p style="margin:0 0 16px 0;line-height:1.6;">
-                                Your request to delete the following agency has been denied.
+                                An administrator has reviewed your deletion request for the following agency and delayed it by 30 days.
                             </p>
                             <p style="margin:0 0 16px 0;line-height:1.6;font-weight:bold;" th:text="${agencyName}">Agency Name</p>
+                            <p style="margin:0 0 8px 0;line-height:1.6;font-weight:bold;">Reason provided:</p>
+                            <p style="margin:0 0 16px 0;line-height:1.6;font-style:italic;" th:text="${reason}">No reason provided.</p>
+                            <p style="margin:0 0 16px 0;line-height:1.6;">
+                                Your new scheduled deletion date is:
+                            </p>
+                            <p style="margin:0 0 16px 0;line-height:1.6;font-weight:bold;" th:text="${#dates.format(newAutoApproveBy, 'MMMM d, yyyy')}">Date</p>
                             <p style="margin:0 0 32px 0;line-height:1.6;">
-                                Your agency listing remains active on FosterLink. If you have questions about this decision, please contact us at <a href="mailto:admin@fosterlink.net" style="color:#ffffff;">admin@fosterlink.net</a>.
+                                If you have questions about this delay, please contact <a href="mailto:admin@fosterlink.net" style="color:#ffffff;">admin@fosterlink.net</a>. You may still cancel your deletion request by logging in and visiting your agency settings.
                             </p>
                             <p style="margin:0;font-weight:bold;font-size:1.05em;">
                                 The FosterLink Team
@@ -39,7 +45,7 @@
 
                     <tr>
                         <td style="background-color:#6b7280;padding:12px 40px;text-align:center;">
-                            <a th:href="${unsubscribeUrl}" style="color:#d1d5db;font-size:0.8em;text-decoration:underline;">Unsubscribe</a>
+                            <a th:href="${unsubscribeUrl}" style="color:#d1d5db;font-size:0.8em;text-decoration:underline;">Manage email preferences</a>
                         </td>
                     </tr>
 

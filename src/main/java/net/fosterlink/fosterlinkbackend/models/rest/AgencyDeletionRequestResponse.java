@@ -15,9 +15,21 @@ public class AgencyDeletionRequestResponse {
     @Schema(description = "When the deletion request was created")
     private Date createdAt;
 
+    @Schema(description = "When the request will be automatically approved if not acted on")
+    private Date autoApproveBy;
+
+    @Schema(description = "Whether the request was auto-approved by the scheduler")
+    private boolean autoApproved;
+
+    @Schema(description = "Admin reason for delaying, null if not delayed")
+    private String delayNote;
+
     @Schema(description = "The agency this deletion request is for")
     private AgencyResponse agency;
 
     @Schema(description = "The user who submitted the deletion request")
     private UserResponse requestedBy;
+
+    @Schema(description = "The admin who last reviewed (delayed) this request, null if unreviewed")
+    private UserResponse reviewedBy;
 }

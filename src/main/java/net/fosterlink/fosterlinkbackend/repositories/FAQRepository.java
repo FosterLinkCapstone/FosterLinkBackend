@@ -180,7 +180,7 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
     @Query(value = "SELECT COUNT(*) FROM faq fr INNER JOIN faq_approval fa ON fa.faq_id = fr.id WHERE fa.hidden_by IS NOT NULL AND fa.hidden_by_author = false", nativeQuery = true)
     int countHiddenByAdmin();
 
-    @Query(value = "SELECT COUNT(*) FROM faq fr INNER JOIN faq_approval fa ON fa.faq_id = fr.id WHERE fa.hidden_by IS NOT NULL AND fa.hidden_by_author = true", nativeQuery = true)
+    @Query(value = "SELECT COUNT(*) FROM faq fr INNER JOIN faq_approval fa ON fa.faq_id = fr.id WHERE fa.hidden_by_author = true", nativeQuery = true)
     int countHiddenByUser();
 
     @Query(value = """
@@ -233,7 +233,7 @@ public interface FAQRepository extends CrudRepository<FaqEntity, Integer> {
     FROM faq fr
     INNER JOIN user u ON fr.author = u.id
     INNER JOIN faq_approval fa ON fa.faq_id = fr.id
-    WHERE fa.hidden_by IS NOT NULL AND fa.hidden_by_author = true
+    WHERE fa.hidden_by_author = true
     """, nativeQuery = true)
     List<Object[]> allHiddenByUserPreviews(Pageable pageable);
 

@@ -64,51 +64,61 @@ public class AgencyMapper {
         return getAgencyResponses(agencies, toMap, true, false, null);
     }
 
-    public List<AgencyDeletionRequestResponse> getAllDeletionRequests(int pageNumber) {
-        List<Object[]> rows = agencyDeletionRequestRepository.findAllPendingPaginated(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
+    public List<AgencyDeletionRequestResponse> getAllDeletionRequests(int pageNumber, String sortBy) {
+        PageRequest page = PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE);
+        List<Object[]> rows = "urgency".equals(sortBy)
+                ? agencyDeletionRequestRepository.findAllPendingByUrgency(page)
+                : agencyDeletionRequestRepository.findAllPendingByRecency(page);
         List<AgencyDeletionRequestResponse> results = new ArrayList<>();
         for (Object[] obj : rows) {
             AgencyDeletionRequestResponse dr = new AgencyDeletionRequestResponse();
             dr.setId((Integer) obj[0]);
-            dr.setCreatedAt((Date) obj[1]);
+            dr.setCreatedAt(toDate(obj[1]));
+            dr.setAutoApproveBy(toDate(obj[2]));
+            dr.setAutoApproved(obj[3] != null && (Boolean) obj[3]);
+            dr.setDelayNote((String) obj[4]);
 
             AgencyResponse agency = new AgencyResponse();
-            agency.setId((Integer) obj[3]);
-            agency.setAgencyName((String) obj[4]);
-            agency.setAgencyMissionStatement((String) obj[5]);
-            agency.setAgencyWebsiteLink((String) obj[6]);
-            agency.setApproved(obj[7] == null ? 1 : (((Boolean) obj[7]) ? 2 : 3));
-            agency.setHiddenByUsername((String) obj[9]);
-            agency.setApprovedByUsername(obj[10] == null ? null : (String) obj[10]);
+            agency.setId((Integer) obj[5]);
+            agency.setAgencyName((String) obj[6]);
+            agency.setAgencyMissionStatement((String) obj[7]);
+            agency.setAgencyWebsiteLink((String) obj[8]);
+            agency.setApproved(obj[9] == null ? 1 : (((Boolean) obj[9]) ? 2 : 3));
+            agency.setHiddenByUsername((String) obj[11]);
+            agency.setApprovedByUsername(obj[12] == null ? null : (String) obj[12]);
 
             LocationEntity location = new LocationEntity();
-            location.setId((Integer) obj[11]);
-            location.setAddrLine1((String) obj[12]);
-            location.setAddrLine2((String) obj[13]);
-            location.setCity((String) obj[14]);
-            location.setState((String) obj[15]);
-            location.setZipCode((Integer) obj[16]);
+            location.setId((Integer) obj[13]);
+            location.setAddrLine1((String) obj[14]);
+            location.setAddrLine2((String) obj[15]);
+            location.setCity((String) obj[16]);
+            location.setState((String) obj[17]);
+            location.setZipCode((Integer) obj[18]);
             agency.setLocation(location);
 
             AgentInfoResponse agentInfo = new AgentInfoResponse();
-            agentInfo.setId((Integer) obj[17]);
-            agentInfo.setEmail((String) obj[18]);
-            agentInfo.setPhoneNumber((String) obj[19]);
+            agentInfo.setId((Integer) obj[19]);
+            agentInfo.setEmail((String) obj[20]);
+            agentInfo.setPhoneNumber((String) obj[21]);
             agency.setAgentInfo(agentInfo);
 
-            agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 20, 31)));
+            agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 22, 33)));
             dr.setAgency(agency);
 
             UserResponse requester = new UserResponse();
-            requester.setId((Integer) obj[31]);
-            requester.setFullName(obj[32] + " " + obj[33]);
-            requester.setUsername((String) obj[34]);
-            requester.setProfilePictureUrl((String) obj[35]);
+            requester.setId((Integer) obj[33]);
+            requester.setFullName(obj[34] + " " + obj[35]);
+            requester.setUsername((String) obj[36]);
+            requester.setProfilePictureUrl((String) obj[37]);
             requester.setVerified(
-                    (Boolean) obj[36] || (Boolean) obj[37] || (Boolean) obj[38]
+                    (Boolean) obj[38] || (Boolean) obj[39] || (Boolean) obj[40]
             );
-            requester.setCreatedAt((Date) obj[39]);
+            requester.setCreatedAt(toDate(obj[41]));
             dr.setRequestedBy(requester);
+
+            if (obj[42] != null) {
+                dr.setReviewedBy(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 42, 53)));
+            }
 
             results.add(dr);
         }

@@ -1,5 +1,6 @@
 package net.fosterlink.fosterlinkbackend.entities;
 
+import jakarta.annotation.Nullable;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -18,12 +19,25 @@ public class AgencyDeletionRequestEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    /** null = pending review, true = accepted (agency deleted), false = denied */
-    private Boolean approved;
+    /** false = pending review, true = approved (agency deleted) */
+    @Column(name = "approved", columnDefinition = "tinyint")
+    private boolean approved;
 
     @Column(name = "created_at")
     private Date createdAt;
 
+    @Nullable
+    private Date reviewedAt;
+
+    @Column(name = "auto_approved", columnDefinition = "tinyint")
+    private boolean autoApproved;
+
+    private Date autoApproveBy;
+
+    @Nullable
+    private String delayNote;
+
+    @Nullable
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "agency")
     private AgencyEntity agency;
@@ -31,4 +45,9 @@ public class AgencyDeletionRequestEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requested_by")
     private UserEntity requestedBy;
+
+    @Nullable
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewed_by")
+    private UserEntity reviewedBy;
 }
