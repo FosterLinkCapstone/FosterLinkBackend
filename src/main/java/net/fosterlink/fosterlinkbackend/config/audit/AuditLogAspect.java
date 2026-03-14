@@ -47,7 +47,7 @@ public class AuditLogAspect {
             try {
                 actingUserId = Objects.requireNonNull(JwtUtil.getLoggedInUser()).getDatabaseId();
             } catch (NullPointerException e) {
-                log.warn("Could not audit \"{}\": LoggedInUser {} did not produce a valid database ID",  auditLog.action(), JwtUtil.getLoggedInEmail());
+                log.warn("Could not audit \"{}\": acting user did not produce a valid database ID", auditLog.action());
                 return joinPoint.proceed();
             }
         }

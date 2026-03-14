@@ -1,9 +1,11 @@
 package net.fosterlink.fosterlinkbackend.repositories;
 
+import jakarta.transaction.Transactional;
 import net.fosterlink.fosterlinkbackend.entities.AuditLogEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface AuditLogRepository extends JpaRepository<AuditLogEntity, Integer> {
@@ -24,4 +26,10 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntity, Intege
             countQuery = "SELECT COUNT(*) FROM audit_log a",
             nativeQuery = true)
     Page<Object[]> findAllForAdminDisplay(Pageable pageable);
+
+    /** Deletes all audit log rows whose generated expires_at column is in the past. */
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM audit_log WHERE expires_at < NOW()", nativeQuery = true)
+    void deleteExpiredAuditLogs();
 }

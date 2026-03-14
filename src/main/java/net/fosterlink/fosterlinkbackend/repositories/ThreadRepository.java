@@ -458,7 +458,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         pm.user_deleted as pm_user_deleted,
         pm.locked as pm_locked,
         pm.verified as pm_verified,
-        pm.hidden_by,
+        (SELECT u2.username FROM `user` u2 WHERE u2.id = pm.hidden_by_user_id) AS hidden_by,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -492,7 +492,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
              u.banned_at, u.restricted_at,
-             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
+             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by_user_id
     ORDER BY t.created_at DESC
     """, nativeQuery = true)
     List<Object[]> getHiddenThreadsAdminDeleted(@Param("userId") int userId, Pageable pageable);
@@ -524,13 +524,25 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE post_metadata pm INNER JOIN thread t ON t.metadata = pm.id SET pm.hidden = true, pm.user_deleted = true WHERE t.posted_by = :userId AND pm.hidden = false", nativeQuery = true)
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread t ON t.metadata = pm.id SET pm.hidden = true, pm.user_deleted = true, pm.deleted_at = NOW() WHERE t.posted_by = :userId AND pm.hidden = false", nativeQuery = true)
     void hideVisibleThreadsByUserId(@Param("userId") int userId);
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE post_metadata pm INNER JOIN thread t ON t.metadata = pm.id SET pm.hidden = false, pm.user_deleted = false WHERE t.posted_by = :userId AND pm.user_deleted = true", nativeQuery = true)
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread t ON t.metadata = pm.id SET pm.hidden = false, pm.user_deleted = false, pm.deleted_at = NULL WHERE t.posted_by = :userId AND pm.user_deleted = true", nativeQuery = true)
     void unhideUserHiddenThreadsByUserId(@Param("userId") int userId);
+
+    /** Returns thread IDs whose post_metadata has been user-deleted for 90+ days. */
+    @Query(value = """
+            SELECT t.id FROM thread t
+            INNER JOIN post_metadata pm ON t.metadata = pm.id
+            WHERE pm.user_deleted = 1 AND pm.deleted_at < DATE_SUB(NOW(), INTERVAL 90 DAY)
+            """, nativeQuery = true)
+    List<Integer> findIdsEligibleForHardDelete();
+
+    /** Loads threads by IDs with post_metadata eagerly fetched so JPA cascade removes the metadata on delete. */
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata WHERE t.id IN :ids")
+    List<ThreadEntity> findAllByIdWithPostMetadata(@Param("ids") List<Integer> ids);
 
     @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata WHERE t.postedBy.id = :userId")
     List<ThreadEntity> findAllByPostedById(@Param("userId") int userId);
@@ -569,7 +581,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         pm.user_deleted as pm_user_deleted,
         pm.locked as pm_locked,
         pm.verified as pm_verified,
-        pm.hidden_by,
+        (SELECT u2.username FROM `user` u2 WHERE u2.id = pm.hidden_by_user_id) AS hidden_by,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -603,7 +615,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
              u.banned_at, u.restricted_at,
-             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
+             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by_user_id
     ORDER BY t.created_at DESC
     """, nativeQuery = true)
     List<Object[]> getHiddenThreadsUserDeleted(@Param("userId") int userId, Pageable pageable);
@@ -694,7 +706,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         pm.user_deleted as pm_user_deleted,
         pm.locked as pm_locked,
         pm.verified as pm_verified,
-        pm.hidden_by,
+        (SELECT u2.username FROM `user` u2 WHERE u2.id = pm.hidden_by_user_id) AS hidden_by,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -728,7 +740,7 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
              u.banned_at, u.restricted_at,
-             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
+             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by_user_id
     LIMIT 1
     """, nativeQuery = true)
     List<Object[]> findHiddenThreadById(@Param("threadId") int threadId, @Param("userId") int userId);

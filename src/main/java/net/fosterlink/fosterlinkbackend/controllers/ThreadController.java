@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
@@ -337,7 +336,10 @@ public class ThreadController {
         String email = JwtUtil.getLoggedInEmail();
         if (t.getPostedBy().getEmail().equals(email) || isAdmin) {
             t.getPostMetadata().setHidden(true);
-            if (!isAdmin) t.getPostMetadata().setUser_deleted(true);
+            if (!isAdmin) {
+                t.getPostMetadata().setUser_deleted(true);
+                t.getPostMetadata().setDeletedAt(new Date());
+            }
             threadRepository.save(t);
             return ResponseEntity.ok().build();
         } else {
@@ -677,12 +679,14 @@ public class ThreadController {
             reply.getMetadata().setHidden(true);
             if (!isAdmin) {
                 reply.getMetadata().setUser_deleted(true);
+                reply.getMetadata().setDeletedAt(new Date());
             } else if (Boolean.TRUE.equals(markAsUserDeleted)) {
                 reply.getMetadata().setUser_deleted(true);
+                reply.getMetadata().setDeletedAt(new Date());
             } else {
                 LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
                 UserEntity admin = loggedIn != null ? userRepository.findById(loggedIn.getDatabaseId()).orElse(null) : null;
-                if (admin != null) reply.getMetadata().setHidden_by(admin.getUsername());
+                if (admin != null) reply.getMetadata().setHiddenByUserId(admin.getId());
             }
             threadReplyRepository.save(reply);
             return ResponseEntity.ok().body(true);
@@ -726,12 +730,14 @@ public class ThreadController {
         if (canHide || canRestore) {
             if (hidden) {
                 reply.getMetadata().setUser_deleted(hiddenByAuthor);
+                reply.getMetadata().setDeletedAt(hiddenByAuthor ? new Date() : null);
                 if (!hiddenByAuthor) {
-                    reply.getMetadata().setHidden_by(user.getUsername());
+                    reply.getMetadata().setHiddenByUserId(user.getId());
                 }
             } else {
                 reply.getMetadata().setUser_deleted(false);
-                reply.getMetadata().setHidden_by(null);
+                reply.getMetadata().setDeletedAt(null);
+                reply.getMetadata().setHiddenByUserId(null);
             }
             reply.getMetadata().setHidden(hidden);
             threadReplyRepository.save(reply);
@@ -953,11 +959,14 @@ public class ThreadController {
             boolean canRestore = !hidden && ((wasHiddenByAuthor && thread.get().getPostedBy().getId() == user.getId()) || (!wasHiddenByAuthor && user.isAdministrator()));
             if (canHide || canRestore) {
                 if (hidden) {
-                    thread.get().getPostMetadata().setUser_deleted(hiddenByAuthor || asUserDelete);
-                    thread.get().getPostMetadata().setHidden_by(asUserDelete ? null : user.getUsername());
+                    boolean willBeUserDeleted = hiddenByAuthor || asUserDelete;
+                    thread.get().getPostMetadata().setUser_deleted(willBeUserDeleted);
+                    thread.get().getPostMetadata().setDeletedAt(willBeUserDeleted ? new Date() : null);
+                    thread.get().getPostMetadata().setHiddenByUserId(asUserDelete ? null : user.getId());
                 } else {
                     thread.get().getPostMetadata().setUser_deleted(false);
-                    thread.get().getPostMetadata().setHidden_by(null);
+                    thread.get().getPostMetadata().setDeletedAt(null);
+                    thread.get().getPostMetadata().setHiddenByUserId(null);
                 }
                 thread.get().getPostMetadata().setHidden(hidden);
                 postMetadataRepository.save(thread.get().getPostMetadata());

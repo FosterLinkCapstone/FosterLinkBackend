@@ -35,7 +35,7 @@ public class UserMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("verifyUrl", mailSendHelper.buildVerifyEmailUrl(userId, verifyToken));
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Verify your email - FosterLink", EMAIL_VERIFICATION_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Verify your email - FosterLink", EMAIL_VERIFICATION_TEMPLATE, context);
     }
 
     /**
@@ -50,7 +50,7 @@ public class UserMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("resetUrl", mailSendHelper.buildPasswordResetUrl(userId, resetToken));
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Reset your password - FosterLink", PASSWORD_RESET_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Reset your password - FosterLink", PASSWORD_RESET_TEMPLATE, context);
     }
 
     /**
@@ -65,6 +65,6 @@ public class UserMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
 
-        mailSendHelper.sendTemplatedEmail(toEmail, "Thank you for registering with FosterLink", REGISTRATION_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Thank you for registering with FosterLink", REGISTRATION_TEMPLATE, context);
     }
 }

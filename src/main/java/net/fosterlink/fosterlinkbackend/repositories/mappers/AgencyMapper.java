@@ -195,7 +195,6 @@ public class AgencyMapper {
         agency.setLocation(e.getAddress());
         agency.setAgent(new UserResponse(e.getAgent()));
         agency.setAgentInfo(new AgentInfoResponse(e.getAgent()));
-        agency.setHiddenByUsername(e.getHiddenByUsername());
         return agency;
     }
 

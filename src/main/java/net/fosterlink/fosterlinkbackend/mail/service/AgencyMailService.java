@@ -36,7 +36,7 @@ public class AgencyMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("agencyName", agencyName);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your agency has been submitted for review - FosterLink", AGENCY_SUBMITTED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your agency has been submitted for review - FosterLink", AGENCY_SUBMITTED_TEMPLATE, context);
     }
 
     /** Sent to the agency representative after an administrator approves their agency. */
@@ -47,7 +47,7 @@ public class AgencyMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("agencyName", agencyName);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your agency has been approved - FosterLink", AGENCY_APPROVED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your agency has been approved - FosterLink", AGENCY_APPROVED_TEMPLATE, context);
     }
 
     /** Sent to the agency representative after an administrator denies their agency. */
@@ -58,7 +58,7 @@ public class AgencyMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("agencyName", agencyName);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your agency application was not approved - FosterLink", AGENCY_DENIED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your agency application was not approved - FosterLink", AGENCY_DENIED_TEMPLATE, context);
     }
 
     /** Sent to the agency representative after an administrator approves their deletion request. */
@@ -69,7 +69,7 @@ public class AgencyMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("agencyName", agencyName);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your agency deletion request has been approved - FosterLink", AGENCY_DELETION_APPROVED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your agency deletion request has been approved - FosterLink", AGENCY_DELETION_APPROVED_TEMPLATE, context);
     }
 
     /** Sent to the agency representative when an administrator delays their deletion request by 30 days. */
@@ -82,7 +82,7 @@ public class AgencyMailService {
         context.setVariable("reason", reason);
         context.setVariable("newAutoApproveBy", newAutoApproveBy);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your agency deletion request has been delayed - FosterLink", AGENCY_DELETION_DELAYED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your agency deletion request has been delayed - FosterLink", AGENCY_DELETION_DELAYED_TEMPLATE, context);
     }
 
     /** Sent to the agency representative approximately 7 days before their agency is auto-deleted. */
@@ -94,6 +94,6 @@ public class AgencyMailService {
         context.setVariable("agencyName", agencyName);
         context.setVariable("autoApproveBy", autoApproveBy);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your agency is scheduled for deletion in approximately 7 days - FosterLink", AGENCY_DELETION_WARNING_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your agency is scheduled for deletion in approximately 7 days - FosterLink", AGENCY_DELETION_WARNING_TEMPLATE, context);
     }
 }

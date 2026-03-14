@@ -3,6 +3,7 @@ package net.fosterlink.fosterlinkbackend.controllers;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import net.fosterlink.fosterlinkbackend.config.audit.AuditLog;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.tokenauth.TokenAuth;
@@ -13,6 +14,7 @@ import net.fosterlink.fosterlinkbackend.repositories.DontSendEmailRepository;
 import net.fosterlink.fosterlinkbackend.repositories.TokenAuthRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.service.BanStatusService;
+import net.fosterlink.fosterlinkbackend.service.ConsentRecordService;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -35,6 +37,7 @@ public class TokenAuthController {
     private @Autowired TokenAuthRepository tokenAuthRepository;
     private @Autowired TokenAuthService tokenAuthService;
     private @Autowired DontSendEmailRepository dontSendEmailRepository;
+    private @Autowired ConsentRecordService consentRecordService;
 
     @Operation(
             summary = "Assign ADMINISTRATOR role via token",
@@ -146,7 +149,8 @@ public class TokenAuthController {
     @Transactional
     @PostMapping("/unsubscribeAll")
     @TokenAuth(endpointName = "/unsubscribeAll", consumeOnUse = false)
-    public ResponseEntity<?> unsubscribeAll(@RequestParam String token, @RequestParam int userId) {
+    public ResponseEntity<?> unsubscribeAll(@RequestParam String token, @RequestParam int userId,
+                                             HttpServletRequest request) {
         Optional<UserEntity> target = userRepository.findById(userId);
         if (target.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -154,6 +158,11 @@ public class TokenAuthController {
         target.get().setUnsubscribeAll(true);
         userRepository.save(target.get());
         dontSendEmailRepository.deleteAllByUserId(userId);
+
+        String forwardedFor = request.getHeader("X-FORWARDED-FOR");
+        String clientIp = forwardedFor != null ? forwardedFor.split(",")[0].trim() : request.getRemoteAddr();
+        consentRecordService.record((long) userId, "MARKETING", false, null, "EMAIL_UNSUBSCRIBE_LINK", clientIp);
+
         return ResponseEntity.ok().build();
     }
 

@@ -38,6 +38,6 @@ public class AdminUserContentMailService {
         context.setVariable("contentType", contentType);
         context.setVariable("contentPreview", contentPreview);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your content has been moderated - FosterLink", CONTENT_MODERATED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your content has been moderated - FosterLink", CONTENT_MODERATED_TEMPLATE, context);
     }
 }

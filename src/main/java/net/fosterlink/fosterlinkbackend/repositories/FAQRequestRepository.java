@@ -29,4 +29,9 @@ public interface FAQRequestRepository extends CrudRepository<FAQRequestEntity, I
     @Query("SELECT fr FROM FAQRequestEntity fr WHERE fr.requestedById = :requestedById ORDER BY fr.createdAt DESC")
     List<FAQRequestEntity> findByRequestedByIdOrderByCreatedAtDesc(@Param("requestedById") int requestedById);
 
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM faq_request WHERE created_at < NOW() - INTERVAL 90 DAY", nativeQuery = true)
+    int deleteOlderThan90Days();
+
 }

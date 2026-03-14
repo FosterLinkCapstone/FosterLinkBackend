@@ -40,7 +40,9 @@ import net.fosterlink.fosterlinkbackend.service.AgencyDeletionService;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -204,7 +206,7 @@ public class AgencyController {
         if (agency.isPresent()) {
             AgencyEntity ag = agency.get();
             ag.setApproved(model.isApproved());
-            ag.setApproved_by_id(loggedIn.getDatabaseId());
+            ag.setApproved_by_id(Objects.requireNonNull(loggedIn).getDatabaseId());
             ag.setUpdatedAt(new Date());
             agencyRepository.save(ag);
 
@@ -257,8 +259,12 @@ public class AgencyController {
     @PostMapping("/create")
     public ResponseEntity<?> createAgency(@Valid @RequestBody CreateAgencyModel model) {
         LoggedInUser loggedInUser = JwtUtil.getLoggedInUser();
-        UserEntity user = userRepository.findById(loggedInUser.getDatabaseId()).orElse(null);
+        UserEntity user = userRepository.findById(Objects.requireNonNull(loggedInUser).getDatabaseId()).orElse(null);
         if (user != null) {
+                    if (user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "A phone number is required for agency representatives. Please update your profile before creating an agency.");
+                    }
                     AgencyEntity agency =  new AgencyEntity();
                     agency.setName(model.getName());
                     agency.setWebsiteUrl(model.getWebsiteUrl());
@@ -412,7 +418,8 @@ public class AgencyController {
 
         AgencyEntity agency = agencyOpt.get();
         agency.setHidden(hidden);
-        agency.setHiddenByUsername(hidden ? user.getUsername() : null);
+        agency.setHiddenByUserId(hidden ? user.getId() : null);
+        agency.setHiddenByDeletionRequest(false);
         agency.setUpdatedAt(new Date());
         agencyRepository.save(agency);
         if (hidden) {

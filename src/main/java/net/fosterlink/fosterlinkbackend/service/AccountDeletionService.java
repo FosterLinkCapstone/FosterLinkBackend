@@ -33,6 +33,9 @@ public class AccountDeletionService {
     @Autowired private TokenAuthService tokenAuthService;
     @Autowired private AccountDeletionRequestRepository deletionRequestRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private RefreshTokenRepository refreshTokenRepository;
+    @Autowired private MailingListMemberRepository mailingListMemberRepository;
+    @Autowired private DontSendEmailRepository dontSendEmailRepository;
     @Autowired private ThreadRepository threadRepository;
     @Autowired private ThreadReplyRepository threadReplyRepository;
     @Autowired private ThreadLikeRepository threadLikeRepository;
@@ -107,17 +110,17 @@ public class AccountDeletionService {
         deletionRequestRepository.save(request);
         executeAccountDeletion(request);
 
-        accountDeletionMailService.sendDeletionApprovedNotification(email, firstName);
+        accountDeletionMailService.sendDeletionApprovedNotification(user.getId(), email, firstName);
     }
 
     /**
-     * Admin delays a deletion request by 30 days. Records the reason and updates the reviewer.
-     * Only one active delay note is kept (overwrites the previous).
+     * Admin records a delay note on a deletion request. Does not change the scheduled deletion
+     * time (autoApproveBy); only updates the delay reason and reviewer. The scheduled time
+     * remains as originally set or from a previous delay, subject to the 30-day-from-request cap.
      */
     @Transactional
     public void delayDeletion(AccountDeletionRequestEntity request, UserEntity admin, String reason) {
         request.setDelayNote(reason);
-        request.setAutoApproveBy(thirtyDaysFromNow());
         request.setReviewedBy(admin);
         deletionRequestRepository.save(request);
 
@@ -144,7 +147,7 @@ public class AccountDeletionService {
             deletionRequestRepository.save(request);
             executeAccountDeletion(request);
 
-            accountDeletionMailService.sendDeletionApprovedNotification(email, firstName);
+            accountDeletionMailService.sendDeletionApprovedNotification(user.getId(), email, firstName);
         }
     }
 
@@ -298,6 +301,14 @@ public class AccountDeletionService {
         user.setFaqAuthor(false);
         user.setEmailVerified(false);
         user.setAccountDeleted(true);
+        // Revoke all active sessions so the anonymized account cannot be accessed
+        refreshTokenRepository.deleteAllByUserId(user.getId());
+        // Remove mailing list memberships so no future emails are sent to the hashed address
+        mailingListMemberRepository.deleteAllByUserId(user.getId());
+        // Remove opt-out rows so they do not persist against the anonymized account
+        dontSendEmailRepository.deleteAllByUserId(user.getId());
+        // Clear the unsubscribe token so no live email link can identify this user
+        user.setUnsubscribeToken(null);
         userRepository.save(user);
     }
 
@@ -317,6 +328,13 @@ public class AccountDeletionService {
     private Date thirtyDaysFromNow() {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_MONTH, 30);
+        return cal.getTime();
+    }
+
+    private Date addDays(Date date, int days) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.add(Calendar.DAY_OF_MONTH, days);
         return cal.getTime();
     }
 }

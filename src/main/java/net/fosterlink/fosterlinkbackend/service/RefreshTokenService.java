@@ -4,8 +4,11 @@ import net.fosterlink.fosterlinkbackend.entities.RefreshTokenEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.repositories.RefreshTokenRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +22,8 @@ import java.util.UUID;
 
 @Service
 public class RefreshTokenService {
+
+    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
 
     @Value("${app.refreshTokenExpirationMs}")
     private long refreshTokenExpirationMs;
@@ -122,6 +127,15 @@ public class RefreshTokenService {
     @Transactional
     public void revokeAllForUser(int userId) {
         refreshTokenRepository.deleteAllByUserId(userId);
+    }
+
+    // Runs daily at 01:00. Removes expired and revoked refresh tokens so the table
+    // does not grow unboundedly. This satisfies the RETENTION-04 compliance requirement.
+    @Scheduled(cron = "0 0 1 * * *")
+    @Transactional
+    public void purgeExpiredTokens() {
+        refreshTokenRepository.deleteByExpiresAtBeforeOrRevokedTrue(Instant.now());
+        log.info("Purged expired and revoked refresh tokens");
     }
 
     private String sha256(String input) {

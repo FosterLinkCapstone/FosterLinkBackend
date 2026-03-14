@@ -214,7 +214,7 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
             agent.created_at,
             agent.banned_at,
             agent.restricted_at,
-            ag.hidden_by_username
+            (SELECT u.username FROM `user` u WHERE u.id = ag.hidden_by_user_id) AS hidden_by_username
         FROM agency ag
         INNER JOIN user agent ON ag.agent = agent.id
         INNER JOIN location lo ON ag.address = lo.id
@@ -231,12 +231,12 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE agency SET hidden = true, hidden_by_username = '[account-deletion-pending]' WHERE agent = :userId AND hidden = false", nativeQuery = true)
+    @Query(value = "UPDATE agency SET hidden = true, hidden_by_deletion_request = 1 WHERE agent = :userId AND hidden = false", nativeQuery = true)
     void hideVisibleAgenciesByAgentId(@Param("userId") int userId);
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE agency SET hidden = false, hidden_by_username = NULL WHERE agent = :userId AND hidden_by_username = '[account-deletion-pending]'", nativeQuery = true)
+    @Query(value = "UPDATE agency SET hidden = false, hidden_by_deletion_request = 0 WHERE agent = :userId AND hidden_by_deletion_request = 1", nativeQuery = true)
     void unhidePendingDeletionAgenciesByAgentId(@Param("userId") int userId);
 
     @Modifying

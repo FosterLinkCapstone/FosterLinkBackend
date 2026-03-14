@@ -81,7 +81,10 @@ public class AdminUserContentController {
             r.setUserDeleted(pm.isUser_deleted());
             r.setLocked(pm.isLocked());
             r.setVerified(pm.isVerified());
-            r.setHiddenBy(pm.getHidden_by());
+            String hiddenByUsername = (pm.getHiddenByUserId() != null)
+                    ? userRepository.findById(pm.getHiddenByUserId()).map(UserEntity::getUsername).orElse(null)
+                    : null;
+            r.setHiddenBy(hiddenByUsername);
             result.add(r);
         }
         int totalPages = threadPage.getTotalPages();
@@ -130,13 +133,16 @@ public class AdminUserContentController {
             r.setThreadAuthorUsername(threadAuthorUsernameById.get(tr.getThread_id()));
             r.setAuthor(new UserResponse(tr.getPostedBy()));
             PostMetadataEntity pm = tr.getMetadata();
+            String replyHiddenByUsername = (pm.getHiddenByUserId() != null)
+                    ? userRepository.findById(pm.getHiddenByUserId()).map(UserEntity::getUsername).orElse(null)
+                    : null;
             r.setPostMetadata(new PostMetadataResponse(
                     pm.getId(),
                     pm.isHidden(),
                     pm.isUser_deleted(),
                     pm.isLocked(),
                     pm.isVerified(),
-                    pm.getHidden_by()
+                    replyHiddenByUsername
             ));
             result.add(r);
         }

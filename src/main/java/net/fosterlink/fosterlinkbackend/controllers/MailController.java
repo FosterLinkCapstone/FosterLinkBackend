@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.servlet.http.HttpServletRequest;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.entities.DontSendEmailEntity;
 import net.fosterlink.fosterlinkbackend.entities.EmailTypeEntity;
@@ -16,6 +17,7 @@ import net.fosterlink.fosterlinkbackend.models.rest.UpdateEmailPreferencesReques
 import net.fosterlink.fosterlinkbackend.repositories.DontSendEmailRepository;
 import net.fosterlink.fosterlinkbackend.repositories.EmailTypeRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import net.fosterlink.fosterlinkbackend.service.ConsentRecordService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -49,6 +51,9 @@ public class MailController {
 
     @Autowired
     private DontSendEmailRepository dontSendEmailRepository;
+
+    @Autowired
+    private ConsentRecordService consentRecordService;
 
     @Operation(
             summary = "Get email notification preferences for the current user",
@@ -120,7 +125,8 @@ public class MailController {
     @RateLimit(requests = 20, keyType = "USER")
     @Transactional
     @PutMapping("/emailPreferences")
-    public ResponseEntity<?> updateEmailPreferences(@RequestBody UpdateEmailPreferencesRequest request) {
+    public ResponseEntity<?> updateEmailPreferences(@RequestBody UpdateEmailPreferencesRequest request,
+                                                    HttpServletRequest httpRequest) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 
@@ -134,6 +140,9 @@ public class MailController {
         if (request == null || request.getPreferences() == null) {
             return ResponseEntity.ok().build();
         }
+
+        String forwardedFor = httpRequest.getHeader("X-FORWARDED-FOR");
+        String clientIp = forwardedFor != null ? forwardedFor.split(",")[0].trim() : httpRequest.getRemoteAddr();
 
         Map<String, EmailTypeEntity> typesByName = emailTypeRepository.findByCanDisableTrue()
                 .stream()
@@ -153,6 +162,10 @@ public class MailController {
             } else {
                 dontSendEmailRepository.deleteByUserIdAndEmailTypeId(user.getId(), type.getId());
             }
+
+            consentRecordService.record((long) user.getId(),
+                    "EMAIL_" + update.getName().toUpperCase(),
+                    !update.isDisabled(), null, "ACCOUNT_SETTINGS", clientIp);
         }
 
         return ResponseEntity.ok().build();
@@ -173,7 +186,7 @@ public class MailController {
     @RateLimit(requests = 10, keyType = "USER")
     @Transactional
     @PostMapping("/unsubscribeAll")
-    public ResponseEntity<?> unsubscribeAll() {
+    public ResponseEntity<?> unsubscribeAll(HttpServletRequest httpRequest) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 
@@ -183,6 +196,10 @@ public class MailController {
         user.setUnsubscribeAll(true);
         userRepository.save(user);
         dontSendEmailRepository.deleteAllByUserId(user.getId());
+
+        String forwardedFor = httpRequest.getHeader("X-FORWARDED-FOR");
+        String clientIp = forwardedFor != null ? forwardedFor.split(",")[0].trim() : httpRequest.getRemoteAddr();
+        consentRecordService.record((long) user.getId(), "MARKETING", false, null, "ACCOUNT_SETTINGS", clientIp);
 
         return ResponseEntity.ok().build();
     }
@@ -200,7 +217,7 @@ public class MailController {
     )
     @RateLimit(requests = 10, keyType = "USER")
     @PostMapping("/resubscribe")
-    public ResponseEntity<?> resubscribe() {
+    public ResponseEntity<?> resubscribe(HttpServletRequest httpRequest) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 
@@ -209,6 +226,10 @@ public class MailController {
 
         user.setUnsubscribeAll(false);
         userRepository.save(user);
+
+        String forwardedFor = httpRequest.getHeader("X-FORWARDED-FOR");
+        String clientIp = forwardedFor != null ? forwardedFor.split(",")[0].trim() : httpRequest.getRemoteAddr();
+        consentRecordService.record((long) user.getId(), "MARKETING", true, null, "ACCOUNT_SETTINGS", clientIp);
 
         return ResponseEntity.ok().build();
     }

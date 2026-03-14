@@ -43,6 +43,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Date;
 import java.util.List;
@@ -55,6 +57,8 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/v1/faq/")
 public class FaqController {
+
+    private static final Logger log = LoggerFactory.getLogger(FaqController.class);
 
     private @Autowired FAQRepository fAQRepository;
     private @Autowired FaqMapper faqMapper;
@@ -687,6 +691,32 @@ public class FaqController {
         fAQRepository.deleteById(id);
         auditLogService.log("permanently deleted FAQ", authorId);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+            summary = "Delete all FAQ suggestion requests for the current user",
+            description = "Deletes all faq_request rows submitted by the currently authenticated user. Rate limit: 5 requests per 60 seconds per user.",
+            tags = {"FAQ"},
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "All FAQ requests for the user were deleted"),
+                    @ApiResponse(responseCode = "403", description = "Not authenticated"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @RateLimit(requests = 5, keyType = "USER")
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/my-requests")
+    public ResponseEntity<?> deleteMyFaqRequests() {
+        try {
+            LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+            if (loggedIn == null) return ResponseEntity.status(403).build();
+            fAQRequestRepository.deleteByRequestedById(loggedIn.getDatabaseId());
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.warn("Failed to delete FAQ requests for user", e);
+            return ResponseEntity.status(500).build();
+        }
     }
 
 }

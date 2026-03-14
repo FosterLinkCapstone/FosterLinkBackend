@@ -27,7 +27,7 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
             ag.website_url,
             ag.approved AS agency_approved,
             ag.hidden,
-            ag.hidden_by_username,
+            (SELECT u.username FROM `user` u WHERE u.id = ag.hidden_by_user_id) AS hidden_by_username,
             IFNULL(approved_by.username, '') AS approved_by_username,
             lo.id AS location_id,
             lo.addr_line1,
@@ -94,7 +94,7 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
             ag.website_url,
             ag.approved AS agency_approved,
             ag.hidden,
-            ag.hidden_by_username,
+            (SELECT u.username FROM `user` u WHERE u.id = ag.hidden_by_user_id) AS hidden_by_username,
             IFNULL(approved_by.username, '') AS approved_by_username,
             lo.id AS location_id,
             lo.addr_line1,
@@ -179,4 +179,9 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
     @Transactional
     @Query(value = "DELETE adr FROM agency_deletion_request adr INNER JOIN agency a ON adr.agency = a.id WHERE a.agent = :userId AND adr.approved = 0", nativeQuery = true)
     void deletePendingByAgencyAgentId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM agency_deletion_request WHERE approved = 1 AND reviewed_at < NOW() - INTERVAL 1 YEAR", nativeQuery = true)
+    int deleteExpiredApprovedRequests();
 }
