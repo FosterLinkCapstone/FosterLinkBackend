@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
-import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.entities.AccountDeletionRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AccountDeletionRequestResponse;
