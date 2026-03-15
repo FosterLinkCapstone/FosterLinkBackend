@@ -15,8 +15,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class TokenAuthService {
@@ -113,6 +117,49 @@ public class TokenAuthService {
         user.setUnsubscribeToken(rawToken);
         userRepository.save(user);
         return rawToken;
+    }
+
+    /**
+     * Bulk variant of {@link #getOrCreateUnsubscribeToken}: resolves tokens for a list of users
+     * in at most two batch operations (one saveAll for token rows, one saveAll for user rows)
+     * instead of N individual saves.
+     *
+     * @return map of userId → raw unsubscribe token
+     */
+    public Map<Integer, String> getOrCreateUnsubscribeTokens(List<UserEntity> users) {
+        Map<Integer, String> result = new HashMap<>();
+        List<TokenAuthEntity> tokensToSave = new ArrayList<>();
+        List<UserEntity> usersToUpdate = new ArrayList<>();
+
+        for (UserEntity user : users) {
+            if (user.getUnsubscribeToken() != null) {
+                result.put(user.getId(), user.getUnsubscribeToken());
+            } else {
+                byte[] bytes = new byte[32];
+                SECURE_RANDOM.nextBytes(bytes);
+                String rawToken = HexFormat.of().formatHex(bytes);
+
+                TokenAuthEntity entity = new TokenAuthEntity();
+                entity.setToken(hashToken(rawToken));
+                entity.setValidForEndpoint(UNSUBSCRIBE_ENDPOINT);
+                entity.setGeneratedByUserId(user.getId());
+                entity.setTargetUserId(user.getId());
+                entity.setExpiresAt(null);
+                entity.setProcessId(null);
+                tokensToSave.add(entity);
+
+                user.setUnsubscribeToken(rawToken);
+                usersToUpdate.add(user);
+                result.put(user.getId(), rawToken);
+            }
+        }
+
+        if (!tokensToSave.isEmpty()) {
+            tokenAuthRepository.saveAll(tokensToSave);
+            userRepository.saveAll(usersToUpdate);
+        }
+
+        return result;
     }
 
     public String hashToken(String input) {

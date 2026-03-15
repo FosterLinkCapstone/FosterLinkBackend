@@ -3,7 +3,6 @@ package net.fosterlink.fosterlinkbackend.service;
 import net.fosterlink.fosterlinkbackend.entities.RefreshTokenEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.repositories.RefreshTokenRepository;
-import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,9 +33,6 @@ public class RefreshTokenService {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
-    @Autowired
-    private UserRepository userRepository;
-
     /**
      * Creates a new refresh token for the given user and persists its hash.
      *
@@ -65,13 +61,17 @@ public class RefreshTokenService {
      * Validates an incoming plain refresh token, revokes it, and issues a replacement.
      * Implements mandatory rotation: old token is always revoked on success.
      *
+     * M-5: uses a single JOIN FETCH query to load the token + user together,
+     * eliminating the second SELECT that previously fetched the user by userId.
+     *
      * @param rawToken the plain token value read from the cookie
      * @return a {@link RotateResult} with the new plain token and the associated user, or empty if invalid/expired
      */
     @Transactional
     public Optional<RotateResult> validateAndRotate(String rawToken) {
         String hash = sha256(rawToken);
-        Optional<RefreshTokenEntity> tokenOpt = refreshTokenRepository.findByTokenHashAndRevokedFalse(hash);
+        Optional<RefreshTokenEntity> tokenOpt =
+                refreshTokenRepository.findByTokenHashAndRevokedFalseWithUser(hash);
 
         if (tokenOpt.isEmpty()) {
             return Optional.empty();
@@ -86,8 +86,8 @@ public class RefreshTokenService {
             return Optional.empty();
         }
 
-        Optional<UserEntity> userOpt = userRepository.findById(existing.getUserId());
-        if (userOpt.isEmpty()) {
+        UserEntity user = existing.getUser();
+        if (user == null) {
             existing.setRevoked(true);
             refreshTokenRepository.save(existing);
             return Optional.empty();
@@ -102,9 +102,9 @@ public class RefreshTokenService {
         refreshTokenRepository.save(existing);
 
         // Issue new token with same expiry class
-        String newPlainToken = createRefreshToken(userOpt.get(), wasLongLived);
+        String newPlainToken = createRefreshToken(user, wasLongLived);
 
-        return Optional.of(new RotateResult(newPlainToken, userOpt.get(), wasLongLived));
+        return Optional.of(new RotateResult(newPlainToken, user, wasLongLived));
     }
 
     /**

@@ -181,6 +181,10 @@ public class AgencyMapper {
     /**
      * Builds an AgencyResponse from an entity (e.g. for admin list of agencies by user).
      * Uses approved: 0 = pending, 1 = approved, 2 = denied. Approver username is not set.
+     *
+     * IMPORTANT: AgencyEntity.address and AgencyEntity.agent are LAZY associations.
+     * Callers MUST load the entity via AgencyRepository.findByAgentIdWithRelations (which JOIN FETCHes
+     * both associations) rather than findByAgentId, to avoid LazyInitializationException.
      */
     public AgencyResponse fromEntity(AgencyEntity e) {
         AgencyResponse agency = new AgencyResponse();

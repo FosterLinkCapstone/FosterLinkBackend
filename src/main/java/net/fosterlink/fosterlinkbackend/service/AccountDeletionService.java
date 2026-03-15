@@ -9,16 +9,22 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.cache.CacheManager;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -48,6 +54,8 @@ public class AccountDeletionService {
     @Autowired private AgencyDeletionRequestRepository agencyDeletionRequestRepository;
     @Autowired private LocationRepository locationRepository;
     @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private CacheManager cacheManager;
+    @Autowired private BanStatusService banStatusService;
 
     /** Creates an account deletion request for the given user. Locks the account and hides all content immediately. */
     @Transactional
@@ -68,15 +76,19 @@ public class AccountDeletionService {
 
         hideUserContent(user);
 
+        // Evict profile metadata so the deletion state is reflected immediately
+        banStatusService.evictProfileMetadata(user.getId());
+
         accountDeletionMailService.sendDeletionRequestedConfirmation(
                 user.getId(), user.getEmail(), user.getFirstName(), saved.getAutoApproveBy());
 
+        // H-3: resolve all admin unsubscribe tokens in at most two batch operations
         List<UserEntity> admins = userRepository.findAllAdministrators();
+        Map<Integer, String> adminTokens = tokenAuthService.getOrCreateUnsubscribeTokens(admins);
         for (UserEntity admin : admins) {
-            String adminToken = tokenAuthService.getOrCreateUnsubscribeToken(admin);
             accountDeletionMailService.sendDeletionRequestAdminNotice(
                     admin.getId(), admin.getEmail(), admin.getFirstName(),
-                    user.getUsername(), saved.getAutoApproveBy(), adminToken);
+                    user.getUsername(), saved.getAutoApproveBy(), adminTokens.get(admin.getId()));
         }
 
         return saved;
@@ -93,6 +105,8 @@ public class AccountDeletionService {
 
         unhideUserContent(user.getId());
         agencyDeletionRequestRepository.deletePendingByAgencyAgentId(user.getId());
+
+        banStatusService.evictProfileMetadata(user.getId());
 
         accountDeletionMailService.sendDeletionCancelledConfirmation(user.getId(), user.getEmail(), user.getFirstName());
     }
@@ -203,17 +217,25 @@ public class AccountDeletionService {
         threadReplyRepository.hideVisibleRepliesByUserId(userId);
         faqApprovalRepository.hideApprovedFaqsByAuthorId(userId, user.getUsername());
 
+        // M-1: resolve which agencies already have a pending request in one query instead of N
         List<AgencyEntity> userAgencies = agencyRepository.findByAgentId(userId);
-        for (AgencyEntity agency : userAgencies) {
-            if (agencyDeletionRequestRepository.findPendingByAgencyId(agency.getId()).isEmpty()) {
-                AgencyDeletionRequestEntity adr = new AgencyDeletionRequestEntity();
-                adr.setAgency(agency);
-                adr.setRequestedBy(user);
-                adr.setCreatedAt(new Date());
-                adr.setAutoApproveBy(AgencyDeletionService.thirtyDaysFromNow());
-                agencyDeletionRequestRepository.save(adr);
+        if (!userAgencies.isEmpty()) {
+            List<Integer> agencyIds = userAgencies.stream().map(AgencyEntity::getId).toList();
+            Set<Integer> agenciesWithPending = new HashSet<>(
+                    agencyDeletionRequestRepository.findPendingAgencyIds(agencyIds));
+            for (AgencyEntity agency : userAgencies) {
+                if (!agenciesWithPending.contains(agency.getId())) {
+                    AgencyDeletionRequestEntity adr = new AgencyDeletionRequestEntity();
+                    adr.setAgency(agency);
+                    adr.setRequestedBy(user);
+                    adr.setCreatedAt(new Date());
+                    adr.setAutoApproveBy(AgencyDeletionService.thirtyDaysFromNow());
+                    agencyDeletionRequestRepository.save(adr);
+                }
             }
         }
+
+        cacheManager.getCache("faqApprovedPreviews").invalidate();
     }
 
     /**
@@ -225,6 +247,7 @@ public class AccountDeletionService {
         threadRepository.unhideUserHiddenThreadsByUserId(userId);
         threadReplyRepository.unhideUserHiddenRepliesByUserId(userId);
         faqApprovalRepository.unhideAuthorHiddenFaqsByAuthorId(userId);
+        cacheManager.getCache("faqApprovedPreviews").invalidate();
     }
 
     /** Deletes all content associated with a user: threads, replies, likes, FAQs, agencies, and requests. */
@@ -236,10 +259,9 @@ public class AccountDeletionService {
         // Delete threads by user (including all their replies, likes, tags)
         List<Integer> userThreadIds = threadRepository.findIdsByPostedById(userId);
         if (!userThreadIds.isEmpty()) {
-            // Delete reply likes on all replies to user's threads
-            List<ThreadReplyEntity> repliesOnUserThreads = userThreadIds.stream()
-                    .flatMap(tid -> threadReplyRepository.findByThreadId(tid).stream())
-                    .toList();
+            // H-1: fetch all replies on user's threads in one query instead of N
+            List<ThreadReplyEntity> repliesOnUserThreads =
+                    threadReplyRepository.findByThreadIdIn(userThreadIds);
             List<Integer> replyIdsOnUserThreads = repliesOnUserThreads.stream()
                     .map(ThreadReplyEntity::getId).toList();
             if (!replyIdsOnUserThreads.isEmpty()) {
@@ -274,16 +296,26 @@ public class AccountDeletionService {
         // Delete agency deletion requests and agencies by user
         agencyDeletionRequestRepository.deleteByAgencyAgentId(userId);
         List<AgencyEntity> userAgencies = agencyRepository.findByAgentId(userId);
-        for (AgencyEntity agency : userAgencies) {
-            LocationEntity address = agency.getAddress();
-            agencyRepository.deleteAgencyById(agency.getId());
-            if (address != null) {
-                locationRepository.deleteById(address.getId());
+        if (!userAgencies.isEmpty()) {
+            // L-1: collect non-null address IDs then batch-delete locations
+            List<Integer> addressIds = userAgencies.stream()
+                    .map(AgencyEntity::getAddress)
+                    .filter(a -> a != null)
+                    .map(LocationEntity::getId)
+                    .toList();
+            for (AgencyEntity agency : userAgencies) {
+                agencyRepository.deleteAgencyById(agency.getId());
+            }
+            if (!addressIds.isEmpty()) {
+                locationRepository.deleteAllByIds(addressIds);
             }
         }
 
         // Delete the account deletion request history itself
         deletionRequestRepository.deleteByUserId(userId);
+
+        cacheManager.getCache("faqApprovedPreviews").invalidate();
+        cacheManager.getCache("agencyApprovedRows").invalidate();
     }
 
     private void anonymizeUser(UserEntity user) {
@@ -310,6 +342,8 @@ public class AccountDeletionService {
         // Clear the unsubscribe token so no live email link can identify this user
         user.setUnsubscribeToken(null);
         userRepository.save(user);
+
+        banStatusService.evictProfileMetadata(user.getId());
     }
 
     private String hashEmail(String email) {

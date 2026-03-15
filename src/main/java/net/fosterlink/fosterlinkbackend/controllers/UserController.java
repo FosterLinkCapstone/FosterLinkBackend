@@ -432,6 +432,7 @@ public class UserController {
                     manualLogout(req);
                     userRepository.delete(user);
                     banStatusService.evict(email);
+                    banStatusService.evictProfileMetadata(user.getId());
                     return ResponseEntity.ok().build();
                 } catch (ServletException e) {
                     log.error("Manual logout on user delete failed for user ID {}", user.getId());

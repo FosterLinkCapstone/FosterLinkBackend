@@ -38,10 +38,8 @@ public class PostCleanupService {
         List<Integer> threadIds = threadRepository.findIdsEligibleForHardDelete();
         if (threadIds.isEmpty()) return;
 
-        // Collect all replies on these threads so we can delete their likes first.
-        List<ThreadReplyEntity> replies = threadIds.stream()
-                .flatMap(tid -> threadReplyRepository.findByThreadId(tid).stream())
-                .toList();
+        // H-2: collect all replies on these threads in one query instead of N
+        List<ThreadReplyEntity> replies = threadReplyRepository.findByThreadIdIn(threadIds);
         if (!replies.isEmpty()) {
             List<Integer> replyIds = replies.stream().map(ThreadReplyEntity::getId).toList();
             threadReplyLikeRepository.deleteByThreadIn(replyIds);

@@ -32,15 +32,12 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         """, nativeQuery = true)
     List<Object[]> visibleThreadCountsForUsers(@Param("userIds") List<Integer> userIds);
 
+    // NOTE: postMetadata and postedBy are now LAZY. This native query returns ThreadEntity shells;
+    // callers must not access postMetadata or postedBy outside a transaction, or use a JPQL variant with JOIN FETCH.
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.title LIKE CONCAT('%', :title, '%')", nativeQuery = true)
     List<ThreadEntity> findByTitleContaining(@Param("title") String title, Pageable pageable);
 
-    @Query(value = """
-        SELECT t.* FROM thread t 
-        INNER JOIN post_metadata pm ON t.metadata = pm.id 
-        WHERE t.posted_by = :userId AND pm.hidden = false
-        """, nativeQuery = true)
-    List<ThreadEntity> findByPostedByAndPostMetadataHiddenFalse(@Param("userId") int userId);
+    // findByPostedByAndPostMetadataHiddenFalse (native) removed — dead code superseded by findByPostedByAndPostMetadataHiddenFalseWithRelations.
 
     @Query("SELECT DISTINCT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.postedBy.id = :userId AND t.postMetadata.hidden = false")
     List<ThreadEntity> findByPostedByAndPostMetadataHiddenFalseWithRelations(@Param("userId") int userId, Pageable pageable);
@@ -48,15 +45,21 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
     @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.id = :threadId")
     java.util.Optional<ThreadEntity> findByIdWithRelations(@Param("threadId") int threadId);
 
-    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postedBy WHERE t.id IN :threadIds")
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.id IN :threadIds")
     List<ThreadEntity> findAllByIdWithPostedBy(@Param("threadIds") List<Integer> threadIds);
 
     @Query("SELECT DISTINCT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.id IN :threadIds AND t.postMetadata.hidden = false")
     List<ThreadEntity> findAllByIdWithRelations(@Param("threadIds") List<Integer> threadIds, Pageable pageable);
+    // NOTE: postMetadata and postedBy are now LAZY. This native query returns ThreadEntity shells;
+    // callers must not access postMetadata or postedBy outside a transaction, or use a JPQL variant with JOIN FETCH.
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.content LIKE CONCAT('%', :content, '%')", nativeQuery = true)
     List<ThreadEntity> findByContentContaining(@Param("content") String content, Pageable pageable);
+    // NOTE: postMetadata and postedBy are now LAZY. Callers that access those fields must be within @Transactional,
+    // or this query must be replaced with a JPQL JOIN FETCH variant.
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.created_at BETWEEN :start AND :end", nativeQuery = true)
     List<ThreadEntity> findByCreatedAtBetween(@Param("start") Date start, @Param("end") Date end);
+    // NOTE: postMetadata and postedBy are now LAZY. Callers that access those fields must be within @Transactional,
+    // or this query must be replaced with a JPQL JOIN FETCH variant.
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false;", nativeQuery = true)
     List<ThreadEntity> getAll();
 
@@ -541,10 +544,10 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
     List<Integer> findIdsEligibleForHardDelete();
 
     /** Loads threads by IDs with post_metadata eagerly fetched so JPA cascade removes the metadata on delete. */
-    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata WHERE t.id IN :ids")
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.id IN :ids")
     List<ThreadEntity> findAllByIdWithPostMetadata(@Param("ids") List<Integer> ids);
 
-    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata WHERE t.postedBy.id = :userId")
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.postedBy.id = :userId")
     List<ThreadEntity> findAllByPostedById(@Param("userId") int userId);
 
     @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.postedBy.id = :userId ORDER BY t.createdAt DESC")

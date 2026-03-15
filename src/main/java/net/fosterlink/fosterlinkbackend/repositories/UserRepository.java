@@ -2,8 +2,10 @@ package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -200,6 +202,12 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
 
     @Query("SELECT u FROM UserEntity u WHERE u.administrator = true AND u.accountDeleted = false")
     List<UserEntity> findAllAdministrators();
+
+    /** Bulk-clears expired temporary restrictions in a single UPDATE. Returns the number of rows affected. */
+    @Modifying
+    @Transactional
+    @Query("UPDATE UserEntity u SET u.restrictedAt = NULL, u.restrictedUntil = NULL WHERE u.restrictedUntil < :now")
+    int clearExpiredRestrictions(@Param("now") java.util.Date now);
 
     @Query(value = """
             SELECT u.id, u.first_name, u.last_name, u.username, u.email, u.phone_number,

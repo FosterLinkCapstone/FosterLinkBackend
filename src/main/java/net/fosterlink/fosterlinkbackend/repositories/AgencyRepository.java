@@ -77,7 +77,7 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
         INNER JOIN user approved_by ON ag.approved_by_id = approved_by.id
         WHERE ag.approved = TRUE AND ag.hidden = FALSE;
     """, nativeQuery = true)
-    @Cacheable(value = "agencyApprovedRows", key = "#pageable.pageNumber")
+    @Cacheable(value = "agencyApprovedRows", key = "#pageable.pageNumber + '-' + #pageable.pageSize")
     List<Object[]> allApprovedAgencies(Pageable pageable);
 
     @Query(value = """
@@ -255,5 +255,11 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
     @Transactional
     @Query(value = "UPDATE agency SET approved = NULL, approved_by_id = NULL, updated_at = :updatedAt WHERE id = :id", nativeQuery = true)
     void setAgencyPending(@Param("id") int id, @Param("updatedAt") java.util.Date updatedAt);
+
+    /** Bulk-deletes agencies by ID. Use after deleting their dependent deletion requests. Then delete locations. */
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query(value = "DELETE FROM agency WHERE id IN :ids", nativeQuery = true)
+    void deleteAllByIds(@Param("ids") List<Integer> ids);
 
 }

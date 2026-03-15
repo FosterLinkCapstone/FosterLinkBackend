@@ -30,4 +30,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
     @Query(value = "DELETE FROM refresh_token WHERE expires_at < :cutoff OR revoked = 1", nativeQuery = true)
     void deleteByExpiresAtBeforeOrRevokedTrue(@Param("cutoff") Instant cutoff);
 
+    /** Single-query token + user lookup — eliminates the second SELECT in validateAndRotate. */
+    @Query("SELECT t FROM RefreshTokenEntity t JOIN FETCH t.user WHERE t.tokenHash = :hash AND t.revoked = false")
+    Optional<RefreshTokenEntity> findByTokenHashAndRevokedFalseWithUser(@Param("hash") String hash);
+
 }

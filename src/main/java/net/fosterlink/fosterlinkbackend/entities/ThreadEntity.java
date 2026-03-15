@@ -31,11 +31,11 @@ public class ThreadEntity {
     private Date updatedAt;
 
     /** Visibility and moderation metadata (hidden, locked, verified, etc.). */
-    @ManyToOne(cascade = CascadeType.ALL)
+    @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name="metadata")
     private PostMetadataEntity postMetadata;
     /** User who created the thread. */
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="posted_by")
     private UserEntity postedBy;
 

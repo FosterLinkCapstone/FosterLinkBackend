@@ -115,8 +115,11 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
     @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.postedBy JOIN FETCH tr.metadata WHERE tr.id = :replyId")
     java.util.Optional<ThreadReplyEntity> findByIdWithRelations(@Param("replyId") int replyId);
 
-    @Query("SELECT tr FROM ThreadReplyEntity tr WHERE tr.thread_id = :threadId")
+    @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.metadata JOIN FETCH tr.postedBy WHERE tr.thread_id = :threadId")
     List<ThreadReplyEntity> findByThreadId(@Param("threadId") int threadId);
+
+    @Query("SELECT tr FROM ThreadReplyEntity tr WHERE tr.thread_id IN :ids")
+    List<ThreadReplyEntity> findByThreadIdIn(@Param("ids") List<Integer> ids);
 
     @Modifying
     @Transactional
@@ -126,7 +129,7 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
     @Query(value = "SELECT id FROM thread_reply WHERE posted_by = :userId", nativeQuery = true)
     List<Integer> findIdsByPostedById(@Param("userId") int userId);
 
-    @Query("SELECT tr FROM ThreadReplyEntity tr WHERE tr.postedBy.id = :userId")
+    @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.metadata JOIN FETCH tr.postedBy WHERE tr.postedBy.id = :userId")
     List<ThreadReplyEntity> findAllByPostedById(@Param("userId") int userId);
 
     @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.metadata JOIN FETCH tr.postedBy WHERE tr.postedBy.id = :userId ORDER BY tr.createdAt DESC")

@@ -22,8 +22,27 @@ public class JwtTokenProvider {
     @Value("${app.jwtExpirationInMs}")
     private int jwtExp;
 
+    private volatile SecretKey cachedKey;
+
     private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        if (cachedKey == null) cachedKey = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        return cachedKey;
+    }
+
+    /**
+     * Parses the JWT and returns its Claims, or null if the token is invalid/expired.
+     * Callers can extract subject and custom claims from the returned object in one parse.
+     */
+    public Claims parseClaimsOrNull(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
