@@ -101,4 +101,14 @@ public interface AccountDeletionRequestRepository extends CrudRepository<Account
     List<AccountDeletionRequestEntity> findApproachingAutoApproval(
             @Param("now") java.util.Date now,
             @Param("sevenDaysFromNow") java.util.Date sevenDaysFromNow);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE account_deletion_request SET requested_by_email_hash = NULL WHERE approved = 1 AND reviewed_at < NOW() - INTERVAL 30 DAY AND requested_by_email_hash IS NOT NULL", nativeQuery = true)
+    int nullifyExpiredEmailHashes();
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM account_deletion_request WHERE approved = 1 AND reviewed_at < NOW() - INTERVAL 7 YEAR", nativeQuery = true)
+    int deleteExpiredDeletionRecords();
 }

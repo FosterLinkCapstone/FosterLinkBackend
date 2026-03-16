@@ -7,6 +7,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -19,10 +20,14 @@ class JwtTokenProviderTest {
     private static final int TEST_EXPIRATION = 3600000; // 1 hour in milliseconds
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         jwtTokenProvider = new JwtTokenProvider();
         ReflectionTestUtils.setField(jwtTokenProvider, "jwtSecret", TEST_SECRET);
         ReflectionTestUtils.setField(jwtTokenProvider, "jwtExp", TEST_EXPIRATION);
+        // Trigger key init (normally @PostConstruct) so getSigningKey() works
+        Method initSigningKey = JwtTokenProvider.class.getDeclaredMethod("initSigningKey");
+        initSigningKey.setAccessible(true);
+        initSigningKey.invoke(jwtTokenProvider);
     }
 
     @Test

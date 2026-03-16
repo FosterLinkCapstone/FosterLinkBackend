@@ -2,6 +2,7 @@ package net.fosterlink.fosterlinkbackend.entities;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 
 import java.time.Instant;
 
@@ -16,6 +17,11 @@ public class RefreshTokenEntity {
 
     @Column(name = "user_id", nullable = false)
     private int userId;
+
+    /** Read-only association used for JOIN FETCH in token-validation queries. Writes go through userId. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
+    private UserEntity user;
 
     /** SHA-256 hash of the opaque refresh token value. Never store the plain token. */
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)

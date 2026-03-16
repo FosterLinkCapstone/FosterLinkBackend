@@ -40,8 +40,8 @@ public class AdminUserMailService {
                                          int targetUserId, String rawToken, String frontendUrl,
                                          String recipientUnsubscribeToken, int recipientId) {
         String baseUrl = frontendUrl != null ? frontendUrl : mailSendHelper.getFrontendUrl();
-        String approveUrl = baseUrl + "/token-action?action=approve&token=" + rawToken + "&userId=" + targetUserId;
-        String denyUrl    = baseUrl + "/token-action?action=deny&token="    + rawToken + "&userId=" + targetUserId;
+        String approveUrl = baseUrl + "/token-action#action=approve&token=" + rawToken + "&userId=" + targetUserId;
+        String denyUrl    = baseUrl + "/token-action#action=deny&token="    + rawToken + "&userId=" + targetUserId;
 
         Context context = new Context(Locale.getDefault());
         context.setVariable("founderName", mailSendHelper.greetingName(founderFirstName));
@@ -50,7 +50,7 @@ public class AdminUserMailService {
         context.setVariable("denyUrl", denyUrl);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(recipientId, recipientUnsubscribeToken));
 
-        mailSendHelper.sendTemplatedEmail(toEmail, "Action required: Administrator role assignment approval", ADMIN_APPROVAL_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(recipientId, toEmail, "Action required: Administrator role assignment approval", ADMIN_APPROVAL_TEMPLATE, context);
     }
 
     @Async
@@ -58,8 +58,8 @@ public class AdminUserMailService {
                                            int targetUserId, String rawToken, String frontendUrl,
                                            String recipientUnsubscribeToken, int recipientId) {
         String baseUrl = frontendUrl != null ? frontendUrl : mailSendHelper.getFrontendUrl();
-        String approveUrl = baseUrl + "/token-action?action=approve-revoke&token=" + rawToken + "&userId=" + targetUserId;
-        String denyUrl    = baseUrl + "/token-action?action=deny-revoke&token="    + rawToken + "&userId=" + targetUserId;
+        String approveUrl = baseUrl + "/token-action#action=approve-revoke&token=" + rawToken + "&userId=" + targetUserId;
+        String denyUrl    = baseUrl + "/token-action#action=deny-revoke&token="    + rawToken + "&userId=" + targetUserId;
 
         Context context = new Context(Locale.getDefault());
         context.setVariable("founderName", mailSendHelper.greetingName(founderFirstName));
@@ -68,7 +68,7 @@ public class AdminUserMailService {
         context.setVariable("denyUrl", denyUrl);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(recipientId, recipientUnsubscribeToken));
 
-        mailSendHelper.sendTemplatedEmail(toEmail, "Action required: Administrator role revocation approval", ADMIN_REVOCATION_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(recipientId, toEmail, "Action required: Administrator role revocation approval", ADMIN_REVOCATION_TEMPLATE, context);
     }
 
     @CheckEmailPreference(value = "ROLE_ASSIGNED", uiName = "New role assigned (e.g. FAQ author or verified)")
@@ -79,7 +79,7 @@ public class AdminUserMailService {
         context.setVariable("roleDisplayName", ROLE_DISPLAY_NAMES.getOrDefault(role, role));
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
 
-        mailSendHelper.sendTemplatedEmail(toEmail, "You've been assigned a new role on FosterLink", ROLE_ASSIGNED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "You've been assigned a new role on FosterLink", ROLE_ASSIGNED_TEMPLATE, context);
     }
 
     @Async
@@ -89,7 +89,7 @@ public class AdminUserMailService {
         context.setVariable("roleDisplayName", ROLE_DISPLAY_NAMES.getOrDefault(role, role));
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
 
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your role has been updated on FosterLink", ROLE_REVOKED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your role has been updated on FosterLink", ROLE_REVOKED_TEMPLATE, context);
     }
 
     @CheckEmailPreference(value = "PROFILE_CLEARED", uiName = "Profile cleared by administrator")
@@ -100,6 +100,6 @@ public class AdminUserMailService {
         context.setVariable("clearedFields", clearedFields);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
 
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your profile has been updated by an administrator", PROFILE_CLEARED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your profile has been updated by an administrator", PROFILE_CLEARED_TEMPLATE, context);
     }
 }

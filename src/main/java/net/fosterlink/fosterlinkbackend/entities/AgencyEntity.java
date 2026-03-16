@@ -1,5 +1,6 @@
 package net.fosterlink.fosterlinkbackend.entities;
 
+import jakarta.annotation.Nullable;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -28,7 +29,17 @@ public class  AgencyEntity {
     /** ID of the user (administrator) who approved or denied. */
     private Integer approved_by_id;
     private boolean hidden;
-    private String hiddenByUsername;
+
+    /** Whether the agent has opted in to showing their email and phone on the public agency page. */
+    @Column(name = "show_contact_info", columnDefinition = "tinyint")
+    private boolean showContactInfo = false;
+
+    @Column(name = "hidden_by_user_id")
+    @Nullable
+    private Integer hiddenByUserId;
+
+    @Column(name = "hidden_by_deletion_request", columnDefinition = "tinyint")
+    private boolean hiddenByDeletionRequest;
 
     @Column(name = "created_at", nullable = false)
     private Date createdAt;

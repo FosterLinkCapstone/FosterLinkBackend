@@ -2,6 +2,8 @@ package net.fosterlink.fosterlinkbackend.mail.service;
 
 import jakarta.mail.internet.MimeMessage;
 import lombok.Getter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -19,9 +21,14 @@ import java.util.Locale;
 @Component
 public class MailSendHelper {
 
-    private static final String UNSUBSCRIBE_ACTION = "/token-action?action=unsubscribe&token=%s&userId=%d";
-    private static final String VERIFY_EMAIL_ACTION = "/token-action?action=verify-email&token=%s&userId=%d";
-    private static final String RESET_PASSWORD_ACTION = "/reset-password?token=%s&userId=%d";
+    private static final Logger log = LoggerFactory.getLogger(MailSendHelper.class);
+
+    // GAP-02: tokens are delivered via URL fragments (#) rather than query parameters (?).
+    // Fragments are never transmitted to the server in HTTP request logs or CDN logs,
+    // so the token is not visible to server-side observers even if the Referer header leaks.
+    private static final String UNSUBSCRIBE_ACTION = "/token-action#action=unsubscribe&token=%s&userId=%d";
+    private static final String VERIFY_EMAIL_ACTION = "/token-action#action=verify-email&token=%s&userId=%d";
+    private static final String RESET_PASSWORD_ACTION = "/reset-password#token=%s&userId=%d";
     private static final String SETTINGS_PATH = "/settings";
 
     private final JavaMailSender mailSender;
@@ -85,7 +92,7 @@ public class MailSendHelper {
      * @param context       template context (will use default locale if not set)
      * @return true if sent successfully, false otherwise
      */
-    public boolean sendTemplatedEmail(String toEmail, String subject, String templateName, Context context) {
+    public boolean sendTemplatedEmail(int userId, String toEmail, String subject, String templateName, Context context) {
         try {
             if (context.getLocale() == null) {
                 context.setLocale(Locale.getDefault());
@@ -94,7 +101,7 @@ public class MailSendHelper {
             sendHtmlEmail(toEmail, subject, htmlBody);
             return true;
         } catch (Exception e) {
-            System.err.println("Failed to send email to " + toEmail + ": " + e.getMessage());
+            log.error("Failed to send email for user ID {}: {}", userId, e.getMessage());
             return false;
         }
     }

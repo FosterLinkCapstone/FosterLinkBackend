@@ -12,14 +12,18 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class RatelimitInterceptor implements HandlerInterceptor {
 
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    // Buckets expire 30 minutes after last access to prevent unbounded memory growth.
+    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+            .expireAfterAccess(30, TimeUnit.MINUTES)
+            .build();
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -35,7 +39,7 @@ public class RatelimitInterceptor implements HandlerInterceptor {
         String key = resolveKey(request, rateLimit.keyType());
         String bucketKey = key + ":" + handlerMethod.getMethod().getName();
 
-        Bucket bucket = buckets.computeIfAbsent(bucketKey, k -> createBucket(rateLimit));
+        Bucket bucket = buckets.get(bucketKey, k -> createBucket(rateLimit));
 
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 

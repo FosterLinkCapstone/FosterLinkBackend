@@ -19,7 +19,9 @@ import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ApproveAgencyResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.LocationResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PublicAgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.web.agency.LocationInput;
 import net.fosterlink.fosterlinkbackend.models.web.agency.DelayAgencyDeletionModel;
@@ -40,7 +42,9 @@ import net.fosterlink.fosterlinkbackend.service.AgencyDeletionService;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -129,7 +133,7 @@ public class AgencyController {
             currentUserId = loggedIn.getDatabaseId();
             includeDeletionRequestForAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
         }
-        List<AgencyResponse> agencies = (normalizedSearch == null || normalizedSearch.isEmpty())
+        List<PublicAgencyResponse> agencies = (normalizedSearch == null || normalizedSearch.isEmpty())
                 ? agencyMapper.getAllApprovedAgencies(pageNumber, includeDeletionRequestForAdmin, currentUserId)
                 : agencyMapper.getAllApprovedAgenciesWithSearch(pageNumber, normalizedSearch, normalizedSearchBy, includeDeletionRequestForAdmin, currentUserId);
         return ResponseEntity.ok(new PaginatedResponse<>(agencies, totalPages));
@@ -204,7 +208,7 @@ public class AgencyController {
         if (agency.isPresent()) {
             AgencyEntity ag = agency.get();
             ag.setApproved(model.isApproved());
-            ag.setApproved_by_id(loggedIn.getDatabaseId());
+            ag.setApproved_by_id(Objects.requireNonNull(loggedIn).getDatabaseId());
             ag.setUpdatedAt(new Date());
             agencyRepository.save(ag);
 
@@ -257,13 +261,18 @@ public class AgencyController {
     @PostMapping("/create")
     public ResponseEntity<?> createAgency(@Valid @RequestBody CreateAgencyModel model) {
         LoggedInUser loggedInUser = JwtUtil.getLoggedInUser();
-        UserEntity user = userRepository.findById(loggedInUser.getDatabaseId()).orElse(null);
+        UserEntity user = userRepository.findById(Objects.requireNonNull(loggedInUser).getDatabaseId()).orElse(null);
         if (user != null) {
+                    if (user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "A phone number is required for agency representatives. Please update your profile before creating an agency.");
+                    }
                     AgencyEntity agency =  new AgencyEntity();
                     agency.setName(model.getName());
                     agency.setWebsiteUrl(model.getWebsiteUrl());
                     agency.setMissionStatement(model.getMissionStatement());
                     agency.setAgent(user);
+                    agency.setShowContactInfo(model.isShowContactInfo());
                     agency.setCreatedAt(new Date());
 
                     LocationEntity location = new LocationEntity();
@@ -289,10 +298,11 @@ public class AgencyController {
                     agencyResponse.setAgencyName(savedAgency.getName());
                     agencyResponse.setAgencyMissionStatement(savedAgency.getMissionStatement());
                     agencyResponse.setAgencyWebsiteLink(savedAgency.getWebsiteUrl());
+                    agencyResponse.setShowContactInfo(savedAgency.isShowContactInfo());
                     agencyResponse.setCreatedAt(savedAgency.getCreatedAt() != null ? savedAgency.getCreatedAt() : null);
                     agencyResponse.setAgent(new UserResponse(user));
                     agencyResponse.setAgentInfo(new AgentInfoResponse(user));
-                    agencyResponse.setLocation(savedLocation);
+                    agencyResponse.setLocation(new LocationResponse(savedLocation));
 
                     return ResponseEntity.ok(agencyResponse);
         } else {
@@ -412,7 +422,8 @@ public class AgencyController {
 
         AgencyEntity agency = agencyOpt.get();
         agency.setHidden(hidden);
-        agency.setHiddenByUsername(hidden ? user.getUsername() : null);
+        agency.setHiddenByUserId(hidden ? user.getId() : null);
+        agency.setHiddenByDeletionRequest(false);
         agency.setUpdatedAt(new Date());
         agencyRepository.save(agency);
         if (hidden) {
@@ -642,23 +653,27 @@ public class AgencyController {
     }
     @RateLimit(requests = 15, keyType = "USER")
     @DisallowRestricted
-    @PreAuthorize("hasAnyAuthority('AGENCY_REP', 'ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('AGENCY_REP')")
     @PutMapping("/update")
     @CacheEvict(value = "agencyApprovedRows", allEntries = true)
-    public ResponseEntity<?> updateAgency(@RequestBody UpdateAgencyModel model) {
+    public ResponseEntity<?> updateAgency(@Valid @RequestBody UpdateAgencyModel model) {
         Optional<AgencyEntity> agencyOpt = agencyRepository.findById(model.getAgencyId());
         if (agencyOpt.isEmpty()) return ResponseEntity.notFound().build();
         AgencyEntity agency = agencyOpt.get();
         if (!Objects.equals(agency.getAgent().getEmail(), JwtUtil.getLoggedInEmail())) return ResponseEntity.status(403).build();
 
-        if (model.getName() != null) agency.setName(model.getName());
-        if (model.getMissionStatement() != null) agency.setMissionStatement(model.getMissionStatement());
-        if (model.getWebsiteUrl() != null) agency.setWebsiteUrl(model.getWebsiteUrl());
+        boolean coreFieldChanged = false;
+        if (model.getName() != null) { agency.setName(model.getName()); coreFieldChanged = true; }
+        if (model.getMissionStatement() != null) { agency.setMissionStatement(model.getMissionStatement()); coreFieldChanged = true; }
+        if (model.getWebsiteUrl() != null) { agency.setWebsiteUrl(model.getWebsiteUrl()); coreFieldChanged = true; }
+        if (model.getShowContactInfo() != null) agency.setShowContactInfo(model.getShowContactInfo());
 
         Date now = new Date();
         agency.setUpdatedAt(now);
         agencyRepository.save(agency);
-        agencyRepository.setAgencyPending(agency.getId(), now);
+        if (coreFieldChanged) {
+            agencyRepository.setAgencyPending(agency.getId(), now);
+        }
         return ResponseEntity.ok().build();
     }
 
@@ -677,7 +692,7 @@ public class AgencyController {
     )
     @RateLimit(requests = 15, keyType = "USER")
     @DisallowRestricted
-    @PreAuthorize("hasAnyAuthority('AGENCY_REP', 'ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('AGENCY_REP')")
     @PutMapping("/update-location")
     @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> updateAgencyLocation(@Valid @RequestBody UpdateAgencyLocationModel model) {

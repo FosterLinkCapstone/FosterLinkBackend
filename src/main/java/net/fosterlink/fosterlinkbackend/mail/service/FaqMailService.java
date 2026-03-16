@@ -33,7 +33,7 @@ public class FaqMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("faqTitle", faqTitle);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your FAQ has been approved - FosterLink", FAQ_APPROVED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your FAQ has been approved - FosterLink", FAQ_APPROVED_TEMPLATE, context);
     }
 
     /** Sent to the FAQ author after an administrator denies their FAQ. */
@@ -44,7 +44,7 @@ public class FaqMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("faqTitle", faqTitle);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your FAQ was not approved - FosterLink", FAQ_DENIED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your FAQ was not approved - FosterLink", FAQ_DENIED_TEMPLATE, context);
     }
 
     /**
@@ -58,7 +58,7 @@ public class FaqMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("suggestedTopic", suggestedTopic);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "We received your FAQ suggestion - FosterLink", FAQ_SUGGESTION_RECEIVED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "We received your FAQ suggestion - FosterLink", FAQ_SUGGESTION_RECEIVED_TEMPLATE, context);
     }
 
     /**
@@ -73,6 +73,6 @@ public class FaqMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(recipientFirstName));
         context.setVariable("suggestedTopic", suggestedTopic);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(recipientUserId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "New FAQ suggestion submitted - FosterLink", FAQ_SUGGESTION_RECEIVED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(recipientUserId, toEmail, "New FAQ suggestion submitted - FosterLink", FAQ_SUGGESTION_RECEIVED_TEMPLATE, context);
     }
 }

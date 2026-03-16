@@ -74,6 +74,8 @@ public class FaqMapper {
         return faqResponseList;
     }
 
+    // Key is pageNumber only; page size is fixed at SqlUtil.ITEMS_PER_PAGE.
+    // If ITEMS_PER_PAGE changes, flush the faqApprovedPreviews cache before the new code goes live.
     @Cacheable(value = "faqApprovedPreviews", key = "#pageNumber")
     public List<FaqResponse> allApprovedPreviews(int pageNumber) {
         List<FaqResponse> faqResponseList = new ArrayList<>();

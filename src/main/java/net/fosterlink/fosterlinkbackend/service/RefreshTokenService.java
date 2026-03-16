@@ -3,22 +3,27 @@ package net.fosterlink.fosterlinkbackend.service;
 import net.fosterlink.fosterlinkbackend.entities.RefreshTokenEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.repositories.RefreshTokenRepository;
-import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class RefreshTokenService {
+
+    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
 
     @Value("${app.refreshTokenExpirationMs}")
     private long refreshTokenExpirationMs;
@@ -29,9 +34,6 @@ public class RefreshTokenService {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
-    @Autowired
-    private UserRepository userRepository;
-
     /**
      * Creates a new refresh token for the given user and persists its hash.
      *
@@ -40,7 +42,9 @@ public class RefreshTokenService {
      * @return the plain token value (UUID string) -- only time this is available unhashed; caller must set it in the response cookie
      */
     public String createRefreshToken(UserEntity user, boolean longLived) {
-        String plainToken = UUID.randomUUID().toString();
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        String plainToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         String hash = sha256(plainToken);
 
         long expiryMs = longLived ? refreshTokenExpirationLongMs : refreshTokenExpirationMs;
@@ -60,13 +64,17 @@ public class RefreshTokenService {
      * Validates an incoming plain refresh token, revokes it, and issues a replacement.
      * Implements mandatory rotation: old token is always revoked on success.
      *
+     * M-5: uses a single JOIN FETCH query to load the token + user together,
+     * eliminating the second SELECT that previously fetched the user by userId.
+     *
      * @param rawToken the plain token value read from the cookie
      * @return a {@link RotateResult} with the new plain token and the associated user, or empty if invalid/expired
      */
     @Transactional
     public Optional<RotateResult> validateAndRotate(String rawToken) {
         String hash = sha256(rawToken);
-        Optional<RefreshTokenEntity> tokenOpt = refreshTokenRepository.findByTokenHashAndRevokedFalse(hash);
+        Optional<RefreshTokenEntity> tokenOpt =
+                refreshTokenRepository.findByTokenHashAndRevokedFalseWithUser(hash);
 
         if (tokenOpt.isEmpty()) {
             return Optional.empty();
@@ -81,8 +89,8 @@ public class RefreshTokenService {
             return Optional.empty();
         }
 
-        Optional<UserEntity> userOpt = userRepository.findById(existing.getUserId());
-        if (userOpt.isEmpty()) {
+        UserEntity user = existing.getUser();
+        if (user == null) {
             existing.setRevoked(true);
             refreshTokenRepository.save(existing);
             return Optional.empty();
@@ -97,9 +105,9 @@ public class RefreshTokenService {
         refreshTokenRepository.save(existing);
 
         // Issue new token with same expiry class
-        String newPlainToken = createRefreshToken(userOpt.get(), wasLongLived);
+        String newPlainToken = createRefreshToken(user, wasLongLived);
 
-        return Optional.of(new RotateResult(newPlainToken, userOpt.get(), wasLongLived));
+        return Optional.of(new RotateResult(newPlainToken, user, wasLongLived));
     }
 
     /**
@@ -122,6 +130,15 @@ public class RefreshTokenService {
     @Transactional
     public void revokeAllForUser(int userId) {
         refreshTokenRepository.deleteAllByUserId(userId);
+    }
+
+    // Runs daily at 01:00. Removes expired and revoked refresh tokens so the table
+    // does not grow unboundedly. This satisfies the RETENTION-04 compliance requirement.
+    @Scheduled(cron = "0 0 1 * * *")
+    @Transactional
+    public void purgeExpiredTokens() {
+        refreshTokenRepository.deleteByExpiresAtBeforeOrRevokedTrue(Instant.now());
+        log.info("Purged expired and revoked refresh tokens");
     }
 
     private String sha256(String input) {

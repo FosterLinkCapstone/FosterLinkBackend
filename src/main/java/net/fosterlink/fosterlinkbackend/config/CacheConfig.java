@@ -19,7 +19,7 @@ public class CacheConfig {
     public CacheManager cacheManager() {
         SimpleCacheManager manager = new SimpleCacheManager();
         manager.setCaches(List.of(
-                // Ban status per user email — evicted explicitly on ban/unban, 5-min TTL safety net
+                // Ban status per user ID — evicted explicitly on ban/unban, 5-min TTL safety net
                 build("bannedUsers",   10_000, 5),
                 // Full UserDetails per email — evicted on any user mutation, 2-min TTL safety net
                 build("userDetails",   10_000, 2),

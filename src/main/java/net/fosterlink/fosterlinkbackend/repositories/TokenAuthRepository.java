@@ -11,11 +11,11 @@ import java.util.Optional;
 
 public interface TokenAuthRepository extends CrudRepository<TokenAuthEntity, Integer> {
 
-    @Query("SELECT t FROM TokenAuthEntity t WHERE t.token = :token AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP)")
-    Optional<TokenAuthEntity> findByTokenAndEndpointNonExpired(String token, String endpoint);
+    @Query("SELECT t FROM TokenAuthEntity t WHERE t.tokenHash = :tokenHash AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP)")
+    Optional<TokenAuthEntity> findByTokenAndEndpointNonExpired(String tokenHash, String endpoint);
 
-    @Query("SELECT t FROM TokenAuthEntity t WHERE t.token = :token AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP)")
-    Optional<TokenAuthEntity> findByTokenNonExpired(String token);
+    @Query("SELECT t FROM TokenAuthEntity t WHERE t.tokenHash = :tokenHash AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP)")
+    Optional<TokenAuthEntity> findByTokenNonExpired(String tokenHash);
 
     /**
      * Atomically consumes a valid, non-expired token for the given endpoint.
@@ -26,15 +26,15 @@ public interface TokenAuthRepository extends CrudRepository<TokenAuthEntity, Int
      */
     @Modifying
     @Transactional
-    @Query("DELETE FROM TokenAuthEntity t WHERE t.token = :token AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP) AND (t.targetUserId IS NULL OR t.targetUserId = :userId)")
-    int consumeValidToken(String token, String endpoint, int userId);
+    @Query("DELETE FROM TokenAuthEntity t WHERE t.tokenHash = :tokenHash AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP) AND (t.targetUserId IS NULL OR t.targetUserId = :userId)")
+    int consumeValidToken(String tokenHash, String endpoint, int userId);
 
     /**
      * Read-only validation for non-consuming endpoints (e.g. unsubscribe).
      * Returns true if a matching valid token exists (not expired or indefinite).
      */
-    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM TokenAuthEntity t WHERE t.token = :token AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP) AND (t.targetUserId IS NULL OR t.targetUserId = :userId)")
-    boolean existsValidToken(String token, String endpoint, int userId);
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM TokenAuthEntity t WHERE t.tokenHash = :tokenHash AND t.validForEndpoint = :endpoint AND (t.expiresAt IS NULL OR t.expiresAt > CURRENT_TIMESTAMP) AND (t.targetUserId IS NULL OR t.targetUserId = :userId)")
+    boolean existsValidToken(String tokenHash, String endpoint, int userId);
 
     /**
      * Deletes all tokens that share the same processId.

@@ -2,6 +2,7 @@ package net.fosterlink.fosterlinkbackend.service;
 
 
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
+import net.fosterlink.fosterlinkbackend.models.auth.CachedUserData;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,24 +21,46 @@ public class UserService implements UserDetailsService {
     private @Autowired UserRepository userRepository;
 
     /**
-     * All user loads are done by email
+     * Called by Spring's AuthenticationManager during the login flow only.
+     * Returns the full UserDetails including the BCrypt password hash so the
+     * AuthenticationManager can verify credentials. Not cached — login is
+     * infrequent and the hash must never be stored in the heap-visible cache.
+     *
      * @param email !! Email !! not username
-     * @return user details for auth
-     * @throws UsernameNotFoundException email not found
      */
     @Override
-    @Cacheable(value = "userDetails", key = "#email")
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         UserEntity userEntity = userRepository.findByEmail(email);
         if (userEntity == null) return null;
-        return convertEntity(userEntity);
+        return toLoggedInUser(userEntity);
     }
-    private LoggedInUser convertEntity(UserEntity userEntity) {
+
+    /**
+     * Loads a lightweight projection for per-request JWT validation. Cached in the
+     * "userDetails" cache (10 000 entries, 2-min TTL) so that every authenticated
+     * request does not hit the database. The BCrypt password hash is excluded from
+     * the cached value — ban status is handled separately by BanStatusService.
+     */
+    @Cacheable(value = "userDetails", key = "#email")
+    public CachedUserData loadCachedData(String email) {
+        UserEntity userEntity = userRepository.findByEmail(email);
+        if (userEntity == null) return null;
+        return new CachedUserData(
+                userEntity.getId(),
+                userEntity.getEmail(),
+                userEntity.getAuthTokenVersion(),
+                buildAuthorities(userEntity),
+                userEntity.getRestrictedAt() != null
+        );
+    }
+
+    private LoggedInUser toLoggedInUser(UserEntity userEntity) {
         boolean isBanned = userEntity.getBannedAt() != null;
         boolean enabled = !isBanned;
         boolean accountNonLocked = !isBanned;
         return new LoggedInUser(userEntity.getId(), userEntity.getEmail(), userEntity.getAuthTokenVersion(), userEntity.getPassword(), buildAuthorities(userEntity), enabled, true, true, accountNonLocked, userEntity.getRestrictedAt() != null);
     }
+
     private Set<String> buildAuthorities(UserEntity user) {
         Set<String> authorities = new HashSet<>();
         authorities.add("USER");

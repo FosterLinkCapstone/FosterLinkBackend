@@ -32,7 +32,7 @@ public class HomeMailService {
     public void sendAccountBannedNotification(int userId, String toEmail, String firstName) {
         Context context = new Context(Locale.getDefault());
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your FosterLink account has been suspended", ACCOUNT_BANNED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your FosterLink account has been suspended", ACCOUNT_BANNED_TEMPLATE, context);
     }
 
     /** Sent to the user when an administrator lifts the ban on their account. */
@@ -41,7 +41,7 @@ public class HomeMailService {
         Context context = new Context(Locale.getDefault());
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your FosterLink account suspension has been lifted", ACCOUNT_UNBANNED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your FosterLink account suspension has been lifted", ACCOUNT_UNBANNED_TEMPLATE, context);
     }
 
     /**
@@ -55,7 +55,7 @@ public class HomeMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("restrictedUntil", restrictedUntil);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your FosterLink account has been restricted", ACCOUNT_RESTRICTED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your FosterLink account has been restricted", ACCOUNT_RESTRICTED_TEMPLATE, context);
     }
 
     /** Sent to the user when an administrator removes the restriction on their account. */
@@ -64,6 +64,6 @@ public class HomeMailService {
         Context context = new Context(Locale.getDefault());
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your FosterLink account restriction has been lifted", ACCOUNT_UNRESTRICTED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your FosterLink account restriction has been lifted", ACCOUNT_UNRESTRICTED_TEMPLATE, context);
     }
 }

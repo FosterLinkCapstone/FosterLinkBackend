@@ -27,7 +27,7 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
             ag.website_url,
             ag.approved AS agency_approved,
             ag.hidden,
-            ag.hidden_by_username,
+            (SELECT u.username FROM `user` u WHERE u.id = ag.hidden_by_user_id) AS hidden_by_username,
             IFNULL(approved_by.username, '') AS approved_by_username,
             lo.id AS location_id,
             lo.addr_line1,
@@ -94,7 +94,7 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
             ag.website_url,
             ag.approved AS agency_approved,
             ag.hidden,
-            ag.hidden_by_username,
+            (SELECT u.username FROM `user` u WHERE u.id = ag.hidden_by_user_id) AS hidden_by_username,
             IFNULL(approved_by.username, '') AS approved_by_username,
             lo.id AS location_id,
             lo.addr_line1,
@@ -179,4 +179,29 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
     @Transactional
     @Query(value = "DELETE adr FROM agency_deletion_request adr INNER JOIN agency a ON adr.agency = a.id WHERE a.agent = :userId AND adr.approved = 0", nativeQuery = true)
     void deletePendingByAgencyAgentId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM agency_deletion_request WHERE approved = 1 AND reviewed_at < NOW() - INTERVAL 1 YEAR", nativeQuery = true)
+    int deleteExpiredApprovedRequests();
+
+    /** Returns agency IDs from the given list that have at least one pending deletion request. */
+    @Query("SELECT r.agency.id FROM AgencyDeletionRequestEntity r WHERE r.agency.id IN :ids AND r.approved = false")
+    List<Integer> findPendingAgencyIds(@Param("ids") List<Integer> ids);
+
+    /** Bulk-marks a set of requests as auto-approved. Used by processAutoApprovals to replace N save() calls. */
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query(value = "UPDATE agency_deletion_request SET auto_approved = 1, approved = 1, reviewed_at = :now WHERE id IN :ids", nativeQuery = true)
+    void bulkAutoApprove(@Param("ids") List<Integer> ids, @Param("now") Date now);
+
+    /** Bulk-deletes all deletion requests whose agency is in the given list. */
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM agency_deletion_request WHERE agency IN :agencyIds", nativeQuery = true)
+    void deleteAllByAgencyIds(@Param("agencyIds") List<Integer> agencyIds);
+
+    /** Loads approaching-auto-approval requests with agency and agent eagerly fetched to avoid N+1 lazy loads. */
+    @Query("SELECT dr FROM AgencyDeletionRequestEntity dr JOIN FETCH dr.agency a JOIN FETCH a.agent WHERE dr.approved = false AND dr.autoApproveBy BETWEEN :now AND :sevenDaysFromNow")
+    List<AgencyDeletionRequestEntity> findApproachingAutoApprovalWithAgent(@Param("now") Date now, @Param("sevenDaysFromNow") Date sevenDaysFromNow);
 }

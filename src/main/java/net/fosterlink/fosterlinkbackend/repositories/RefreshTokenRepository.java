@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Optional;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity, Integer> {
@@ -22,5 +23,15 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
     @Transactional
     @Query(value = "DELETE FROM refresh_token WHERE token_hash = :tokenHash", nativeQuery = true)
     void deleteByTokenHash(@Param("tokenHash") String tokenHash);
+
+    /** Bulk-deletes all tokens that have passed their expiry time or have been explicitly revoked. */
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM refresh_token WHERE expires_at < :cutoff OR revoked = 1", nativeQuery = true)
+    void deleteByExpiresAtBeforeOrRevokedTrue(@Param("cutoff") Instant cutoff);
+
+    /** Single-query token + user lookup — eliminates the second SELECT in validateAndRotate. */
+    @Query("SELECT t FROM RefreshTokenEntity t JOIN FETCH t.user WHERE t.tokenHash = :hash AND t.revoked = false")
+    Optional<RefreshTokenEntity> findByTokenHashAndRevokedFalseWithUser(@Param("hash") String hash);
 
 }

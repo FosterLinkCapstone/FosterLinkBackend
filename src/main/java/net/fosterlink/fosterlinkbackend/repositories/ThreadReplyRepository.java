@@ -91,7 +91,7 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
     pm.user_deleted,
     pm.locked,
     pm.verified,
-    pm.hidden_by
+    (SELECT u2.username FROM `user` u2 WHERE u2.id = pm.hidden_by_user_id) AS hidden_by
 FROM thread_reply t
 INNER JOIN user u ON t.posted_by = u.id
 INNER JOIN post_metadata pm ON t.metadata = pm.id
@@ -108,15 +108,18 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
          u.username, u.profile_picture_url, u.verified_foster,
          u.faq_author, u.verified_agency_rep, u.created_at,
          u.banned_at, u.restricted_at,
-         pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
+         pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by_user_id
     """, nativeQuery = true)
     List<Object[]> getAllRepliesForThreadAdmin(int threadId, int userId);
 
     @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.postedBy JOIN FETCH tr.metadata WHERE tr.id = :replyId")
     java.util.Optional<ThreadReplyEntity> findByIdWithRelations(@Param("replyId") int replyId);
 
-    @Query("SELECT tr FROM ThreadReplyEntity tr WHERE tr.thread_id = :threadId")
+    @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.metadata JOIN FETCH tr.postedBy WHERE tr.thread_id = :threadId")
     List<ThreadReplyEntity> findByThreadId(@Param("threadId") int threadId);
+
+    @Query("SELECT tr FROM ThreadReplyEntity tr WHERE tr.thread_id IN :ids")
+    List<ThreadReplyEntity> findByThreadIdIn(@Param("ids") List<Integer> ids);
 
     @Modifying
     @Transactional
@@ -126,7 +129,7 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
     @Query(value = "SELECT id FROM thread_reply WHERE posted_by = :userId", nativeQuery = true)
     List<Integer> findIdsByPostedById(@Param("userId") int userId);
 
-    @Query("SELECT tr FROM ThreadReplyEntity tr WHERE tr.postedBy.id = :userId")
+    @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.metadata JOIN FETCH tr.postedBy WHERE tr.postedBy.id = :userId")
     List<ThreadReplyEntity> findAllByPostedById(@Param("userId") int userId);
 
     @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.metadata JOIN FETCH tr.postedBy WHERE tr.postedBy.id = :userId ORDER BY tr.createdAt DESC")
@@ -134,12 +137,24 @@ GROUP BY t.id, t.content, t.created_at, t.updated_at,
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE post_metadata pm INNER JOIN thread_reply tr ON tr.metadata = pm.id SET pm.hidden = true, pm.user_deleted = true WHERE tr.posted_by = :userId AND pm.hidden = false", nativeQuery = true)
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread_reply tr ON tr.metadata = pm.id SET pm.hidden = true, pm.user_deleted = true, pm.deleted_at = NOW() WHERE tr.posted_by = :userId AND pm.hidden = false", nativeQuery = true)
     void hideVisibleRepliesByUserId(@Param("userId") int userId);
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE post_metadata pm INNER JOIN thread_reply tr ON tr.metadata = pm.id SET pm.hidden = false, pm.user_deleted = false WHERE tr.posted_by = :userId AND pm.user_deleted = true", nativeQuery = true)
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread_reply tr ON tr.metadata = pm.id SET pm.hidden = false, pm.user_deleted = false, pm.deleted_at = NULL WHERE tr.posted_by = :userId AND pm.user_deleted = true", nativeQuery = true)
     void unhideUserHiddenRepliesByUserId(@Param("userId") int userId);
+
+    /** Returns reply IDs whose post_metadata has been user-deleted for 90+ days. */
+    @Query(value = """
+            SELECT tr.id FROM thread_reply tr
+            INNER JOIN post_metadata pm ON tr.metadata = pm.id
+            WHERE pm.user_deleted = 1 AND pm.deleted_at < DATE_SUB(NOW(), INTERVAL 90 DAY)
+            """, nativeQuery = true)
+    List<Integer> findIdsEligibleForHardDelete();
+
+    /** Loads replies by IDs with metadata eagerly fetched so JPA cascade removes the metadata on delete. */
+    @Query("SELECT tr FROM ThreadReplyEntity tr JOIN FETCH tr.metadata WHERE tr.id IN :ids")
+    List<ThreadReplyEntity> findAllByIdWithMetadata(@Param("ids") List<Integer> ids);
 
 }

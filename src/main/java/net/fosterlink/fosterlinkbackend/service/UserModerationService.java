@@ -25,15 +25,18 @@ public class UserModerationService {
      * Finds all users whose temporary restriction has expired (restrictedUntil is in the past)
      * and clears their restriction. Users with a null restrictedUntil are permanently restricted
      * and are not affected.
+     *
+     * M-2: replaces N individual save() calls with a single bulk UPDATE, then iterates only
+     * for per-user cache evictions.
      */
     @Transactional
     public void processExpiredRestrictions() {
-        List<UserEntity> expired = userRepository.findExpiredRestrictions(new Date());
+        Date now = new Date();
+        List<UserEntity> expired = userRepository.findExpiredRestrictions(now);
+        if (expired.isEmpty()) return;
+        userRepository.clearExpiredRestrictions(now);
         for (UserEntity user : expired) {
-            user.setRestrictedAt(null);
-            user.setRestrictedUntil(null);
-            userRepository.save(user);
-            banStatusService.evict(user.getEmail());
+            banStatusService.evict(user.getId(), user.getEmail());
             banStatusService.evictProfileMetadata(user.getId());
         }
     }

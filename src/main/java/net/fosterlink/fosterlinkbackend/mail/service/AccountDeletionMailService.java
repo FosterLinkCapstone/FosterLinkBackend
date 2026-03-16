@@ -38,7 +38,7 @@ public class AccountDeletionMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("autoApproveBy", autoApproveBy);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, null));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your account deletion request has been received - FosterLink", DELETION_REQUESTED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your account deletion request has been received - FosterLink", DELETION_REQUESTED_TEMPLATE, context);
     }
 
     /**
@@ -47,10 +47,10 @@ public class AccountDeletionMailService {
      * No unsubscribe link — the account no longer exists.
      */
     @Async
-    public void sendDeletionApprovedNotification(String toEmail, String firstName) {
+    public void sendDeletionApprovedNotification(int userId, String toEmail, String firstName) {
         Context context = new Context(Locale.getDefault());
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your FosterLink account has been deleted", DELETION_APPROVED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your FosterLink account has been deleted", DELETION_APPROVED_TEMPLATE, context);
     }
 
     /**
@@ -64,7 +64,7 @@ public class AccountDeletionMailService {
         context.setVariable("newAutoApproveBy", newAutoApproveBy);
         context.setVariable("reason", reason);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, null));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your account deletion has been delayed - FosterLink", DELETION_DELAYED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your account deletion has been delayed - FosterLink", DELETION_DELAYED_TEMPLATE, context);
     }
 
     /**
@@ -77,7 +77,7 @@ public class AccountDeletionMailService {
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("autoApproveBy", autoApproveBy);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, null));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your FosterLink account is scheduled for deletion in 7 days", DELETION_WARNING_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your FosterLink account is scheduled for deletion in 7 days", DELETION_WARNING_TEMPLATE, context);
     }
 
     /**
@@ -89,7 +89,7 @@ public class AccountDeletionMailService {
         Context context = new Context(Locale.getDefault());
         context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, null));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Your account deletion request has been cancelled - FosterLink", DELETION_CANCELLED_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your account deletion request has been cancelled - FosterLink", DELETION_CANCELLED_TEMPLATE, context);
     }
 
     /**
@@ -104,6 +104,6 @@ public class AccountDeletionMailService {
         context.setVariable("requestingUsername", requestingUsername);
         context.setVariable("autoApproveBy", autoApproveBy);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(adminId, adminUnsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "New account deletion request submitted - FosterLink", DELETION_ADMIN_NOTICE_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(adminId, toEmail, "New account deletion request submitted - FosterLink", DELETION_ADMIN_NOTICE_TEMPLATE, context);
     }
 }

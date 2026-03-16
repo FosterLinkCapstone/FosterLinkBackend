@@ -36,6 +36,6 @@ public class ThreadMailService {
         context.setVariable("threadTitle", threadTitle);
         context.setVariable("replyPreview", replyPreview);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(toEmail, "Someone replied to your thread - FosterLink", THREAD_REPLY_TEMPLATE, context);
+        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Someone replied to your thread - FosterLink", THREAD_REPLY_TEMPLATE, context);
     }
 }

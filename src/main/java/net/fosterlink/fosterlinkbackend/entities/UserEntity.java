@@ -54,10 +54,11 @@ public class UserEntity {
     private boolean accountDeleted = false;
     @Column(name = "unsubscribe_all", columnDefinition = "tinyint")
     private boolean unsubscribeAll = false;
-    /** Raw (unhashed) unsubscribe token embedded in every outbound email to this user. Null until first email send. */
-    private String unsubscribeToken;
+    /** SHA-256 hash of the unsubscribe token. Used as a sentinel to detect whether a token_auth row exists for this user. Null until first email send. */
+    @Column(name = "unsubscribe_token_hash")
+    private String unsubscribeTokenHash;
     /** Token version for session invalidation; JWTs carry this in claims and are rejected when it is incremented. */
-    private int authTokenVersion;
+    private int authTokenVersion = 1;
     /** When the account was created. */
     private Date createdAt;
     /** When the account was last updated. */

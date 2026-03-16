@@ -11,6 +11,17 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class RestrictionInterceptor implements HandlerInterceptor {
 
+    /*
+     * Safety invariant: this interceptor silently passes unauthenticated requests through on
+     * @DisallowRestricted endpoints (the isLoggedIn() guard below). This is safe ONLY because
+     * every @DisallowRestricted endpoint is also protected by Spring Security authentication
+     * (i.e. it must NOT appear in SecurityConfig.publicEndpoints). If an endpoint were both
+     * @DisallowRestricted and publicly accessible, a restricted user could reach it anonymously.
+     *
+     * When adding new endpoints:
+     *   - Never combine @DisallowRestricted with a path listed in SecurityConfig.publicEndpoints.
+     *   - The integration test RestrictionInterceptorInvariantTest enforces this at CI time.
+     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if (!(handler instanceof HandlerMethod handlerMethod)) {

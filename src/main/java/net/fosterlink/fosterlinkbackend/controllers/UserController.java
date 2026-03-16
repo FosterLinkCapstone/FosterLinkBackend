@@ -16,10 +16,11 @@ import net.fosterlink.fosterlinkbackend.config.audit.AuditLog;
 import net.fosterlink.fosterlinkbackend.config.ratelimit.RateLimit;
 import net.fosterlink.fosterlinkbackend.config.restriction.DisallowRestricted;
 import net.fosterlink.fosterlinkbackend.config.tokenauth.TokenAuth;
-import net.fosterlink.fosterlinkbackend.entities.UserEntity;
+import net.fosterlink.fosterlinkbackend.entities.*;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PrivilegesResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.UserDataExportResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserSettingsResponse;
 import net.fosterlink.fosterlinkbackend.models.web.user.ChangePasswordModel;
@@ -31,6 +32,11 @@ import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
 import net.fosterlink.fosterlinkbackend.mail.service.HomeMailService;
 import net.fosterlink.fosterlinkbackend.mail.service.UserMailService;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
+import net.fosterlink.fosterlinkbackend.repositories.AccountDeletionRequestRepository;
+import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
+import net.fosterlink.fosterlinkbackend.repositories.DontSendEmailRepository;
+import net.fosterlink.fosterlinkbackend.repositories.MailingListMemberRepository;
+import net.fosterlink.fosterlinkbackend.repositories.ThreadRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
@@ -56,7 +62,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.http.MediaType;
+
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -99,6 +108,18 @@ public class UserController {
     private RefreshTokenService refreshTokenService;
     @Autowired
     private net.fosterlink.fosterlinkbackend.service.TokenAuthService tokenAuthService;
+    @Autowired
+    private net.fosterlink.fosterlinkbackend.service.ConsentRecordService consentRecordService;
+    @Autowired
+    private ThreadRepository threadRepository;
+    @Autowired
+    private AgencyRepository agencyRepository;
+    @Autowired
+    private DontSendEmailRepository dontSendEmailRepository;
+    @Autowired
+    private MailingListMemberRepository mailingListMemberRepository;
+    @Autowired
+    private AccountDeletionRequestRepository accountDeletionRequestRepository;
 
     @Operation(
             summary = "Register a new user",
@@ -122,9 +143,8 @@ public class UserController {
             }
     )
     @RateLimit(requests = 5, burstRequests = 4, burstDurationSeconds = 30)
-    @DisallowRestricted
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegisterModel model, HttpServletResponse response) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegisterModel model, HttpServletRequest request, HttpServletResponse response) {
 
         if (userRepository.existsByUsernameOrEmail(model.getUsername(), model.getEmail())) {
             return ResponseEntity.status(409).build();
@@ -133,7 +153,8 @@ public class UserController {
         userEntity.setUsername(model.getUsername());
 
         userEntity.setEmail(model.getEmail());
-        userEntity.setPhoneNumber((model.getPhoneNumber()));
+        String rawPhone = model.getPhoneNumber();
+        userEntity.setPhoneNumber((rawPhone != null && !rawPhone.isBlank()) ? rawPhone : null);
 
         userEntity.setPassword(passwordEncoder.encode(model.getPassword()));
         userEntity.setFirstName(model.getFirstName());
@@ -142,6 +163,14 @@ public class UserController {
         userEntity.setProfilePictureUrl(DEFAULT_PROFILE_PIC);
 
         UserEntity dbEntity = userRepository.save(userEntity);
+
+        String forwardedFor = request.getHeader("X-FORWARDED-FOR");
+        String clientIp = forwardedFor != null ? forwardedFor.split(",")[0].trim() : request.getRemoteAddr();
+        consentRecordService.record((long) dbEntity.getId(), "AGE_CONFIRMATION", true, null, "REGISTRATION_CHECKBOX", clientIp);
+        consentRecordService.record((long) dbEntity.getId(), "TERMS", true, "1.0", "REGISTRATION_CHECKBOX", clientIp);
+        consentRecordService.record((long) dbEntity.getId(), "PRIVACY", true, "1.0", "REGISTRATION_CHECKBOX", clientIp);
+        consentRecordService.record((long) dbEntity.getId(), "MARKETING", model.isConsentMarketing(), "1.0", "REGISTRATION_CHECKBOX", clientIp);
+
         String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(dbEntity);
         if (userMailService != null) {
             userMailService.sendThankYouForRegistering(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName(), unsubscribeToken);
@@ -157,7 +186,7 @@ public class UserController {
             setRefreshCookie(response, refreshToken, false);
             return ResponseEntity.ok(Map.of("token", jwt));
         } catch (Exception e) {
-            log.error("Authentication following registration failed for {} (DB id: {})", userEntity.getEmail(), dbEntity.getId());
+            log.error("Authentication following registration failed for user ID {}", dbEntity.getId());
             return ResponseEntity.status(500).build();
         }
 
@@ -280,7 +309,7 @@ public class UserController {
         if (loggedIn == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         boolean logout = false;
-        if (user != null && user.getId() == model.getUserId()) {
+        if (user != null) {
             if (model.getFirstName() != null)  {
                 user.setFirstName(model.getFirstName());
             }
@@ -317,7 +346,7 @@ public class UserController {
                 try {
                     manualLogout(req);
                 } catch (ServletException e) {
-                    log.error("Manual logout on user update failed for {} (DB id: {})", user.getEmail(), user.getId());
+                    log.error("Manual logout on user update failed for user ID {}", user.getId());
                     return ResponseEntity.status(500).build();
                 }
             }
@@ -401,10 +430,11 @@ public class UserController {
                 try {
                     manualLogout(req);
                     userRepository.delete(user);
-                    banStatusService.evict(email);
+                    banStatusService.evict(user.getId(), email);
+                    banStatusService.evictProfileMetadata(user.getId());
                     return ResponseEntity.ok().build();
                 } catch (ServletException e) {
-                    log.error("Manual logout on user delete failed for {} (DB id: {})", user.getEmail(), user.getId());
+                    log.error("Manual logout on user delete failed for user ID {}", user.getId());
                     return ResponseEntity.status(500).build();
                 }
             } else {
@@ -445,6 +475,84 @@ public class UserController {
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
+    }
+
+    @Operation(
+            summary = "Get all personal data held for the current user",
+            description = "Returns a full aggregation of personal data for GDPR right of access (RIGHTS-01): " +
+                    "profile fields, authored threads, agencies, email preferences, mailing list memberships, " +
+                    "consent records, and account deletion request status. Rate limit: 5 requests per 60 seconds per user.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Personal data for the current user",
+                            content = @Content(mediaType = "application/json",
+                                    schema = @Schema(implementation = UserDataExportResponse.class))),
+                    @ApiResponse(responseCode = "404", description = "No user found for the current JWT"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded.")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 5, keyType = "USER")
+    @GetMapping("/my-data")
+    public ResponseEntity<?> getMyData() {
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+
+        int userId = user.getId();
+        List<ThreadEntity> threads = threadRepository.findAllByPostedByIdWithRelations(userId);
+        List<AgencyEntity> agencies = agencyRepository.findByAgentId(userId);
+        List<Integer> disabledEmailTypeIds = dontSendEmailRepository.findAllByUserId(userId)
+                .stream().map(DontSendEmailEntity::getEmailTypeId).toList();
+        List<Integer> mailingListIds = mailingListMemberRepository.findMailingListIdsByUserId(userId);
+        AccountDeletionRequestEntity deletionRequest =
+                accountDeletionRequestRepository.findPendingByUserId(userId).orElse(null);
+        List<ConsentRecordEntity> consentRecords = consentRecordService.findByUserId(userId);
+
+        return ResponseEntity.ok(UserDataExportResponse.from(
+                user, threads, agencies, disabledEmailTypeIds, mailingListIds,
+                deletionRequest, consentRecords));
+    }
+
+    @Operation(
+            summary = "Download all personal data as a JSON file",
+            description = "Returns the same payload as /my-data as a downloadable JSON file for GDPR data portability (RIGHTS-04). " +
+                    "Rate limit: 1 download per 24 hours per user.",
+            tags = {"User"},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Personal data JSON file"),
+                    @ApiResponse(responseCode = "404", description = "No user found for the current JWT"),
+                    @ApiResponse(responseCode = "429", description = "Rate limit exceeded — only 1 export per 24 hours per user.")
+            },
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    @RateLimit(requests = 1, durationSeconds = 86400, keyType = "USER")
+    @GetMapping("/export-data")
+    public ResponseEntity<?> exportData() {
+        LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
+        if (loggedIn == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
+        if (user == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+
+        int userId = user.getId();
+        List<ThreadEntity> threads = threadRepository.findAllByPostedByIdWithRelations(userId);
+        List<AgencyEntity> agencies = agencyRepository.findByAgentId(userId);
+        List<Integer> disabledEmailTypeIds = dontSendEmailRepository.findAllByUserId(userId)
+                .stream().map(DontSendEmailEntity::getEmailTypeId).toList();
+        List<Integer> mailingListIds = mailingListMemberRepository.findMailingListIdsByUserId(userId);
+        AccountDeletionRequestEntity deletionRequest =
+                accountDeletionRequestRepository.findPendingByUserId(userId).orElse(null);
+        List<ConsentRecordEntity> consentRecords = consentRecordService.findByUserId(userId);
+
+        UserDataExportResponse exportData = UserDataExportResponse.from(
+                user, threads, agencies, disabledEmailTypeIds, mailingListIds,
+                deletionRequest, consentRecords);
+
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"fosterlink-data-export.json\"")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(exportData);
     }
 
     @Operation(
@@ -819,6 +927,16 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
+        // 04/F-05: isAdmin and isFaqAuthor are privileged-account signals.
+        // Only expose them to the profile owner or an administrator; mask them for all other callers.
+        LoggedInUser caller = JwtUtil.getLoggedInUser();
+        boolean callerIsOwner = caller != null && caller.getDatabaseId() == userId;
+        boolean callerIsAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
+        if (!callerIsOwner && !callerIsAdmin) {
+            res.setAdmin(false);
+            res.setFaqAuthor(false);
+        }
+
         return ResponseEntity.ok(res);
     }
 
@@ -845,7 +963,7 @@ public class UserController {
         if (target.isAccountDeleted()) return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
         target.setBannedAt(new Date());
         userRepository.save(target);
-        banStatusService.evict(target.getEmail());
+        banStatusService.evict(target.getId(), target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
         if (homeMailService != null) {
             homeMailService.sendAccountBannedNotification(target.getId(), target.getEmail(), target.getFirstName());
@@ -876,7 +994,7 @@ public class UserController {
         if (target.isAccountDeleted()) return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
         target.setBannedAt(null);
         userRepository.save(target);
-        banStatusService.evict(target.getEmail());
+        banStatusService.evict(target.getId(), target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
         if (homeMailService != null) {
             String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
@@ -913,7 +1031,7 @@ public class UserController {
             } catch (java.text.ParseException ignored) {}
         }
         userRepository.save(target);
-        banStatusService.evict(target.getEmail());
+        banStatusService.evict(target.getId(), target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
         if (homeMailService != null) {
             String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
@@ -946,7 +1064,7 @@ public class UserController {
         target.setRestrictedAt(null);
         target.setRestrictedUntil(null);
         userRepository.save(target);
-        banStatusService.evict(target.getEmail());
+        banStatusService.evict(target.getId(), target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
         if (homeMailService != null) {
             String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);

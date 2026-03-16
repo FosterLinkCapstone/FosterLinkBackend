@@ -2,7 +2,7 @@ package net.fosterlink.fosterlinkbackend.config.audit;
 
 import net.fosterlink.fosterlinkbackend.config.tokenauth.TokenAuthAspect;
 import net.fosterlink.fosterlinkbackend.entities.AuditLogEntity;
-import net.fosterlink.fosterlinkbackend.repositories.AuditLogRepository;
+import net.fosterlink.fosterlinkbackend.service.AuditLogService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -21,7 +21,7 @@ public class AuditLogAspect {
 
     private static final Logger log = LoggerFactory.getLogger(TokenAuthAspect.class);
 
-    private @Autowired AuditLogRepository auditLogRepository;
+    private @Autowired AuditLogService auditLogService;
 
     @Around("@annotation(auditLog)")
     public Object auditLog(ProceedingJoinPoint joinPoint, AuditLog auditLog) throws Throwable {
@@ -47,7 +47,7 @@ public class AuditLogAspect {
             try {
                 actingUserId = Objects.requireNonNull(JwtUtil.getLoggedInUser()).getDatabaseId();
             } catch (NullPointerException e) {
-                log.warn("Could not audit \"{}\": LoggedInUser {} did not produce a valid database ID",  auditLog.action(), JwtUtil.getLoggedInEmail());
+                log.warn("Could not audit \"{}\": acting user did not produce a valid database ID", auditLog.action());
                 return joinPoint.proceed();
             }
         }
@@ -59,9 +59,15 @@ public class AuditLogAspect {
         auditLogEntity.setTargetUserId(userId);
         auditLogEntity.setCreatedAt(new Date());
 
-        auditLogRepository.save(auditLogEntity);
-
-        return joinPoint.proceed();
+        Object result;
+        try {
+            result = joinPoint.proceed();
+        } catch (Throwable t) {
+            // Do NOT save audit log — operation failed
+            throw t;
+        }
+        auditLogService.saveAsync(auditLogEntity);
+        return result;
     }
 
 }

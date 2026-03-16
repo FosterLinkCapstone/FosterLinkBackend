@@ -48,6 +48,7 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
             approved_by.username AS approved_by_username,
             ag.created_at,
             ag.updated_at,
+            ag.show_contact_info,
             lo.id AS location_id,
             lo.addr_line1,
             lo.addr_line2,
@@ -77,7 +78,7 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
         INNER JOIN user approved_by ON ag.approved_by_id = approved_by.id
         WHERE ag.approved = TRUE AND ag.hidden = FALSE;
     """, nativeQuery = true)
-    @Cacheable(value = "agencyApprovedRows", key = "#pageable.pageNumber")
+    @Cacheable(value = "agencyApprovedRows", key = "#pageable.pageNumber + '-' + #pageable.pageSize")
     List<Object[]> allApprovedAgencies(Pageable pageable);
 
     @Query(value = """
@@ -90,6 +91,7 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
             approved_by.username AS approved_by_username,
             ag.created_at,
             ag.updated_at,
+            ag.show_contact_info,
             lo.id AS location_id,
             lo.addr_line1,
             lo.addr_line2,
@@ -140,6 +142,7 @@ SELECT
     IFNULL(approved_by.username, '') AS approved_by_username,
     ag.created_at,
     ag.updated_at,
+    ag.show_contact_info,
     lo.id AS location_id,
     lo.addr_line1,
     lo.addr_line2,
@@ -194,6 +197,7 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
             IFNULL(approved_by.username, '') AS approved_by_username,
             ag.created_at,
             ag.updated_at,
+            ag.show_contact_info,
             lo.id AS location_id,
             lo.addr_line1,
             lo.addr_line2,
@@ -214,7 +218,7 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
             agent.created_at,
             agent.banned_at,
             agent.restricted_at,
-            ag.hidden_by_username
+            (SELECT u.username FROM `user` u WHERE u.id = ag.hidden_by_user_id) AS hidden_by_username
         FROM agency ag
         INNER JOIN user agent ON ag.agent = agent.id
         INNER JOIN location lo ON ag.address = lo.id
@@ -231,12 +235,12 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE agency SET hidden = true, hidden_by_username = '[account-deletion-pending]' WHERE agent = :userId AND hidden = false", nativeQuery = true)
+    @Query(value = "UPDATE agency SET hidden = true, hidden_by_deletion_request = 1 WHERE agent = :userId AND hidden = false", nativeQuery = true)
     void hideVisibleAgenciesByAgentId(@Param("userId") int userId);
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE agency SET hidden = false, hidden_by_username = NULL WHERE agent = :userId AND hidden_by_username = '[account-deletion-pending]'", nativeQuery = true)
+    @Query(value = "UPDATE agency SET hidden = false, hidden_by_deletion_request = 0 WHERE agent = :userId AND hidden_by_deletion_request = 1", nativeQuery = true)
     void unhidePendingDeletionAgenciesByAgentId(@Param("userId") int userId);
 
     @Modifying
@@ -255,5 +259,11 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
     @Transactional
     @Query(value = "UPDATE agency SET approved = NULL, approved_by_id = NULL, updated_at = :updatedAt WHERE id = :id", nativeQuery = true)
     void setAgencyPending(@Param("id") int id, @Param("updatedAt") java.util.Date updatedAt);
+
+    /** Bulk-deletes agencies by ID. Use after deleting their dependent deletion requests. Then delete locations. */
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query(value = "DELETE FROM agency WHERE id IN :ids", nativeQuery = true)
+    void deleteAllByIds(@Param("ids") List<Integer> ids);
 
 }

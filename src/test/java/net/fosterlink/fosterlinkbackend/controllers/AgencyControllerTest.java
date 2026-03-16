@@ -7,6 +7,7 @@ import net.fosterlink.fosterlinkbackend.mail.service.AgencyMailService;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.models.rest.AgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ApproveAgencyResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PublicAgencyResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyDeletionRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
@@ -103,7 +104,7 @@ class AgencyControllerTest {
     @Test
     void testGetAllAgencies_ReturnsOkWithPaginatedResponse() {
         // Arrange (not logged in: no deletion request info, no current user)
-        List<AgencyResponse> agencies = Collections.singletonList(new AgencyResponse());
+        List<PublicAgencyResponse> agencies = Collections.singletonList(new PublicAgencyResponse());
         when(agencyMapper.getAllApprovedAgencies(eq(0), eq(false), eq(null))).thenReturn(agencies);
         when(agencyMapper.countApprovedWithSearch(isNull(), isNull())).thenReturn(25);
 
@@ -125,7 +126,7 @@ class AgencyControllerTest {
 
     @Test
     void testGetAllAgencies_Admin_IncludesDeletionRequestInfo() {
-        List<AgencyResponse> agencies = Collections.singletonList(new AgencyResponse());
+        List<PublicAgencyResponse> agencies = Collections.singletonList(new PublicAgencyResponse());
         when(agencyMapper.getAllApprovedAgencies(eq(0), eq(true), eq(1))).thenReturn(agencies);
         when(agencyMapper.countApprovedWithSearch(isNull(), isNull())).thenReturn(25);
 
@@ -143,7 +144,7 @@ class AgencyControllerTest {
     @Test
     void testGetAllAgencies_Owner_ReceivesCurrentUserIdForOwnAgencies() {
         // Non-admin owner: includeDeletionRequestForAdmin=false, currentUserId so they see deletion request on their own agencies
-        List<AgencyResponse> agencies = Collections.singletonList(new AgencyResponse());
+        List<PublicAgencyResponse> agencies = Collections.singletonList(new PublicAgencyResponse());
         when(agencyMapper.getAllApprovedAgencies(eq(0), eq(false), eq(2))).thenReturn(agencies);
         when(agencyMapper.countApprovedWithSearch(isNull(), isNull())).thenReturn(25);
 

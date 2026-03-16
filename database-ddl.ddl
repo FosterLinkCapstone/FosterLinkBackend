@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS `user` (
                                       INDEX `idx_user_username` (`username` ASC),
                                       INDEX `idx_user_verified_foster` (`verified_foster` ASC))
     ENGINE = InnoDB
-    AUTO_INCREMENT = 20
+    AUTO_INCREMENT = 21
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS `account_deletion_request` (
                                                                   ON DELETE NO ACTION
                                                                   ON UPDATE NO ACTION)
     ENGINE = InnoDB
-    AUTO_INCREMENT = 9
+    AUTO_INCREMENT = 10
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS `location` (
                                           `addr_line2` VARCHAR(255) NULL DEFAULT NULL,
                                           PRIMARY KEY (`id`))
     ENGINE = InnoDB
-    AUTO_INCREMENT = 10
+    AUTO_INCREMENT = 6
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -101,25 +101,31 @@ CREATE TABLE IF NOT EXISTS `agency` (
                                         `approved` TINYINT(1) NULL DEFAULT NULL,
                                         `approved_by_id` INT(11) NULL DEFAULT NULL,
                                         `hidden` TINYINT(1) NULL DEFAULT '0',
-                                        `hidden_by_username` VARCHAR(50) NULL DEFAULT NULL,
                                         `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                         `updated_at` DATETIME NULL DEFAULT NULL,
+                                        `hidden_by_user_id` INT(11) NULL DEFAULT NULL,
+                                        `hidden_by_deletion_request` TINYINT(4) NOT NULL DEFAULT '0',
                                         PRIMARY KEY (`id`),
                                         INDEX `fk_agency_location1_idx` (`address` ASC),
                                         INDEX `address` (`address` ASC),
                                         INDEX `agent` (`agent` ASC),
                                         INDEX `approved_by_id` (`approved_by_id` ASC),
+                                        INDEX `fk_agency_hidden_by_user` (`hidden_by_user_id` ASC),
                                         CONSTRAINT `agency_ibfk_1`
                                             FOREIGN KEY (`agent`)
                                                 REFERENCES `user` (`id`),
                                         CONSTRAINT `agency_ibfk_2`
                                             FOREIGN KEY (`approved_by_id`)
                                                 REFERENCES `user` (`id`),
+                                        CONSTRAINT `fk_agency_hidden_by_user`
+                                            FOREIGN KEY (`hidden_by_user_id`)
+                                                REFERENCES `user` (`id`)
+                                                ON DELETE SET NULL,
                                         CONSTRAINT `fk_agency_location1`
                                             FOREIGN KEY (`address`)
                                                 REFERENCES `location` (`id`))
     ENGINE = InnoDB
-    AUTO_INCREMENT = 10
+    AUTO_INCREMENT = 6
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -165,9 +171,11 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
                                            `acting_user_id` INT(11) NULL DEFAULT NULL,
                                            `target_user_id` INT(11) NOT NULL,
                                            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                           `expires_at` DATETIME GENERATED ALWAYS AS ((`created_at` + interval 730 day)) STORED,
                                            PRIMARY KEY (`id`),
                                            INDEX `fk_audit_log_user1_idx` (`acting_user_id` ASC),
                                            INDEX `fk_audit_log_user2_idx` (`target_user_id` ASC),
+                                           INDEX `idx_audit_log_expires_at` (`expires_at` ASC),
                                            CONSTRAINT `fk_audit_log_user1`
                                                FOREIGN KEY (`acting_user_id`)
                                                    REFERENCES `user` (`id`)
@@ -179,7 +187,30 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
                                                    ON DELETE NO ACTION
                                                    ON UPDATE NO ACTION)
     ENGINE = InnoDB
-    AUTO_INCREMENT = 18
+    AUTO_INCREMENT = 32
+    DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `consent_record`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `consent_record` (
+                                                `id` BIGINT(20) NOT NULL AUTO_INCREMENT,
+                                                `user_id` INT(11) NOT NULL,
+                                                `consent_type` VARCHAR(50) NOT NULL,
+                                                `granted` TINYINT(1) NOT NULL,
+                                                `timestamp` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                `policy_version` VARCHAR(20) NULL DEFAULT NULL,
+                                                `mechanism` VARCHAR(50) NULL DEFAULT NULL,
+                                                `ip_address` VARCHAR(45) NULL DEFAULT NULL,
+                                                PRIMARY KEY (`id`),
+                                                INDEX `idx_consent_record_user_id` (`user_id` ASC),
+                                                CONSTRAINT `fk_consent_record_user`
+                                                    FOREIGN KEY (`user_id`)
+                                                        REFERENCES `user` (`id`)
+                                                        ON DELETE CASCADE)
+    ENGINE = InnoDB
+    AUTO_INCREMENT = 5
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -238,7 +269,7 @@ CREATE TABLE IF NOT EXISTS `faq` (
                                          FOREIGN KEY (`author`)
                                              REFERENCES `user` (`id`))
     ENGINE = InnoDB
-    AUTO_INCREMENT = 29
+    AUTO_INCREMENT = 30
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -262,7 +293,7 @@ CREATE TABLE IF NOT EXISTS `faq_approval` (
                                                   FOREIGN KEY (`approved_by_id`)
                                                       REFERENCES `user` (`id`))
     ENGINE = InnoDB
-    AUTO_INCREMENT = 30
+    AUTO_INCREMENT = 32
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -280,7 +311,6 @@ CREATE TABLE IF NOT EXISTS `faq_request` (
                                                  FOREIGN KEY (`requested_by`)
                                                      REFERENCES `user` (`id`))
     ENGINE = InnoDB
-    AUTO_INCREMENT = 4
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -329,12 +359,19 @@ CREATE TABLE IF NOT EXISTS `post_metadata` (
                                                `user_deleted` BIT(1) NOT NULL,
                                                `locked` BIT(1) NOT NULL,
                                                `verified` BIT(1) NOT NULL,
-                                               `hidden_by` VARCHAR(100) NULL DEFAULT NULL,
+                                               `deleted_at` DATETIME NULL DEFAULT NULL,
+                                               `hidden_by_user_id` INT(11) NULL DEFAULT NULL,
                                                PRIMARY KEY (`id`),
                                                INDEX `idx_post_metadata_hidden` (`hidden` ASC),
-                                               INDEX `idx_post_metadata_user_deleted` (`user_deleted` ASC))
+                                               INDEX `idx_post_metadata_user_deleted` (`user_deleted` ASC),
+                                               INDEX `idx_post_metadata_deleted_at` (`deleted_at` ASC),
+                                               INDEX `fk_post_metadata_hidden_by_user` (`hidden_by_user_id` ASC),
+                                               CONSTRAINT `fk_post_metadata_hidden_by_user`
+                                                   FOREIGN KEY (`hidden_by_user_id`)
+                                                       REFERENCES `user` (`id`)
+                                                       ON DELETE SET NULL)
     ENGINE = InnoDB
-    AUTO_INCREMENT = 61
+    AUTO_INCREMENT = 62
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -356,7 +393,7 @@ CREATE TABLE IF NOT EXISTS `refresh_token` (
                                                        REFERENCES `user` (`id`)
                                                        ON DELETE CASCADE)
     ENGINE = InnoDB
-    AUTO_INCREMENT = 52
+    AUTO_INCREMENT = 72
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -438,7 +475,7 @@ CREATE TABLE IF NOT EXISTS `thread_reply` (
                                                   FOREIGN KEY (`thread_id`)
                                                       REFERENCES `thread` (`id`))
     ENGINE = InnoDB
-    AUTO_INCREMENT = 12
+    AUTO_INCREMENT = 11
     DEFAULT CHARACTER SET = utf8;
 
 
@@ -512,7 +549,7 @@ CREATE TABLE IF NOT EXISTS `token_auth` (
                                                     ON DELETE NO ACTION
                                                     ON UPDATE NO ACTION)
     ENGINE = InnoDB
-    AUTO_INCREMENT = 22
+    AUTO_INCREMENT = 23
     DEFAULT CHARACTER SET = utf8;
 
 
