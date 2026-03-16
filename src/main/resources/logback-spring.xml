@@ -19,8 +19,8 @@
         </rollingPolicy>
     </appender>
 
-    <!-- Console appender active only in the 'local' and 'dev' Spring profiles -->
-    <springProfile name="local,dev">
+    <!-- Console appender active in 'local', 'dev', and 'staging' Spring profiles -->
+    <springProfile name="local,dev,staging">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <pattern>${LOG_PATTERN}</pattern>
@@ -33,8 +33,8 @@
         </root>
     </springProfile>
 
-    <!-- All other profiles (prod, staging, etc.) log to file only -->
-    <springProfile name="!local &amp; !dev">
+    <!-- All other profiles (prod, etc.) log to file only -->
+    <springProfile name="!local &amp; !dev &amp; !staging">
         <root level="INFO">
             <appender-ref ref="FILE"/>
         </root>
