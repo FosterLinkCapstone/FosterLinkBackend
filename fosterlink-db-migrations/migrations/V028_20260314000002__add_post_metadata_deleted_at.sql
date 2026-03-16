@@ -1,3 +1,6 @@
+ALTER TABLE post_metadata
+    ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL;
+
 -- Backfill: rows already user_deleted=1 start the 90-day clock from migration time.
 UPDATE post_metadata
 SET deleted_at = NOW()

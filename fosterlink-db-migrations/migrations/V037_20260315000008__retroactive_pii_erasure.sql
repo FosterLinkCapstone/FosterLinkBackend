@@ -16,20 +16,23 @@
 -- ============================================================
 
 -- Erase nullable PII columns unconditionally for all deleted accounts.
+-- Note: unsubscribe_token was dropped and replaced by unsubscribe_token_hash in V036.
 UPDATE `user`
 SET
-    first_name         = NULL,
-    last_name          = NULL,
-    phone_number       = NULL,
-    profile_picture_url = NULL,
-    unsubscribe_token  = NULL
+    first_name                  = NULL,
+    last_name                   = NULL,
+    phone_number                = NULL,
+    profile_picture_url         = NULL,
+    unsubscribe_token_hash      = NULL,
+    unsubscribe_token_issued_at = NULL
 WHERE account_deleted = 1
   AND (
-      first_name          IS NOT NULL OR
-      last_name           IS NOT NULL OR
-      phone_number        IS NOT NULL OR
-      profile_picture_url IS NOT NULL OR
-      unsubscribe_token   IS NOT NULL
+      first_name                  IS NOT NULL OR
+      last_name                   IS NOT NULL OR
+      phone_number                IS NOT NULL OR
+      profile_picture_url         IS NOT NULL OR
+      unsubscribe_token_hash      IS NOT NULL OR
+      unsubscribe_token_issued_at IS NOT NULL
   );
 
 -- Pseudonymize email for deleted rows that do not yet carry the
