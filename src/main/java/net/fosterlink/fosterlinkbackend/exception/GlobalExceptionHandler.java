@@ -1,5 +1,7 @@
 package net.fosterlink.fosterlinkbackend.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -18,6 +20,10 @@ import java.util.stream.Collectors;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // #region agent log
+    private static final Logger dbgLog = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    // #endregion
 
     /**
      * Handles validation errors from @Valid annotations on request bodies.
@@ -55,4 +61,17 @@ public class GlobalExceptionHandler {
         error.put("message", fieldError.getDefaultMessage());
         return error;
     }
+
+    // #region agent log
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleAllUnhandledExceptions(Exception ex) {
+        dbgLog.warn("[DBG fc26e1] unhandled_exception type={} message='{}' cause='{}'",
+            ex.getClass().getName(), ex.getMessage(),
+            ex.getCause() != null ? ex.getCause().getMessage() : "null", ex);
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        response.put("error", "Internal Server Error");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+    // #endregion
 }
