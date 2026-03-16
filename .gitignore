@@ -6,6 +6,10 @@ build/
 !**/src/test/**/build/
 .env
 .env.dev
+application-*.properties
+
+# Azure deployment targets contain subscription IDs — must not be committed
+.azure/default/deployment.targets.xml
 
 fosterlink.log
 /logs/*

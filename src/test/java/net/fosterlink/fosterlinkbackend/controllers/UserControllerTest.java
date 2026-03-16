@@ -12,6 +12,7 @@ import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
 import net.fosterlink.fosterlinkbackend.service.BanStatusService;
+import net.fosterlink.fosterlinkbackend.service.ConsentRecordService;
 import net.fosterlink.fosterlinkbackend.service.RefreshTokenService;
 import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
@@ -79,6 +80,9 @@ class UserControllerTest {
     @Mock
     private BanStatusService banStatusService;
 
+    @Mock
+    private ConsentRecordService consentRecordService;
+
     @InjectMocks
     private UserController userController;
 
@@ -121,7 +125,7 @@ class UserControllerTest {
         when(refreshTokenService.createRefreshToken(any(UserEntity.class), anyBoolean())).thenReturn("refreshToken");
 
         // Act
-        ResponseEntity<?> response = userController.registerUser(registerModel, httpServletResponse);
+        ResponseEntity<?> response = userController.registerUser(registerModel, httpServletRequest, httpServletResponse);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -135,7 +139,7 @@ class UserControllerTest {
         when(userRepository.existsByUsernameOrEmail(anyString(), anyString())).thenReturn(true);
 
         // Act
-        ResponseEntity<?> response = userController.registerUser(registerModel, httpServletResponse);
+        ResponseEntity<?> response = userController.registerUser(registerModel, httpServletRequest, httpServletResponse);
 
         // Assert
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
@@ -215,7 +219,7 @@ class UserControllerTest {
 
     @Test
     void testUpdateUser_Success_ReturnsUpdatedUser() {
-        UpdateUserModel updateModel = new UpdateUserModel(1, "Updated", null, null, null, null, null, null);
+        UpdateUserModel updateModel = new UpdateUserModel("Updated", null, null, null, null, null, null);
 
         doNothing().when(banStatusService).evictUserDetails(anyString());
         doNothing().when(banStatusService).evictProfileMetadata(anyInt());
@@ -233,11 +237,10 @@ class UserControllerTest {
 
     @Test
     void testUpdateUser_Unauthorized_ReturnsUnauthorized() {
-        UpdateUserModel updateModel = new UpdateUserModel(2, null, null, null, null, null, null, null);
+        UpdateUserModel updateModel = new UpdateUserModel(null, null, null, null, null, null, null);
 
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
-            when(userRepository.findById(1)).thenReturn(Optional.of(testUser));
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(null);
 
             ResponseEntity<?> response = userController.updateUser(updateModel, httpServletRequest);
 
@@ -249,7 +252,7 @@ class UserControllerTest {
     @Test
     void testDeleteUser_UserExists_ReturnsOk() throws Exception {
         doNothing().when(httpServletRequest).logout();
-        doNothing().when(banStatusService).evict(anyString());
+        doNothing().when(banStatusService).evict(anyLong(), anyString());
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
             when(userRepository.findById(1)).thenReturn(Optional.of(testUser));

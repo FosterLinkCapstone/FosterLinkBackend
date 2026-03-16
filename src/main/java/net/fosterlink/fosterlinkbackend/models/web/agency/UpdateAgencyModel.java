@@ -15,6 +15,10 @@ public class UpdateAgencyModel {
     @Nullable
     private String websiteUrl;
 
+    /** Null means no change. True/false opts in or out of showing contact info publicly. */
+    @Nullable
+    private Boolean showContactInfo;
+
 }
 
 

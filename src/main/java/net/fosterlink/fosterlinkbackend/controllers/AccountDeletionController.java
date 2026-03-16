@@ -193,6 +193,7 @@ public class AccountDeletionController {
     @Transactional
     public ResponseEntity<?> approveDeletion(@RequestParam int requestId) {
         LoggedInUser loggedInAdmin = JwtUtil.getLoggedInUser();
+        if (loggedInAdmin == null) return ResponseEntity.status(403).build();
         UserEntity admin = userRepository.findById(loggedInAdmin.getDatabaseId()).orElse(null);
         if (admin == null) return ResponseEntity.status(403).build();
 

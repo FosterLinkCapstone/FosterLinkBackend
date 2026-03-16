@@ -30,6 +30,10 @@ public class  AgencyEntity {
     private Integer approved_by_id;
     private boolean hidden;
 
+    /** Whether the agent has opted in to showing their email and phone on the public agency page. */
+    @Column(name = "show_contact_info", columnDefinition = "tinyint")
+    private boolean showContactInfo = false;
+
     @Column(name = "hidden_by_user_id")
     @Nullable
     private Integer hiddenByUserId;

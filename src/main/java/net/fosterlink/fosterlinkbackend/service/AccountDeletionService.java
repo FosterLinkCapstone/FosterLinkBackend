@@ -319,13 +319,19 @@ public class AccountDeletionService {
     }
 
     private void anonymizeUser(UserEntity user) {
-        user.setFirstName("Deleted");
-        user.setLastName("Account");
-        user.setUsername("deleted_account_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8));
-        user.setEmail(hashEmail(user.getEmail()));
+        // GDPR Article 17 — erase all PII fields (DB/F-04).
+        // first_name and last_name are nullable in the schema; set to null.
+        user.setFirstName(null);
+        user.setLastName(null);
+        // email is nullable (DDL: VARCHAR(255) NULL DEFAULT NULL) but we use a pseudonym so
+        // the column retains a stable, non-identifying placeholder that satisfies any application
+        // code that reads the field after deletion (e.g. admin user-search queries).
+        user.setEmail("deleted-" + user.getId() + "@deleted.invalid");
         user.setPhoneNumber(null);
+        // Replace the encoded password with a random BCrypt hash so no credential can be derived.
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setProfilePictureUrl(null);
+        user.setUsername("deleted_account_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8));
         user.setIdVerified(false);
         user.setVerifiedFoster(false);
         user.setVerifiedAgencyRep(false);
@@ -333,14 +339,12 @@ public class AccountDeletionService {
         user.setFaqAuthor(false);
         user.setEmailVerified(false);
         user.setAccountDeleted(true);
-        // Revoke all active sessions so the anonymized account cannot be accessed
+        // Revoke all active sessions so the anonymized account cannot be accessed.
         refreshTokenRepository.deleteAllByUserId(user.getId());
-        // Remove mailing list memberships so no future emails are sent to the hashed address
+        // Remove mailing list memberships so no future emails are sent to the pseudonymized address.
         mailingListMemberRepository.deleteAllByUserId(user.getId());
-        // Remove opt-out rows so they do not persist against the anonymized account
+        // Remove opt-out rows so they do not persist against the pseudonymized account.
         dontSendEmailRepository.deleteAllByUserId(user.getId());
-        // Clear the unsubscribe token so no live email link can identify this user
-        user.setUnsubscribeToken(null);
         userRepository.save(user);
 
         banStatusService.evictProfileMetadata(user.getId());

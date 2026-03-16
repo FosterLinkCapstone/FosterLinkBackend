@@ -29,4 +29,7 @@ public class CreateAgencyModel {
     @Valid
     @Schema(description = "The agency's address/location", required = true)
     private LocationInput location;
+
+    @Schema(description = "Whether to show the agent's email and phone number on the public agency page. Defaults to false.")
+    private boolean showContactInfo = false;
 }

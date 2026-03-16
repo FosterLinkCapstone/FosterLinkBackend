@@ -70,7 +70,7 @@ public class TokenAuthService {
         Date expiresAt = new Date(System.currentTimeMillis() + tokenAuthExpirationPeriodMs);
 
         TokenAuthEntity entity = new TokenAuthEntity();
-        entity.setToken(hashedToken);
+        entity.setTokenHash(hashedToken);
         entity.setValidForEndpoint(endpoint);
         entity.setGeneratedByUserId(generatedByUserId);
         entity.setTargetUserId(targetUserId);
@@ -94,7 +94,7 @@ public class TokenAuthService {
         String hashedToken = hashToken(rawToken);
 
         TokenAuthEntity entity = new TokenAuthEntity();
-        entity.setToken(hashedToken);
+        entity.setTokenHash(hashedToken);
         entity.setValidForEndpoint(endpoint);
         entity.setGeneratedByUserId(generatedByUserId);
         entity.setTargetUserId(targetUserId);
@@ -106,25 +106,26 @@ public class TokenAuthService {
     }
 
     /**
-     * Returns the user's unsubscribe token, generating and persisting one if it doesn't exist yet.
-     * Safe to call on every email send; subsequent calls are a no-op if the token is already set.
+     * Generates a fresh persistent unsubscribe token for the user, stores its SHA-256 hash in
+     * user.unsubscribeTokenHash, and returns the raw token for embedding in the email link.
+     * A new token_auth row is created on every call; prior unsubscribe links remain valid because
+     * their token_auth rows are non-expiring and are not removed here.
+     * Safe to call on every email send.
      */
     public String getOrCreateUnsubscribeToken(UserEntity user) {
-        if (user.getUnsubscribeToken() != null) {
-            return user.getUnsubscribeToken();
-        }
         String rawToken = generatePersistentToken(UNSUBSCRIBE_ENDPOINT, user.getId(), user.getId());
-        user.setUnsubscribeToken(rawToken);
+        user.setUnsubscribeTokenHash(hashToken(rawToken));
         userRepository.save(user);
         return rawToken;
     }
 
     /**
-     * Bulk variant of {@link #getOrCreateUnsubscribeToken}: resolves tokens for a list of users
-     * in at most two batch operations (one saveAll for token rows, one saveAll for user rows)
-     * instead of N individual saves.
+     * Bulk variant of {@link #getOrCreateUnsubscribeToken}: generates fresh tokens for all users
+     * in at most two batch operations (one saveAll for token rows, one saveAll for user rows).
+     * Each user always receives a freshly generated raw token for their email link; the hash is
+     * stored in user.unsubscribeTokenHash. Prior token_auth rows remain valid (non-expiring).
      *
-     * @return map of userId → raw unsubscribe token
+     * @return map of userId → raw unsubscribe token (for embedding in email links)
      */
     public Map<Integer, String> getOrCreateUnsubscribeTokens(List<UserEntity> users) {
         Map<Integer, String> result = new HashMap<>();
@@ -132,26 +133,23 @@ public class TokenAuthService {
         List<UserEntity> usersToUpdate = new ArrayList<>();
 
         for (UserEntity user : users) {
-            if (user.getUnsubscribeToken() != null) {
-                result.put(user.getId(), user.getUnsubscribeToken());
-            } else {
-                byte[] bytes = new byte[32];
-                SECURE_RANDOM.nextBytes(bytes);
-                String rawToken = HexFormat.of().formatHex(bytes);
+            byte[] bytes = new byte[32];
+            SECURE_RANDOM.nextBytes(bytes);
+            String rawToken = HexFormat.of().formatHex(bytes);
+            String hash = hashToken(rawToken);
 
-                TokenAuthEntity entity = new TokenAuthEntity();
-                entity.setToken(hashToken(rawToken));
-                entity.setValidForEndpoint(UNSUBSCRIBE_ENDPOINT);
-                entity.setGeneratedByUserId(user.getId());
-                entity.setTargetUserId(user.getId());
-                entity.setExpiresAt(null);
-                entity.setProcessId(null);
-                tokensToSave.add(entity);
+            TokenAuthEntity entity = new TokenAuthEntity();
+            entity.setTokenHash(hash);
+            entity.setValidForEndpoint(UNSUBSCRIBE_ENDPOINT);
+            entity.setGeneratedByUserId(user.getId());
+            entity.setTargetUserId(user.getId());
+            entity.setExpiresAt(null);
+            entity.setProcessId(null);
+            tokensToSave.add(entity);
 
-                user.setUnsubscribeToken(rawToken);
-                usersToUpdate.add(user);
-                result.put(user.getId(), rawToken);
-            }
+            user.setUnsubscribeTokenHash(hash);
+            usersToUpdate.add(user);
+            result.put(user.getId(), rawToken);
         }
 
         if (!tokensToSave.isEmpty()) {

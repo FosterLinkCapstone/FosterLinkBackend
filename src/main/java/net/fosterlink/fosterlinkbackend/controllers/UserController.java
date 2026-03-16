@@ -143,7 +143,6 @@ public class UserController {
             }
     )
     @RateLimit(requests = 5, burstRequests = 4, burstDurationSeconds = 30)
-    @DisallowRestricted
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegisterModel model, HttpServletRequest request, HttpServletResponse response) {
 
@@ -310,7 +309,7 @@ public class UserController {
         if (loggedIn == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         UserEntity user = userRepository.findById(loggedIn.getDatabaseId()).orElse(null);
         boolean logout = false;
-        if (user != null && user.getId() == model.getUserId()) {
+        if (user != null) {
             if (model.getFirstName() != null)  {
                 user.setFirstName(model.getFirstName());
             }
@@ -431,7 +430,7 @@ public class UserController {
                 try {
                     manualLogout(req);
                     userRepository.delete(user);
-                    banStatusService.evict(email);
+                    banStatusService.evict(user.getId(), email);
                     banStatusService.evictProfileMetadata(user.getId());
                     return ResponseEntity.ok().build();
                 } catch (ServletException e) {
@@ -928,6 +927,16 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
+        // 04/F-05: isAdmin and isFaqAuthor are privileged-account signals.
+        // Only expose them to the profile owner or an administrator; mask them for all other callers.
+        LoggedInUser caller = JwtUtil.getLoggedInUser();
+        boolean callerIsOwner = caller != null && caller.getDatabaseId() == userId;
+        boolean callerIsAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
+        if (!callerIsOwner && !callerIsAdmin) {
+            res.setAdmin(false);
+            res.setFaqAuthor(false);
+        }
+
         return ResponseEntity.ok(res);
     }
 
@@ -954,7 +963,7 @@ public class UserController {
         if (target.isAccountDeleted()) return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
         target.setBannedAt(new Date());
         userRepository.save(target);
-        banStatusService.evict(target.getEmail());
+        banStatusService.evict(target.getId(), target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
         if (homeMailService != null) {
             homeMailService.sendAccountBannedNotification(target.getId(), target.getEmail(), target.getFirstName());
@@ -985,7 +994,7 @@ public class UserController {
         if (target.isAccountDeleted()) return ResponseEntity.status(HttpStatus.CONFLICT).body("Cannot modify a deleted account.");
         target.setBannedAt(null);
         userRepository.save(target);
-        banStatusService.evict(target.getEmail());
+        banStatusService.evict(target.getId(), target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
         if (homeMailService != null) {
             String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
@@ -1022,7 +1031,7 @@ public class UserController {
             } catch (java.text.ParseException ignored) {}
         }
         userRepository.save(target);
-        banStatusService.evict(target.getEmail());
+        banStatusService.evict(target.getId(), target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
         if (homeMailService != null) {
             String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);
@@ -1055,7 +1064,7 @@ public class UserController {
         target.setRestrictedAt(null);
         target.setRestrictedUntil(null);
         userRepository.save(target);
-        banStatusService.evict(target.getEmail());
+        banStatusService.evict(target.getId(), target.getEmail());
         banStatusService.evictProfileMetadata(target.getId());
         if (homeMailService != null) {
             String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(target);

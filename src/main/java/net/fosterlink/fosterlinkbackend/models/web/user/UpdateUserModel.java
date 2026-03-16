@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import net.fosterlink.fosterlinkbackend.models.validation.ValidPassword;
 import lombok.AllArgsConstructor;
@@ -13,13 +12,8 @@ import org.hibernate.validator.constraints.URL;
 
 @Data
 @AllArgsConstructor
-@Schema(description = "The data required to update a user.", requiredProperties = {"userId"})
+@Schema(description = "The data required to update a user.")
 public class UpdateUserModel {
-    // REQUIRED
-    @Schema(description = "The internal ID of the user to update.")
-    @Positive
-    private int userId;
-
     // OPTIONAL
     @Size(min=1, max=50)
     @Nullable

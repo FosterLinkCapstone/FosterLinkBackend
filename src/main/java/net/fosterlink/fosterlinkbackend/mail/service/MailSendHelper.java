@@ -23,9 +23,12 @@ public class MailSendHelper {
 
     private static final Logger log = LoggerFactory.getLogger(MailSendHelper.class);
 
-    private static final String UNSUBSCRIBE_ACTION = "/token-action?action=unsubscribe&token=%s&userId=%d";
-    private static final String VERIFY_EMAIL_ACTION = "/token-action?action=verify-email&token=%s&userId=%d";
-    private static final String RESET_PASSWORD_ACTION = "/reset-password?token=%s&userId=%d";
+    // GAP-02: tokens are delivered via URL fragments (#) rather than query parameters (?).
+    // Fragments are never transmitted to the server in HTTP request logs or CDN logs,
+    // so the token is not visible to server-side observers even if the Referer header leaks.
+    private static final String UNSUBSCRIBE_ACTION = "/token-action#action=unsubscribe&token=%s&userId=%d";
+    private static final String VERIFY_EMAIL_ACTION = "/token-action#action=verify-email&token=%s&userId=%d";
+    private static final String RESET_PASSWORD_ACTION = "/reset-password#token=%s&userId=%d";
     private static final String SETTINGS_PATH = "/settings";
 
     private final JavaMailSender mailSender;

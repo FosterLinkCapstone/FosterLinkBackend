@@ -10,6 +10,7 @@ import net.fosterlink.fosterlinkbackend.models.rest.UpdateEmailPreferencesReques
 import net.fosterlink.fosterlinkbackend.repositories.DontSendEmailRepository;
 import net.fosterlink.fosterlinkbackend.repositories.EmailTypeRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
+import net.fosterlink.fosterlinkbackend.service.ConsentRecordService;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,8 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,6 +45,12 @@ class MailControllerTest {
 
     @Mock
     private DontSendEmailRepository dontSendEmailRepository;
+
+    @Mock
+    private ConsentRecordService consentRecordService;
+
+    @Mock
+    private HttpServletRequest httpServletRequest;
 
     @InjectMocks
     private MailController mailController;
@@ -131,7 +140,7 @@ class MailControllerTest {
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
 
-            ResponseEntity<?> response = mailController.updateEmailPreferences(request);
+            ResponseEntity<?> response = mailController .updateEmailPreferences(request, httpServletRequest);
 
             assertEquals(HttpStatus.OK, response.getStatusCode());
             verify(dontSendEmailRepository, times(1)).save(any(DontSendEmailEntity.class));
@@ -149,7 +158,7 @@ class MailControllerTest {
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
 
-            ResponseEntity<?> response = mailController.updateEmailPreferences(request);
+            ResponseEntity<?> response = mailController.updateEmailPreferences(request, httpServletRequest);
 
             assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
             verify(dontSendEmailRepository, never()).save(any());
@@ -165,7 +174,7 @@ class MailControllerTest {
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
 
-            ResponseEntity<?> response = mailController.unsubscribeAll();
+            ResponseEntity<?> response = mailController.unsubscribeAll(httpServletRequest);
 
             assertEquals(HttpStatus.OK, response.getStatusCode());
             verify(userRepository, times(1)).save(testUser);
@@ -182,7 +191,7 @@ class MailControllerTest {
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
 
-            ResponseEntity<?> response = mailController.resubscribe();
+            ResponseEntity<?> response = mailController.resubscribe(httpServletRequest);
 
             assertEquals(HttpStatus.OK, response.getStatusCode());
             verify(userRepository, times(1)).save(testUser);

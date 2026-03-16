@@ -14,10 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class RefreshTokenService {
@@ -41,7 +42,9 @@ public class RefreshTokenService {
      * @return the plain token value (UUID string) -- only time this is available unhashed; caller must set it in the response cookie
      */
     public String createRefreshToken(UserEntity user, boolean longLived) {
-        String plainToken = UUID.randomUUID().toString();
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        String plainToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         String hash = sha256(plainToken);
 
         long expiryMs = longLived ? refreshTokenExpirationLongMs : refreshTokenExpirationMs;

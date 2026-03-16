@@ -40,8 +40,8 @@ public class AdminUserMailService {
                                          int targetUserId, String rawToken, String frontendUrl,
                                          String recipientUnsubscribeToken, int recipientId) {
         String baseUrl = frontendUrl != null ? frontendUrl : mailSendHelper.getFrontendUrl();
-        String approveUrl = baseUrl + "/token-action?action=approve&token=" + rawToken + "&userId=" + targetUserId;
-        String denyUrl    = baseUrl + "/token-action?action=deny&token="    + rawToken + "&userId=" + targetUserId;
+        String approveUrl = baseUrl + "/token-action#action=approve&token=" + rawToken + "&userId=" + targetUserId;
+        String denyUrl    = baseUrl + "/token-action#action=deny&token="    + rawToken + "&userId=" + targetUserId;
 
         Context context = new Context(Locale.getDefault());
         context.setVariable("founderName", mailSendHelper.greetingName(founderFirstName));
@@ -58,8 +58,8 @@ public class AdminUserMailService {
                                            int targetUserId, String rawToken, String frontendUrl,
                                            String recipientUnsubscribeToken, int recipientId) {
         String baseUrl = frontendUrl != null ? frontendUrl : mailSendHelper.getFrontendUrl();
-        String approveUrl = baseUrl + "/token-action?action=approve-revoke&token=" + rawToken + "&userId=" + targetUserId;
-        String denyUrl    = baseUrl + "/token-action?action=deny-revoke&token="    + rawToken + "&userId=" + targetUserId;
+        String approveUrl = baseUrl + "/token-action#action=approve-revoke&token=" + rawToken + "&userId=" + targetUserId;
+        String denyUrl    = baseUrl + "/token-action#action=deny-revoke&token="    + rawToken + "&userId=" + targetUserId;
 
         Context context = new Context(Locale.getDefault());
         context.setVariable("founderName", mailSendHelper.greetingName(founderFirstName));

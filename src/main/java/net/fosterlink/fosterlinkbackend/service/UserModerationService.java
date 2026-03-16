@@ -36,7 +36,7 @@ public class UserModerationService {
         if (expired.isEmpty()) return;
         userRepository.clearExpiredRestrictions(now);
         for (UserEntity user : expired) {
-            banStatusService.evict(user.getEmail());
+            banStatusService.evict(user.getId(), user.getEmail());
             banStatusService.evictProfileMetadata(user.getId());
         }
     }

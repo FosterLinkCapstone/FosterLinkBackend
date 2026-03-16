@@ -529,7 +529,7 @@ public class ThreadController {
     )
     @RateLimit(requests = 15, burstRequests = 3, burstDurationSeconds = 10, keyType = "USER")
     @DisallowRestricted
-    @PostMapping("/replies")
+    @PostMapping("/replies/create")
     public ResponseEntity<?> replyTo(@Valid @RequestBody ReplyToThreadModel reply) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn != null) {
@@ -1104,7 +1104,7 @@ public class ThreadController {
     @DisallowRestricted
     @PutMapping("/tags")
     @Transactional
-    public ResponseEntity<?> updateTags(@RequestBody UpdateTagsModel updateTagsModel) {
+    public ResponseEntity<?> updateTags(@Valid @RequestBody UpdateTagsModel updateTagsModel) {
         var threadOpt = threadRepository.findByIdWithRelations(updateTagsModel.getThreadId());
         if (threadOpt.isEmpty()) return ResponseEntity.status(404).build();
         if (!JwtUtil.isLoggedIn()) return ResponseEntity.status(403).build();

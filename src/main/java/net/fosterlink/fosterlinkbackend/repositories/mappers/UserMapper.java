@@ -2,6 +2,7 @@ package net.fosterlink.fosterlinkbackend.repositories.mappers;
 
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PublicUserResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
@@ -33,6 +34,28 @@ public class UserMapper {
         author.setCreatedAt((Date) row[8]);
         author.setBanned(row[9] != null);
         author.setRestricted(row[10] != null);
+        return author;
+    }
+
+    /**
+     * Maps the same 11-column user projection as {@link #mapUserResponse} but returns a
+     * {@link PublicUserResponse} that omits the {@code banned} and {@code restricted} fields.
+     * Use this for public-facing content responses (thread lists, reply lists, agency listing).
+     * Resolves 04/F-06.
+     */
+    public PublicUserResponse mapPublicUserResponse(Object[] row) {
+        PublicUserResponse author = new PublicUserResponse();
+        author.setId((Integer) row[0]);
+        author.setFullName(row[1] + " " + row[2]);
+        author.setUsername((String) row[3]);
+        author.setProfilePictureUrl((String) row[4]);
+        author.setVerified(
+                (Boolean) row[5] || // verified_foster
+                        (Boolean) row[6] || // faq_author
+                        (Boolean) row[7]    // verified_agency_rep
+        );
+        author.setCreatedAt((Date) row[8]);
+        // row[9] (banned_at) and row[10] (restricted_at) intentionally omitted
         return author;
     }
 
