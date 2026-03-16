@@ -4,14 +4,12 @@
     <property name="LOG_FILE" value="logs/fosterlink"/>
     <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"/>
 
-    <!-- Rolling file appender: 50 MB per file, 90-day history, 1 GB total cap -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_FILE}.log</file>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <!-- Daily rollover; %i increments within a day when the size cap is hit -->
             <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
             <maxFileSize>50MB</maxFileSize>
             <maxHistory>90</maxHistory>
@@ -19,22 +17,22 @@
         </rollingPolicy>
     </appender>
 
-    <!-- Console appender active in 'local', 'dev', and 'staging' Spring profiles -->
-    <springProfile name="local,dev,staging">
-        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder>
-                <pattern>${LOG_PATTERN}</pattern>
-            </encoder>
-        </appender>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
 
+    <!-- Console + file for local, dev, staging -->
+    <springProfile name="local,dev,staging">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="FILE"/>
         </root>
     </springProfile>
 
-    <!-- All other profiles (prod, etc.) log to file only -->
-    <springProfile name="!local &amp; !dev &amp; !staging">
+    <!-- File only for prod (and any other profile) -->
+    <springProfile name="prod">
         <root level="INFO">
             <appender-ref ref="FILE"/>
         </root>
