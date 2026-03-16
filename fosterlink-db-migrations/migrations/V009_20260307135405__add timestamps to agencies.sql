@@ -1,0 +1,1 @@
+ALTER TABLE `agency` ADD `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `hidden_by_username`, ADD `updated_at` DATETIME NULL AFTER `created_at`;

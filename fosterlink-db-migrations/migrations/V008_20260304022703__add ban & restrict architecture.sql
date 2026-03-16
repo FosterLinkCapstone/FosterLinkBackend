@@ -1,0 +1,1 @@
+ALTER TABLE `user` ADD `banned_at` DATETIME NULL AFTER `account_deleted`, ADD `restricted_at` DATETIME NULL AFTER `banned_at`, ADD `restricted_until` DATETIME NULL AFTER `restricted_at`;

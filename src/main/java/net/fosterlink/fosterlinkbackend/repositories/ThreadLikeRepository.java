@@ -2,6 +2,7 @@ package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.ThreadLikeEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
@@ -24,4 +25,14 @@ public interface ThreadLikeRepository extends CrudRepository<ThreadLikeEntity, I
 
     @Transactional
     void deleteByThread(int thread);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM thread_like WHERE user = :userId", nativeQuery = true)
+    void deleteByUserId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM thread_like WHERE thread IN :threadIds", nativeQuery = true)
+    void deleteByThreadIdIn(@Param("threadIds") List<Integer> threadIds);
 }

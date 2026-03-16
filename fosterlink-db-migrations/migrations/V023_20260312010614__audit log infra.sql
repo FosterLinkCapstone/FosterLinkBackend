@@ -1,0 +1,37 @@
+-- MySQL Workbench Synchronization
+-- Generated: 2026-03-12 01:05
+-- Model: New Model
+-- Version: 1.0
+-- Project: Name of the project
+-- Author: ds029
+
+SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
+SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
+SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+
+CREATE TABLE IF NOT EXISTS `fosterlink_dev`.`audit_log` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `action` VARCHAR(200) NOT NULL,
+  `acting_user_id` INT(11) NOT NULL,
+  `target_user_id` INT(11) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `fk_audit_log_user1_idx` (`acting_user_id` ASC),
+  INDEX `fk_audit_log_user2_idx` (`target_user_id` ASC),
+  CONSTRAINT `fk_audit_log_user1`
+    FOREIGN KEY (`acting_user_id`)
+    REFERENCES `fosterlink_dev`.`user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_audit_log_user2`
+    FOREIGN KEY (`target_user_id`)
+    REFERENCES `fosterlink_dev`.`user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+SET SQL_MODE=@OLD_SQL_MODE;
+SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;

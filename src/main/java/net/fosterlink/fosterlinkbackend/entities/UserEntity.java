@@ -49,10 +49,26 @@ public class UserEntity {
     private boolean faqAuthor = false;
     /** Whether the user's email has been verified. */
     private boolean emailVerified = false;
+    /** Whether the user has requested account deletion (account is locked during pending deletion). */
+    @Column(name = "account_deleted", columnDefinition = "tinyint")
+    private boolean accountDeleted = false;
+    @Column(name = "unsubscribe_all", columnDefinition = "tinyint")
+    private boolean unsubscribeAll = false;
+    /** SHA-256 hash of the unsubscribe token. Used as a sentinel to detect whether a token_auth row exists for this user. Null until first email send. */
+    @Column(name = "unsubscribe_token_hash")
+    private String unsubscribeTokenHash;
+    /** Token version for session invalidation; JWTs carry this in claims and are rejected when it is incremented. */
+    private int authTokenVersion = 1;
     /** When the account was created. */
     private Date createdAt;
     /** When the account was last updated. */
     private Date updatedAt;
+    @Nullable
+    private Date bannedAt;
+    @Nullable
+    private Date restrictedAt;
+    @Nullable
+    private Date restrictedUntil;
 
     /** FAQs authored by this user. */
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "author")

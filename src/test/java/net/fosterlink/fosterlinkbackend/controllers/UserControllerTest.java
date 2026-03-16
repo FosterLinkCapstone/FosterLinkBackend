@@ -1,6 +1,7 @@
 package net.fosterlink.fosterlinkbackend.controllers;
 
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
+import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.models.rest.AgentInfoResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PrivilegesResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ProfileMetadataResponse;
@@ -10,6 +11,10 @@ import net.fosterlink.fosterlinkbackend.models.web.user.UserLoginModelEmail;
 import net.fosterlink.fosterlinkbackend.models.web.user.UserRegisterModel;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
 import net.fosterlink.fosterlinkbackend.repositories.mappers.UserMapper;
+import net.fosterlink.fosterlinkbackend.service.BanStatusService;
+import net.fosterlink.fosterlinkbackend.service.ConsentRecordService;
+import net.fosterlink.fosterlinkbackend.service.RefreshTokenService;
+import net.fosterlink.fosterlinkbackend.service.TokenAuthService;
 import net.fosterlink.fosterlinkbackend.security.JwtTokenProvider;
 import net.fosterlink.fosterlinkbackend.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +35,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 import java.util.*;
@@ -57,15 +63,31 @@ class UserControllerTest {
     private HttpServletRequest httpServletRequest;
 
     @Mock
+    private HttpServletResponse httpServletResponse;
+
+    @Mock
     private HttpSession httpSession;
 
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
+    @Mock
+    private TokenAuthService tokenAuthService;
+
+    @Mock
+    private BanStatusService banStatusService;
+
+    @Mock
+    private ConsentRecordService consentRecordService;
+
     @InjectMocks
     private UserController userController;
 
     private UserEntity testUser;
+    private LoggedInUser loggedInUser;
     private UserRegisterModel registerModel;
     private UserLoginModelEmail loginModel;
 
@@ -86,7 +108,8 @@ class UserControllerTest {
         registerModel.setPassword("password123");
         registerModel.setPhoneNumber("9876543210");
 
-        loginModel = new UserLoginModelEmail("test@example.com", "password123");
+        loginModel = new UserLoginModelEmail("test@example.com", "password123", false);
+        loggedInUser = new LoggedInUser(1, "test@example.com", 0, "encodedPassword", Set.of(), true, true, true, true, false);
     }
 
     @Test
@@ -98,16 +121,16 @@ class UserControllerTest {
         when(authenticationManager.authenticate(any(Authentication.class)))
                 .thenReturn(mock(Authentication.class));
         when(jwtTokenProvider.generateToken(any(Authentication.class))).thenReturn("testToken");
+        when(tokenAuthService.getOrCreateUnsubscribeToken(any(UserEntity.class))).thenReturn("token");
+        when(refreshTokenService.createRefreshToken(any(UserEntity.class), anyBoolean())).thenReturn("refreshToken");
 
-        try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            // Act
-            ResponseEntity<?> response = userController.registerUser(registerModel);
+        // Act
+        ResponseEntity<?> response = userController.registerUser(registerModel, httpServletRequest, httpServletResponse);
 
-            // Assert
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            verify(userRepository, times(1)).save(any(UserEntity.class));
-        }
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        verify(userRepository, times(1)).save(any(UserEntity.class));
     }
 
     @Test
@@ -116,7 +139,7 @@ class UserControllerTest {
         when(userRepository.existsByUsernameOrEmail(anyString(), anyString())).thenReturn(true);
 
         // Act
-        ResponseEntity<?> response = userController.registerUser(registerModel);
+        ResponseEntity<?> response = userController.registerUser(registerModel, httpServletRequest, httpServletResponse);
 
         // Assert
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
@@ -130,9 +153,11 @@ class UserControllerTest {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(auth);
         when(jwtTokenProvider.generateToken(any(Authentication.class))).thenReturn("testToken");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
+        when(refreshTokenService.createRefreshToken(any(UserEntity.class), anyBoolean())).thenReturn("refreshToken");
 
         // Act
-        ResponseEntity<?> response = userController.loginUser(loginModel);
+        ResponseEntity<?> response = userController.loginUser(loginModel, httpServletResponse);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -146,7 +171,7 @@ class UserControllerTest {
                 .thenThrow(new BadCredentialsException("Bad credentials"));
 
         // Act
-        ResponseEntity<?> response = userController.loginUser(loginModel);
+        ResponseEntity<?> response = userController.loginUser(loginModel, httpServletResponse);
 
         // Assert
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
@@ -159,7 +184,7 @@ class UserControllerTest {
                 .thenThrow(new RuntimeException("Some error"));
 
         // Act
-        ResponseEntity<?> response = userController.loginUser(loginModel);
+        ResponseEntity<?> response = userController.loginUser(loginModel, httpServletResponse);
 
         // Assert
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
@@ -167,15 +192,12 @@ class UserControllerTest {
 
     @Test
     void testGetUserInfo_UserExists_ReturnsUserResponse() {
-        // Arrange
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("test@example.com");
-            when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
+            when(userRepository.findById(1)).thenReturn(Optional.of(testUser));
 
-            // Act
             ResponseEntity<?> response = userController.getUserInfo();
 
-            // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertNotNull(response.getBody());
             assertInstanceOf(UserResponse.class, response.getBody());
@@ -184,34 +206,30 @@ class UserControllerTest {
 
     @Test
     void testGetUserInfo_UserNotFound_ReturnsNotFound() {
-        // Arrange
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("nonexistent@example.com");
-            when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(null);
+            LoggedInUser unknown = new LoggedInUser(99, "nonexistent@example.com", 0, "", Set.of(), true, true, true, true, false);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(unknown);
+            when(userRepository.findById(99)).thenReturn(Optional.empty());
 
-            // Act
             ResponseEntity<?> response = userController.getUserInfo();
 
-            // Assert
             assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         }
     }
 
     @Test
     void testUpdateUser_Success_ReturnsUpdatedUser() {
-        // Arrange
-        UpdateUserModel updateModel = new UpdateUserModel(1, "Updated", null, null, null, null, null, null);
+        UpdateUserModel updateModel = new UpdateUserModel("Updated", null, null, null, null, null, null);
 
+        doNothing().when(banStatusService).evictUserDetails(anyString());
+        doNothing().when(banStatusService).evictProfileMetadata(anyInt());
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("test@example.com");
-            when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
+            when(userRepository.findById(1)).thenReturn(Optional.of(testUser));
             when(userRepository.save(any(UserEntity.class))).thenReturn(testUser);
 
-            // Act
             ResponseEntity<?> response = userController.updateUser(updateModel, httpServletRequest);
 
-            // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
             verify(userRepository, times(1)).save(any(UserEntity.class));
         }
@@ -219,35 +237,29 @@ class UserControllerTest {
 
     @Test
     void testUpdateUser_Unauthorized_ReturnsUnauthorized() {
-        // Arrange
-        UpdateUserModel updateModel = new UpdateUserModel(2, null, null, null, null, null, null, null); // Different user ID
+        UpdateUserModel updateModel = new UpdateUserModel(null, null, null, null, null, null, null);
 
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("test@example.com");
-            when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(null);
 
-            // Act
             ResponseEntity<?> response = userController.updateUser(updateModel, httpServletRequest);
 
-            // Assert
             assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
             verify(userRepository, never()).save(any(UserEntity.class));
         }
     }
 
     @Test
-    void testDeleteUser_UserExists_ReturnsOk() {
-        // Arrange
+    void testDeleteUser_UserExists_ReturnsOk() throws Exception {
+        doNothing().when(httpServletRequest).logout();
+        doNothing().when(banStatusService).evict(anyLong(), anyString());
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("test@example.com");
-            when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
+            when(userRepository.findById(1)).thenReturn(Optional.of(testUser));
             doNothing().when(userRepository).delete(any(UserEntity.class));
 
-            // Act
-            ResponseEntity<?> response = userController.deleteUser();
+            ResponseEntity<?> response = userController.deleteUser(httpServletRequest);
 
-            // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
             verify(userRepository, times(1)).delete(testUser);
         }
@@ -255,15 +267,12 @@ class UserControllerTest {
 
     @Test
     void testDeleteUser_UserNotFound_ReturnsNotFound() {
-        // Arrange
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("nonexistent@example.com");
-            when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(null);
+            jwtUtilMock.when(JwtUtil::getLoggedInUser).thenReturn(loggedInUser);
+            when(userRepository.findById(1)).thenReturn(Optional.empty());
 
-            // Act
-            ResponseEntity<?> response = userController.deleteUser();
+            ResponseEntity<?> response = userController.deleteUser(httpServletRequest);
 
-            // Assert
             assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
             verify(userRepository, never()).delete(any(UserEntity.class));
         }
@@ -271,20 +280,14 @@ class UserControllerTest {
 
     @Test
     void testGetPrivileges_UserLoggedIn_ReturnsPrivileges() {
-        // Arrange
-        testUser.setAdministrator(true);
-        testUser.setFaqAuthor(true);
-        testUser.setVerifiedAgencyRep(true);
-
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("test@example.com");
-            when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
+            jwtUtilMock.when(() -> JwtUtil.hasAuthority("ADMINISTRATOR")).thenReturn(true);
+            jwtUtilMock.when(() -> JwtUtil.hasAuthority("FAQ_AUTHOR")).thenReturn(true);
+            jwtUtilMock.when(() -> JwtUtil.hasAuthority("AGENCY_REP")).thenReturn(true);
 
-            // Act
             ResponseEntity<?> response = userController.getPrivileges();
 
-            // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertNotNull(response.getBody());
             assertInstanceOf(PrivilegesResponse.class, response.getBody());
@@ -297,14 +300,11 @@ class UserControllerTest {
 
     @Test
     void testGetPrivileges_UserNotLoggedIn_ReturnsDefaultPrivileges() {
-        // Arrange
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(false);
 
-            // Act
             ResponseEntity<?> response = userController.getPrivileges();
 
-            // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertNotNull(response.getBody());
             assertInstanceOf(PrivilegesResponse.class, response.getBody());
@@ -317,18 +317,12 @@ class UserControllerTest {
 
     @Test
     void testIsUserAdmin_UserIsAdmin_ReturnsTrue() {
-        // Arrange
-        testUser.setAdministrator(true);
-
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(true);
-            jwtUtilMock.when(JwtUtil::getLoggedInEmail).thenReturn("test@example.com");
-            when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
+            jwtUtilMock.when(() -> JwtUtil.hasAuthority("ADMINISTRATOR")).thenReturn(true);
 
-            // Act
             ResponseEntity<?> response = userController.isUserAdmin();
 
-            // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertEquals(true, response.getBody());
         }
@@ -336,14 +330,11 @@ class UserControllerTest {
 
     @Test
     void testIsUserAdmin_UserNotLoggedIn_ReturnsFalse() {
-        // Arrange
         try (MockedStatic<JwtUtil> jwtUtilMock = mockStatic(JwtUtil.class)) {
             jwtUtilMock.when(JwtUtil::isLoggedIn).thenReturn(false);
 
-            // Act
             ResponseEntity<?> response = userController.isUserAdmin();
 
-            // Assert
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertEquals(false, response.getBody());
         }
@@ -396,7 +387,7 @@ class UserControllerTest {
         doNothing().when(httpSession).invalidate();
 
         // Act
-        ResponseEntity<?> response = userController.logout(httpServletRequest);
+        ResponseEntity<?> response = userController.logout(httpServletRequest, httpServletResponse);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -409,7 +400,7 @@ class UserControllerTest {
         when(httpServletRequest.getSession(false)).thenReturn(null);
 
         // Act
-        ResponseEntity<?> response = userController.logout(httpServletRequest);
+        ResponseEntity<?> response = userController.logout(httpServletRequest, httpServletResponse);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -417,16 +408,13 @@ class UserControllerTest {
 
     @Test
     void testGetProfileMetadata_UserExists_ReturnsProfileMetadata() {
-        // Arrange
         ProfileMetadataResponse metadata = new ProfileMetadataResponse();
         metadata.setUserId(1);
-        when(userRepository.existsById(1)).thenReturn(true);
+        when(userRepository.findById(1)).thenReturn(Optional.of(testUser));
         when(userMapper.mapProfileMetadataResponse(1)).thenReturn(metadata);
 
-        // Act
         ResponseEntity<?> response = userController.getProfileMetadata(1);
 
-        // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertInstanceOf(ProfileMetadataResponse.class, response.getBody());
@@ -435,27 +423,21 @@ class UserControllerTest {
 
     @Test
     void testGetProfileMetadata_UserNotFound_ReturnsNotFound() {
-        // Arrange
-        when(userRepository.existsById(999)).thenReturn(false);
+        when(userRepository.findById(999)).thenReturn(Optional.empty());
 
-        // Act
         ResponseEntity<?> response = userController.getProfileMetadata(999);
 
-        // Assert
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         verify(userMapper, never()).mapProfileMetadataResponse(anyInt());
     }
 
     @Test
     void testGetProfileMetadata_UserExistsButNoProfileData_ReturnsNotFound() {
-        // Arrange
-        when(userRepository.existsById(1)).thenReturn(true);
+        when(userRepository.findById(1)).thenReturn(Optional.of(testUser));
         when(userMapper.mapProfileMetadataResponse(1)).thenReturn(null);
 
-        // Act
         ResponseEntity<?> response = userController.getProfileMetadata(1);
 
-        // Assert
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
 }

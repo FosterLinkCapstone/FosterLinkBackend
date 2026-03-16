@@ -1,0 +1,1 @@
+ALTER TABLE `user` ADD `auth_token_version` INT NOT NULL DEFAULT '0' AFTER `unsubscribe_token`;

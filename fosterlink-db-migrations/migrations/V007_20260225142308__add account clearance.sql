@@ -1,0 +1,1 @@
+ALTER TABLE account_deletion_request ADD COLUMN clear_account BOOLEAN NOT NULL DEFAULT FALSE;

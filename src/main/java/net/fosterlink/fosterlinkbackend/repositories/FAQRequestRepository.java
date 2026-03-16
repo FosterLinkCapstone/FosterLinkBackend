@@ -1,8 +1,11 @@
 package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,5 +20,18 @@ public interface FAQRequestRepository extends CrudRepository<FAQRequestEntity, I
         LIMIT 100;
     """, nativeQuery = true)
     List<Object[]> getAllRequests();
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM faq_request WHERE requested_by = :userId", nativeQuery = true)
+    void deleteByRequestedById(@Param("userId") int userId);
+
+    @Query("SELECT fr FROM FAQRequestEntity fr WHERE fr.requestedById = :requestedById ORDER BY fr.createdAt DESC")
+    List<FAQRequestEntity> findByRequestedByIdOrderByCreatedAtDesc(@Param("requestedById") int requestedById);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM faq_request WHERE created_at < NOW() - INTERVAL 90 DAY", nativeQuery = true)
+    int deleteOlderThan90Days();
 
 }

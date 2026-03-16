@@ -4,6 +4,8 @@ import jakarta.annotation.Nullable;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.Date;
+
 /**
  * JPA entity for the post_metadata table. Holds visibility and moderation state for a
  * thread or reply (hidden, user-deleted, locked, verified, and who hid it).
@@ -25,8 +27,16 @@ public class PostMetadataEntity {
     private boolean locked;
     /** Whether the post is verified. */
     private boolean verified;
-    /** Username of the admin/system that hid the post. Null if hidden by user or not hidden. */
+    /** ID of the admin/system user that hid the post. Null if hidden by the author or not hidden. */
+    @Column(name = "hidden_by_user_id")
     @Nullable
-    private String hidden_by;
+    private Integer hiddenByUserId;
+    /**
+     * Timestamp when user_deleted was set to true. Null if the post has never been user-deleted.
+     * PostCleanupScheduler hard-deletes rows where user_deleted=true AND deleted_at is 90+ days ago.
+     */
+    @Nullable
+    @Column(name = "deleted_at")
+    private Date deletedAt;
 
 }

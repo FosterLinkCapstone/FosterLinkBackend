@@ -1,7 +1,7 @@
 package net.fosterlink.fosterlinkbackend.repositories.mappers;
 
-import net.fosterlink.fosterlinkbackend.models.rest.GetHiddenThreadsResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.HiddenThreadResponse;
+import net.fosterlink.fosterlinkbackend.models.rest.PaginatedResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.PostMetadataResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
 import net.fosterlink.fosterlinkbackend.models.rest.UserResponse;
@@ -61,20 +61,20 @@ public class ThreadMapper {
         List<Object[]> results = threadRepository.findRandomWeightedThreadsForUser(userId);
         return results.stream().map(this::mapThread).collect(Collectors.toCollection(ArrayList::new));
     }
-    public GetHiddenThreadsResponse getHiddenThreadsAdminDeleted(int pageNumber, int userId) {
+    public PaginatedResponse<HiddenThreadResponse> getHiddenThreadsAdminDeleted(int pageNumber, int userId) {
         List<Object[]> results = threadRepository.getHiddenThreadsAdminDeleted(userId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         List<HiddenThreadResponse> threads = results.stream().map(this::mapHiddenThread).collect(Collectors.toList());
         int totalCount = threadRepository.countHiddenThreadsAdminDeleted();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return new GetHiddenThreadsResponse(threads, totalPages);
+        return new PaginatedResponse<>(threads, totalPages);
     }
 
-    public GetHiddenThreadsResponse getHiddenThreadsUserDeleted(int pageNumber, int userId) {
+    public PaginatedResponse<HiddenThreadResponse> getHiddenThreadsUserDeleted(int pageNumber, int userId) {
         List<Object[]> results = threadRepository.getHiddenThreadsUserDeleted(userId, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
         List<HiddenThreadResponse> threads = results.stream().map(this::mapHiddenThread).collect(Collectors.toList());
         int totalCount = threadRepository.countHiddenThreadsUserDeleted();
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;
-        return new GetHiddenThreadsResponse(threads, totalPages);
+        return new PaginatedResponse<>(threads, totalPages);
     }
 
     public HiddenThreadResponse findHiddenThreadById(int threadId, int userId) {
@@ -104,20 +104,20 @@ public class ThreadMapper {
         response.setCommentCount(((Number) row[7]).intValue());
         response.setUserPostCount(((Number) row[8]).intValue());
 
-        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 18));
+        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 20));
         response.setAuthor(author);
 
         PostMetadataResponse postMetadata = new PostMetadataResponse(
-                ((Number) row[18]).intValue(),
-                toBoolean(row[19]),
-                toBoolean(row[20]),
+                ((Number) row[20]).intValue(),
                 toBoolean(row[21]),
                 toBoolean(row[22]),
-                (String) row[23]
+                toBoolean(row[23]),
+                toBoolean(row[24]),
+                (String) row[25]
         );
         response.setPostMetadata(postMetadata);
 
-        String tagsString = (String) row[24];
+        String tagsString = (String) row[26];
         if (tagsString != null && !tagsString.isEmpty()) {
             response.setTags(Arrays.asList(tagsString.split(",")));
         } else {
@@ -140,11 +140,11 @@ public class ThreadMapper {
         response.setCommentCount(((Number) row[7]).intValue());
         response.setUserPostCount(((Number) row[8]).intValue());
 
-        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 18));
+        UserResponse author = userMapper.mapUserResponse(Arrays.copyOfRange(row, 9, 20));
 
         response.setAuthor(author);
 
-        String tagsString = (String) row[18];
+        String tagsString = (String) row[20];
         if (tagsString != null && !tagsString.isEmpty()) {
             response.setTags(Arrays.asList(tagsString.split(",")));
         } else {

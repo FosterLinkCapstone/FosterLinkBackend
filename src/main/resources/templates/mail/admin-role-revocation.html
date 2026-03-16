@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Administrator Role Revocation Request</title>
+</head>
+<body style="margin:0;padding:0;background-color:#6b7280;font-family:system-ui,-apple-system,sans-serif;">
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#6b7280;padding:24px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+
+                    <!-- Main content area -->
+                    <tr>
+                        <td style="background-color:#6b7280;padding:32px 40px 24px 40px;color:#ffffff;">
+                            <p style="font-size:1.1em;margin:0 0 20px 0;">
+                                Hi <span th:text="${founderName}">there</span>,
+                            </p>
+                            <p style="margin:0 0 16px 0;line-height:1.6;">
+                                An administrator has requested that the <strong>Administrator</strong> role be revoked from the
+                                FosterLink user <strong th:text="'@' + ${targetUsername}">@username</strong>.
+                            </p>
+                            <p style="margin:0 0 16px 0;line-height:1.6;">
+                                As a founder, your approval is required before this role can be removed.
+                                Please review this request and click <strong>Approve</strong> to revoke the role,
+                                or <strong>Deny</strong> to reject all pending revocation requests for this user.
+                            </p>
+                            <p style="margin:0 0 32px 0;line-height:1.6;">
+                                This link will expire in 24 hours.
+                            </p>
+                            <p style="margin:0;font-weight:bold;font-size:1.05em;">
+                                Thanks,<br/>The FosterLink Team
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Approve / Deny buttons -->
+                    <tr>
+                        <td style="padding:0;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td width="50%" style="background-color:#16a34a;padding:0;">
+                                        <a th:href="${approveUrl}"
+                                           style="display:block;padding:28px 20px;text-align:center;color:#ffffff;font-weight:bold;font-size:1em;text-decoration:none;">
+                                            Approve Revocation
+                                        </a>
+                                    </td>
+                                    <td width="50%" style="background-color:#dc2626;padding:0;">
+                                        <a th:href="${denyUrl}"
+                                           style="display:block;padding:28px 20px;text-align:center;color:#ffffff;font-weight:bold;font-size:1em;text-decoration:none;">
+                                            Deny
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color:#4b5563;padding:16px 40px;text-align:center;color:#d1d5db;font-size:0.8em;line-height:1.5;">
+                            This email is system-generated, please do not reply. If you have any questions
+                            or concerns, please feel free to contact <a href="mailto:admin@fosterlink.net" style="color:#d1d5db;">admin@fosterlink.net</a>
+                        </td>
+                    </tr>
+
+                    <!-- Unsubscribe -->
+                    <tr>
+                        <td style="background-color:#6b7280;padding:12px 40px;text-align:center;">
+                            <a th:href="${unsubscribeUrl}" style="color:#d1d5db;font-size:0.8em;text-decoration:underline;">Unsubscribe</a>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>
