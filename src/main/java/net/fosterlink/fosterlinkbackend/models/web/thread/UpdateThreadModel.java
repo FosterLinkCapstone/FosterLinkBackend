@@ -25,6 +25,5 @@ public class UpdateThreadModel {
     @Nullable
     @Size(min=5, max=10000)
     private String content;
-    // TODO enable changing tags
 
 }

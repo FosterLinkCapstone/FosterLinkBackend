@@ -9,6 +9,9 @@ on:
       - staging
       - main
   workflow_dispatch:
+
+permissions: {}
+
 jobs:
   build:
 
@@ -26,10 +29,10 @@ jobs:
       MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Set up Java version
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12
         with:
           java-version: '17'
           distribution: 'microsoft'
@@ -48,7 +51,7 @@ jobs:
 
 
       - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: java-app
           path: '${{ github.workspace }}/build/libs/*.jar'
@@ -63,7 +66,7 @@ jobs:
 
     steps:
       - name: Download artifact from build job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806
         with:
           name: java-app
           path: ./artifact
@@ -75,7 +78,7 @@ jobs:
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@de617f46172a906d0617bb0e50d81e9e3aec24c8
         with:
           app-name: ${{ vars.ENV_NAME }}
           publish-profile: ${{ secrets.PUBLISH_PROFILE }}

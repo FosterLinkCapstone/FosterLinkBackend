@@ -1,7 +1,10 @@
 package net.fosterlink.fosterlinkbackend.entities;
 
+import jakarta.annotation.Nullable;
 import jakarta.persistence.*;
 import lombok.Data;
+
+import java.util.Date;
 
 /**
  * JPA entity for the agency table. Represents a foster care agency with contact/location
@@ -10,7 +13,7 @@ import lombok.Data;
 @Entity
 @Data
 @Table(name="agency")
-public class AgencyEntity {
+public class  AgencyEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,6 +28,23 @@ public class AgencyEntity {
     private Boolean approved;
     /** ID of the user (administrator) who approved or denied. */
     private Integer approved_by_id;
+    private boolean hidden;
+
+    /** Whether the agent has opted in to showing their email and phone on the public agency page. */
+    @Column(name = "show_contact_info", columnDefinition = "tinyint")
+    private boolean showContactInfo = false;
+
+    @Column(name = "hidden_by_user_id")
+    @Nullable
+    private Integer hiddenByUserId;
+
+    @Column(name = "hidden_by_deletion_request", columnDefinition = "tinyint")
+    private boolean hiddenByDeletionRequest;
+
+    @Column(name = "created_at", nullable = false)
+    private Date createdAt;
+    @Column(name = "updated_at")
+    private Date updatedAt;
 
     /** Physical address of the agency. */
     @OneToOne(fetch = FetchType.LAZY)

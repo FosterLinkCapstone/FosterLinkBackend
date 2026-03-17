@@ -28,7 +28,7 @@ public class ThreadReplyMapper {
         response.setLikeCount(((Number) row[4]).intValue());
         response.setLiked((Integer) row[5] == 1);
 
-        UserResponse userResponse = userMapper.mapUserResponse(Arrays.copyOfRange(row, 6, 15));
+        UserResponse userResponse = userMapper.mapUserResponse(Arrays.copyOfRange(row, 6, 17));
 
         response.setAuthor(userResponse);
 
@@ -38,14 +38,13 @@ public class ThreadReplyMapper {
     private ThreadReplyResponse mapThreadReplyWithMetadata(Object[] row) {
         ThreadReplyResponse response = mapThreadReply(row);
 
-        // row[15] = pm.id, [16] = pm.hidden, [17] = pm.user_deleted, [18] = pm.locked, [19] = pm.verified, [20] = pm.hidden_by
         PostMetadataResponse metadata = new PostMetadataResponse(
-            ((Number) row[15]).intValue(),
-            (Boolean) row[16],
-            (Boolean) row[17],
+            ((Number) row[17]).intValue(),
             (Boolean) row[18],
             (Boolean) row[19],
-            (String) row[20]
+            (Boolean) row[20],
+            (Boolean) row[21],
+            (String) row[22]
         );
         response.setPostMetadata(metadata);
 

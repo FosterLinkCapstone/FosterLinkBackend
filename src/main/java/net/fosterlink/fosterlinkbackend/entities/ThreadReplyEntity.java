@@ -29,11 +29,11 @@ public class ThreadReplyEntity {
     /** ID of the parent thread. */
     private int thread_id;
     /** Visibility and moderation metadata for this reply. */
-    @ManyToOne(cascade = CascadeType.ALL)
+    @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "metadata")
     private PostMetadataEntity metadata;
-    /** User who wrote the reply. */
-    @ManyToOne(cascade = CascadeType.ALL)
+    /** User who wrote the reply. Do not cascade delete—deleting a reply must not delete the user. */
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "posted_by")
     private UserEntity postedBy;
 }

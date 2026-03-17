@@ -1,8 +1,11 @@
 package net.fosterlink.fosterlinkbackend.repositories;
 
+import jakarta.transaction.Transactional;
 import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
 import net.fosterlink.fosterlinkbackend.models.rest.ThreadResponse;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
@@ -29,15 +32,12 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         """, nativeQuery = true)
     List<Object[]> visibleThreadCountsForUsers(@Param("userIds") List<Integer> userIds);
 
+    // NOTE: postMetadata and postedBy are now LAZY. This native query returns ThreadEntity shells;
+    // callers must not access postMetadata or postedBy outside a transaction, or use a JPQL variant with JOIN FETCH.
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.title LIKE CONCAT('%', :title, '%')", nativeQuery = true)
     List<ThreadEntity> findByTitleContaining(@Param("title") String title, Pageable pageable);
 
-    @Query(value = """
-        SELECT t.* FROM thread t 
-        INNER JOIN post_metadata pm ON t.metadata = pm.id 
-        WHERE t.posted_by = :userId AND pm.hidden = false
-        """, nativeQuery = true)
-    List<ThreadEntity> findByPostedByAndPostMetadataHiddenFalse(@Param("userId") int userId);
+    // findByPostedByAndPostMetadataHiddenFalse (native) removed — dead code superseded by findByPostedByAndPostMetadataHiddenFalseWithRelations.
 
     @Query("SELECT DISTINCT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.postedBy.id = :userId AND t.postMetadata.hidden = false")
     List<ThreadEntity> findByPostedByAndPostMetadataHiddenFalseWithRelations(@Param("userId") int userId, Pageable pageable);
@@ -45,12 +45,21 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
     @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.id = :threadId")
     java.util.Optional<ThreadEntity> findByIdWithRelations(@Param("threadId") int threadId);
 
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.id IN :threadIds")
+    List<ThreadEntity> findAllByIdWithPostedBy(@Param("threadIds") List<Integer> threadIds);
+
     @Query("SELECT DISTINCT t FROM ThreadEntity t JOIN FETCH t.postedBy JOIN FETCH t.postMetadata WHERE t.id IN :threadIds AND t.postMetadata.hidden = false")
     List<ThreadEntity> findAllByIdWithRelations(@Param("threadIds") List<Integer> threadIds, Pageable pageable);
+    // NOTE: postMetadata and postedBy are now LAZY. This native query returns ThreadEntity shells;
+    // callers must not access postMetadata or postedBy outside a transaction, or use a JPQL variant with JOIN FETCH.
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.content LIKE CONCAT('%', :content, '%')", nativeQuery = true)
     List<ThreadEntity> findByContentContaining(@Param("content") String content, Pageable pageable);
+    // NOTE: postMetadata and postedBy are now LAZY. Callers that access those fields must be within @Transactional,
+    // or this query must be replaced with a JPQL JOIN FETCH variant.
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false AND t.created_at BETWEEN :start AND :end", nativeQuery = true)
     List<ThreadEntity> findByCreatedAtBetween(@Param("start") Date start, @Param("end") Date end);
+    // NOTE: postMetadata and postedBy are now LAZY. Callers that access those fields must be within @Transactional,
+    // or this query must be replaced with a JPQL JOIN FETCH variant.
     @Query(value = "SELECT t.* FROM thread t INNER JOIN post_metadata pm ON t.metadata = pm.id WHERE pm.hidden = false;", nativeQuery = true)
     List<ThreadEntity> getAll();
 
@@ -81,6 +90,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -112,13 +123,14 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY (
         COALESCE(likes.like_count, 0) * 0.4 +
         (DATEDIFF(NOW(), t.created_at) / -365.0) * 0.6 +
         RAND() * 0.3
     ) DESC
-    LIMIT 10
+    LIMIT 3
     """, nativeQuery = true)
     List<Object[]> findRandomWeightedThreadsForUser(int userId);
 
@@ -142,6 +154,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -173,7 +187,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY t.created_at DESC
     """, nativeQuery = true)
     List<Object[]> findThreadsForUser(int userId, int authorId, Pageable pageable);
@@ -198,6 +213,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -229,7 +246,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY (
         COALESCE(likes.like_count, 0) * 0.4 +
         (DATEDIFF(NOW(), t.created_at) / -365.0) * 0.6 +
@@ -259,6 +277,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -290,7 +310,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY t.created_at DESC
    """, nativeQuery = true)
     List<Object[]> findThreadsNewest(@Param("userId") int userId, Pageable pageable);
@@ -315,6 +336,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -346,7 +369,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY t.created_at ASC
     """, nativeQuery = true)
     List<Object[]> findThreadsOldest(@Param("userId") int userId, Pageable pageable);
@@ -371,6 +395,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -402,7 +428,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     ORDER BY COALESCE(likes.like_count, 0) DESC, t.created_at DESC;
     """, nativeQuery = true)
     List<Object[]> findThreadsMostLiked(@Param("userId") int userId, Pageable pageable);
@@ -427,12 +454,14 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         pm.id as pm_id,
         pm.hidden as pm_hidden,
         pm.user_deleted as pm_user_deleted,
         pm.locked as pm_locked,
         pm.verified as pm_verified,
-        pm.hidden_by,
+        (SELECT u2.username FROM `user` u2 WHERE u2.id = pm.hidden_by_user_id) AS hidden_by,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -465,7 +494,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
-             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
+             u.banned_at, u.restricted_at,
+             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by_user_id
     ORDER BY t.created_at DESC
     """, nativeQuery = true)
     List<Object[]> getHiddenThreadsAdminDeleted(@Param("userId") int userId, Pageable pageable);
@@ -485,6 +515,47 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         WHERE pm.hidden = true AND pm.user_deleted = true
         """, nativeQuery = true)
     int countHiddenThreadsUserDeleted();
+
+    @Query(value = "SELECT id FROM thread WHERE posted_by = :userId", nativeQuery = true)
+    List<Integer> findIdsByPostedById(@Param("userId") int userId);
+
+    /** Bulk delete by id to avoid JPA loading the entity and trying to null out thread_tag/thread_like FKs (which are NOT NULL). */
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM ThreadEntity t WHERE t.id = :id")
+    void deleteThreadById(@Param("id") int id);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread t ON t.metadata = pm.id SET pm.hidden = true, pm.user_deleted = true, pm.deleted_at = NOW() WHERE t.posted_by = :userId AND pm.hidden = false", nativeQuery = true)
+    void hideVisibleThreadsByUserId(@Param("userId") int userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE post_metadata pm INNER JOIN thread t ON t.metadata = pm.id SET pm.hidden = false, pm.user_deleted = false, pm.deleted_at = NULL WHERE t.posted_by = :userId AND pm.user_deleted = true", nativeQuery = true)
+    void unhideUserHiddenThreadsByUserId(@Param("userId") int userId);
+
+    /** Returns thread IDs whose post_metadata has been user-deleted for 90+ days. */
+    @Query(value = """
+            SELECT t.id FROM thread t
+            INNER JOIN post_metadata pm ON t.metadata = pm.id
+            WHERE pm.user_deleted = 1 AND pm.deleted_at < DATE_SUB(NOW(), INTERVAL 90 DAY)
+            """, nativeQuery = true)
+    List<Integer> findIdsEligibleForHardDelete();
+
+    /** Loads threads by IDs with post_metadata eagerly fetched so JPA cascade removes the metadata on delete. */
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.id IN :ids")
+    List<ThreadEntity> findAllByIdWithPostMetadata(@Param("ids") List<Integer> ids);
+
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.postedBy.id = :userId")
+    List<ThreadEntity> findAllByPostedById(@Param("userId") int userId);
+
+    @Query("SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.postedBy.id = :userId ORDER BY t.createdAt DESC")
+    List<ThreadEntity> findAllByPostedByIdWithRelations(@Param("userId") int userId);
+
+    @Query(value = "SELECT t FROM ThreadEntity t JOIN FETCH t.postMetadata JOIN FETCH t.postedBy WHERE t.postedBy.id = :userId ORDER BY t.createdAt DESC",
+            countQuery = "SELECT COUNT(t) FROM ThreadEntity t WHERE t.postedBy.id = :userId")
+    Page<ThreadEntity> findAllByPostedByIdWithRelationsPaginated(@Param("userId") int userId, Pageable pageable);
 
     @Query(value = """
     SELECT
@@ -506,12 +577,14 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         pm.id as pm_id,
         pm.hidden as pm_hidden,
         pm.user_deleted as pm_user_deleted,
         pm.locked as pm_locked,
         pm.verified as pm_verified,
-        pm.hidden_by,
+        (SELECT u2.username FROM `user` u2 WHERE u2.id = pm.hidden_by_user_id) AS hidden_by,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -544,7 +617,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
-             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
+             u.banned_at, u.restricted_at,
+             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by_user_id
     ORDER BY t.created_at DESC
     """, nativeQuery = true)
     List<Object[]> getHiddenThreadsUserDeleted(@Param("userId") int userId, Pageable pageable);
@@ -569,6 +643,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -600,7 +676,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              likes.like_count, replies.comment_count, upc.user_post_count,
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
-             u.faq_author, u.verified_agency_rep, u.created_at
+             u.faq_author, u.verified_agency_rep, u.created_at,
+             u.banned_at, u.restricted_at
     LIMIT 1
 """, nativeQuery = true)
     List<Object[]> findByIdResponse(@Param("threadId") int threadId, int userId); // -1 if no user
@@ -625,12 +702,14 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
         u.faq_author,
         u.verified_agency_rep,
         u.created_at as author_created_at,
+        u.banned_at,
+        u.restricted_at,
         pm.id as pm_id,
         pm.hidden as pm_hidden,
         pm.user_deleted as pm_user_deleted,
         pm.locked as pm_locked,
         pm.verified as pm_verified,
-        pm.hidden_by,
+        (SELECT u2.username FROM `user` u2 WHERE u2.id = pm.hidden_by_user_id) AS hidden_by,
         GROUP_CONCAT(tt.name SEPARATOR ',') as tags
     FROM thread t
     INNER JOIN user u ON t.posted_by = u.id
@@ -663,7 +742,8 @@ public interface ThreadRepository extends CrudRepository<ThreadEntity, Integer> 
              u.id, u.first_name, u.last_name,
              u.username, u.profile_picture_url, u.verified_foster,
              u.faq_author, u.verified_agency_rep, u.created_at,
-             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by
+             u.banned_at, u.restricted_at,
+             pm.id, pm.hidden, pm.user_deleted, pm.locked, pm.verified, pm.hidden_by_user_id
     LIMIT 1
     """, nativeQuery = true)
     List<Object[]> findHiddenThreadById(@Param("threadId") int threadId, @Param("userId") int userId);

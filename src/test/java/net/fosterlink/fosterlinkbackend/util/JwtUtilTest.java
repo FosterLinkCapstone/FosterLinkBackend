@@ -22,7 +22,7 @@ class JwtUtilTest {
         SecurityContextHolder.clearContext();
         Set<String> authorities = new HashSet<>();
         authorities.add("USER");
-        testUser = new LoggedInUser(1, "test@example.com", "password", authorities, true, true, true, true);
+        testUser = new LoggedInUser(1, "test@example.com", 0, "password", authorities, true, true, true, true, false);
     }
 
     @Test

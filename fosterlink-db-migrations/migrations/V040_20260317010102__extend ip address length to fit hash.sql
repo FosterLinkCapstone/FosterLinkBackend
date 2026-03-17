@@ -1,0 +1,1 @@
+ALTER TABLE consent_record MODIFY COLUMN ip_address VARCHAR(64);
