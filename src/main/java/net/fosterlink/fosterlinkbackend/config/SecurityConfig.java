@@ -11,27 +11,20 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.ForwardedHeaderFilter;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 @Configuration
 public class SecurityConfig {
-
-    // #region agent log
-    private static final Logger dbgLog = LoggerFactory.getLogger(SecurityConfig.class);
-    // #endregion
 
     // Endpoints accessible without authentication. All other /v1/** paths require at least
     // a valid session token; fine-grained role checks are enforced at the method level via
@@ -74,26 +67,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> {
-                    CookieCsrfTokenRepository tokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
-                    CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
-                    requestHandler.setCsrfRequestAttributeName(null);
-                    csrf.csrfTokenRepository(tokenRepository)
-                            .csrfTokenRequestHandler(requestHandler)
-                            .ignoringRequestMatchers("/v1/users/login")
-                            .ignoringRequestMatchers("/v1/token/**")
-                            .ignoringRequestMatchers("/v1/users/forgotPassword", "/v1/users/resetPassword");
-                })
+                // CSRF is disabled because authentication is stateless (JWT via Authorization
+                // header, not browser-managed cookies), so CSRF attacks do not apply.
+                .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
-                    // #region agent log
-                    String cause = authException != null ? authException.getClass().getSimpleName() + ": " + authException.getMessage() : "null";
-                    dbgLog.warn("[DBG fc26e1] auth_entry_point_401 uri={} {} cause='{}' hasCsrfHeader={} origin={}",
-                        request.getMethod(), request.getRequestURI(), cause,
-                        request.getHeader("X-XSRF-TOKEN") != null,
-                        request.getHeader("Origin"));
-                    // #endregion
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 }))
                 .authorizeHttpRequests(auth ->

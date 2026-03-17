@@ -10,8 +10,6 @@ import net.fosterlink.fosterlinkbackend.models.auth.CachedUserData;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.service.BanStatusService;
 import net.fosterlink.fosterlinkbackend.service.UserService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,10 +21,6 @@ import java.io.IOException;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
-
-    // #region agent log
-    private static final Logger dbgLog = LoggerFactory.getLogger(JwtAuthFilter.class);
-    // #endregion
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -43,25 +37,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }*/
 
-        // #region agent log
-        String _dbgAuthHeader = request.getHeader("Authorization");
-        dbgLog.warn("[DBG fc26e1] jwtfilter_entry uri={} {} hasAuthHeader={} origin={}",
-            request.getMethod(), request.getRequestURI(),
-            _dbgAuthHeader != null,
-            request.getHeader("Origin"));
-        // #endregion
-
         String jwt = getJwtFromRequest(request);
 
-        // #region agent log
-        dbgLog.warn("[DBG fc26e1] jwt_extracted hasJwt={}", jwt != null);
-        // #endregion
-
         Claims claims = jwt != null ? jwtTokenProvider.parseClaimsOrNull(jwt) : null;
-
-        // #region agent log
-        dbgLog.warn("[DBG fc26e1] claims_parsed claimsNull={} jwtWasPresent={}", claims == null, jwt != null);
-        // #endregion
 
         if (claims != null) {
             String username = claims.getSubject();
@@ -70,18 +48,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // Reject tokens that are missing the tv (token version) claim entirely —
             // a missing claim cannot be safely compared and indicates a legacy or malformed token.
             if (tv == null) {
-                // #region agent log
-                dbgLog.warn("[DBG fc26e1] tv_claim_missing username={}", username);
-                // #endregion
                 filterChain.doFilter(request, response);
                 return;
             }
 
             CachedUserData cached = userService.loadCachedData(username);
             if (cached == null) {
-                // #region agent log
-                dbgLog.warn("[DBG fc26e1] user_not_found username={}", username);
-                // #endregion
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -91,13 +63,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // #region agent log
-            boolean tvMatch = cached.authTokenVersion() == tv;
-            dbgLog.warn("[DBG fc26e1] tv_version_check username={} cachedTv={} tokenTv={} match={}",
-                username, cached.authTokenVersion(), tv, tvMatch);
-            // #endregion
-
-            if (tvMatch) {
+            if (cached.authTokenVersion() == tv) {
                 // Construct a LoggedInUser without the BCrypt hash — the hash is not needed
                 // after authentication; storing it in a heap-visible object would expose it
                 // to heap dumps. The password field is set to "" intentionally (GAP-06).
@@ -108,10 +74,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(loggedIn, null, loggedIn.getAuthorities());
                 auth.setDetails(new WebAuthenticationDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
-
-                // #region agent log
-                dbgLog.warn("[DBG fc26e1] auth_set_success username={} userId={}", username, cached.databaseId());
-                // #endregion
             }
         }
         filterChain.doFilter(request, response);
