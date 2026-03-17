@@ -64,7 +64,12 @@ import org.springframework.web.bind.annotation.*;
 
 import org.springframework.http.MediaType;
 
+import javax.naming.NamingException;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
 import java.util.Date;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -149,6 +154,9 @@ public class UserController {
         if (userRepository.existsByUsernameOrEmail(model.getUsername(), model.getEmail())) {
             return ResponseEntity.status(409).build();
         }
+        if (!hasMxRecord(model.getEmail())) {
+            return ResponseEntity.status(422).build();
+        }
         UserEntity userEntity = new UserEntity();
         userEntity.setUsername(model.getUsername());
 
@@ -179,7 +187,6 @@ public class UserController {
 
             String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(dbEntity);
             if (userMailService != null) {
-                userMailService.sendThankYouForRegistering(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName(), unsubscribeToken);
                 String verifyToken = tokenAuthService.generateToken(
                         net.fosterlink.fosterlinkbackend.service.TokenAuthService.VERIFY_EMAIL_ENDPOINT,
                         dbEntity.getId(), dbEntity.getId(), "verify_email_" + dbEntity.getEmail() + "_" + dbEntity.getId());
@@ -1107,5 +1114,17 @@ public class UserController {
         return null;
     }
 
+    private static boolean hasMxRecord(String email) {
+        String domain = email.substring(email.indexOf('@') + 1);
+        try {
+            Hashtable<String, String> env = new Hashtable<>();
+            env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
+            DirContext ctx = new InitialDirContext(env);
+            Attributes attrs = ctx.getAttributes(domain, new String[]{"MX"});
+            return attrs.get("MX") != null && attrs.get("MX").size() > 0;
+        } catch (NamingException e) {
+            return false;
+        }
+    }
 
 }
