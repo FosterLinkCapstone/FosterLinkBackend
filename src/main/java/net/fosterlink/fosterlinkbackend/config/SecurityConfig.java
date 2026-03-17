@@ -3,6 +3,7 @@ package net.fosterlink.fosterlinkbackend.config;
 import net.fosterlink.fosterlinkbackend.security.JwtAuthFilter;
 import net.fosterlink.fosterlinkbackend.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -58,6 +59,9 @@ public class SecurityConfig {
             "/v1/maps/static"
     };
 
+    @Value("${app.frontendUrl}")
+    private String frontendUrl;
+
     @Autowired private UserService userService;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtAuthFilter authFilter;
@@ -93,6 +97,10 @@ public class SecurityConfig {
                             // Deny everything else — unknown paths must not silently pass (GAP-07).
                             .anyRequest().denyAll()
                         )
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.disable())
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("frame-ancestors 'self' " + frontendUrl)))
                 .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(forwardedHeaderFilter, WebAsyncManagerIntegrationFilter.class);
         return http.build();

@@ -927,16 +927,6 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
-        // 04/F-05: isAdmin and isFaqAuthor are privileged-account signals.
-        // Only expose them to the profile owner or an administrator; mask them for all other callers.
-        LoggedInUser caller = JwtUtil.getLoggedInUser();
-        boolean callerIsOwner = caller != null && caller.getDatabaseId() == userId;
-        boolean callerIsAdmin = JwtUtil.hasAuthority("ADMINISTRATOR");
-        if (!callerIsOwner && !callerIsAdmin) {
-            res.setAdmin(false);
-            res.setFaqAuthor(false);
-        }
-
         return ResponseEntity.ok(res);
     }
 

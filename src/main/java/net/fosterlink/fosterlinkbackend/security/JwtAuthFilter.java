@@ -2,7 +2,7 @@ package net.fosterlink.fosterlinkbackend.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import io.jsonwebtoken.Claims;
@@ -83,23 +83,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
-        }
-        // Fallback: read JWT from the swagger_auth cookie. The frontend Swagger
-        // proxy page sets this cookie so the browser includes the JWT in iframe
-        // navigations and sub-resource requests where custom headers cannot be
-        // set. The cookie is SameSite=Strict on the frontend, limiting CSRF
-        // surface. The JWT itself is the same token the user already holds, so
-        // accepting it here does not grant any additional privileges.
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie c : cookies) {
-                if ("swagger_auth".equals(c.getName())) {
-                    String value = c.getValue();
-                    if (value != null && !value.isEmpty()) {
-                        return value;
-                    }
-                }
-            }
         }
         return null;
     }
