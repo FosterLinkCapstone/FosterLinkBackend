@@ -40,6 +40,11 @@ public class EmailPreferenceAspect {
 
     @Around("@annotation(checkEmailPreference)")
     public Object checkPreferenceAndProceed(ProceedingJoinPoint joinPoint, CheckEmailPreference checkEmailPreference) throws Throwable {
+        // Non-disableable emails (e.g. email verification, registration) must always be sent
+        if (!checkEmailPreference.canDisable()) {
+            return joinPoint.proceed();
+        }
+
         int userId = resolveUserId(joinPoint, checkEmailPreference);
         if (userId <= 0) {
             log.warn("CheckEmailPreference: could not resolve userId for method {}, proceeding anyway", joinPoint.getSignature().getName());

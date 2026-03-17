@@ -36,7 +36,7 @@ public class ConsentRecordEntity {
     private String mechanism;
 
     @Nullable
-    @Column(name = "ip_address", length = 45)
+    @Column(name = "ip_address", length = 64)
     private String ipAddress;
 
 }

@@ -323,6 +323,11 @@ public class AccountDeletionService {
         // first_name and last_name are nullable in the schema; set to null.
         user.setFirstName(null);
         user.setLastName(null);
+        // Capture the original email before replacing it so we can evict the userDetails
+        // cache entry keyed by that address. Without this eviction, a new account registered
+        // with the same email within the 2-minute TTL would inherit the stale databaseId and
+        // appear to be the deleted user on every subsequent authenticated request.
+        String originalEmail = user.getEmail();
         // email is nullable (DDL: VARCHAR(255) NULL DEFAULT NULL) but we use a pseudonym so
         // the column retains a stable, non-identifying placeholder that satisfies any application
         // code that reads the field after deletion (e.g. admin user-search queries).
@@ -347,6 +352,7 @@ public class AccountDeletionService {
         dontSendEmailRepository.deleteAllByUserId(user.getId());
         userRepository.save(user);
 
+        banStatusService.evictUserDetails(originalEmail);
         banStatusService.evictProfileMetadata(user.getId());
     }
 

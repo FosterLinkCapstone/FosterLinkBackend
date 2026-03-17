@@ -41,7 +41,7 @@ public class UserService implements UserDetailsService {
      * request does not hit the database. The BCrypt password hash is excluded from
      * the cached value — ban status is handled separately by BanStatusService.
      */
-    @Cacheable(value = "userDetails", key = "#email")
+    @Cacheable(value = "userDetails", key = "#email", unless = "#result == null")
     public CachedUserData loadCachedData(String email) {
         UserEntity userEntity = userRepository.findByEmail(email);
         if (userEntity == null) return null;

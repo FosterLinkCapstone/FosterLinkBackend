@@ -171,19 +171,21 @@ public class UserController {
         consentRecordService.record((long) dbEntity.getId(), "PRIVACY", true, "1.0", "REGISTRATION_CHECKBOX", clientIp);
         consentRecordService.record((long) dbEntity.getId(), "MARKETING", model.isConsentMarketing(), "1.0", "REGISTRATION_CHECKBOX", clientIp);
 
-        String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(dbEntity);
-        if (userMailService != null) {
-            userMailService.sendThankYouForRegistering(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName(), unsubscribeToken);
-            String verifyToken = tokenAuthService.generateToken(
-                    net.fosterlink.fosterlinkbackend.service.TokenAuthService.VERIFY_EMAIL_ENDPOINT,
-                    dbEntity.getId(), dbEntity.getId(), "verify_email_" + dbEntity.getEmail() + "_" + dbEntity.getId());
-            userMailService.sendVerificationEmail(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName(), verifyToken, unsubscribeToken);
-        }
         try {
             String jwt = loginUser(dbEntity.getEmail(), model.getPassword());
             // Registration never has stayLoggedIn; always issue a session-scoped refresh token
             String refreshToken = refreshTokenService.createRefreshToken(dbEntity, false);
             setRefreshCookie(response, refreshToken, false);
+
+            String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(dbEntity);
+            if (userMailService != null) {
+                userMailService.sendThankYouForRegistering(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName(), unsubscribeToken);
+                String verifyToken = tokenAuthService.generateToken(
+                        net.fosterlink.fosterlinkbackend.service.TokenAuthService.VERIFY_EMAIL_ENDPOINT,
+                        dbEntity.getId(), dbEntity.getId(), "verify_email_" + dbEntity.getEmail() + "_" + dbEntity.getId());
+                userMailService.sendVerificationEmail(dbEntity.getId(), dbEntity.getEmail(), dbEntity.getFirstName(), verifyToken, unsubscribeToken);
+            }
+
             return ResponseEntity.ok(Map.of("token", jwt));
         } catch (Exception e) {
             log.error("Authentication following registration failed for user ID {}", dbEntity.getId());
