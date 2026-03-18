@@ -1,11 +1,13 @@
 package net.fosterlink.fosterlinkbackend.config;
 
 import net.fosterlink.fosterlinkbackend.security.JwtAuthFilter;
+import net.fosterlink.fosterlinkbackend.security.MetricsTokenFilter;
 import net.fosterlink.fosterlinkbackend.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -65,10 +67,24 @@ public class SecurityConfig {
     @Autowired private UserService userService;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtAuthFilter authFilter;
+    @Autowired private MetricsTokenFilter metricsTokenFilter;
     @Autowired private UrlBasedCorsConfigurationSource corsConfigurationSource;
     @Autowired private ForwardedHeaderFilter forwardedHeaderFilter;
 
     @Bean
+    @Order(1)
+    public SecurityFilterChain metricsFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/actuator/prometheus")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .addFilterBefore(metricsTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 // CSRF is disabled because authentication is stateless (JWT via Authorization
