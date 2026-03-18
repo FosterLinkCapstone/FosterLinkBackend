@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `fosterlink_prod`.`user` (
   `email_verified` BIT(1) NOT NULL,
   `created_at` DATETIME NOT NULL,
   `updated_at` DATETIME NULL DEFAULT NULL,
-  `password` VARCHAR(255) NOT NULL DEFAULT '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
+  `password` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`id`),
   INDEX `idx_user_username` (`username` ASC),
   INDEX `idx_user_verified_foster` (`verified_foster` ASC))

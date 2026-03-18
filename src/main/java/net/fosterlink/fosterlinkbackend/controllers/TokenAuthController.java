@@ -10,6 +10,7 @@ import net.fosterlink.fosterlinkbackend.config.tokenauth.TokenAuth;
 import net.fosterlink.fosterlinkbackend.entities.TokenAuthEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 import net.fosterlink.fosterlinkbackend.mail.service.AdminUserMailService;
+import net.fosterlink.fosterlinkbackend.mail.service.UserMailService;
 import net.fosterlink.fosterlinkbackend.repositories.DontSendEmailRepository;
 import net.fosterlink.fosterlinkbackend.repositories.TokenAuthRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
@@ -34,6 +35,7 @@ public class TokenAuthController {
     private @Autowired UserRepository userRepository;
     private @Autowired BanStatusService banStatusService;
     private @Autowired AdminUserMailService adminUserMailService;
+    private @Autowired UserMailService userMailService;
     private @Autowired TokenAuthRepository tokenAuthRepository;
     private @Autowired TokenAuthService tokenAuthService;
     private @Autowired DontSendEmailRepository dontSendEmailRepository;
@@ -126,8 +128,13 @@ public class TokenAuthController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
         UserEntity user = target.get();
+        boolean alreadyVerified = user.isEmailVerified();
         user.setEmailVerified(true);
         userRepository.save(user);
+        if (!alreadyVerified) {
+            String unsubscribeToken = tokenAuthService.getOrCreateUnsubscribeToken(user);
+            userMailService.sendThankYouForRegistering(user.getId(), user.getEmail(), user.getFirstName(), unsubscribeToken);
+        }
         return ResponseEntity.ok().build();
     }
 
