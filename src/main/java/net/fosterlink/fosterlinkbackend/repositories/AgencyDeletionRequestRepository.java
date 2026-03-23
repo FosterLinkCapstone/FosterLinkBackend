@@ -68,7 +68,8 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
             reviewer.verified_agency_rep AS reviewer_var,
             reviewer.created_at AS reviewer_created_at,
             reviewer.banned_at AS reviewer_banned_at,
-            reviewer.restricted_at AS reviewer_restricted_at
+            reviewer.restricted_at AS reviewer_restricted_at,
+            ag.show_contact_info AS agency_show_contact_info
         FROM agency_deletion_request dr
         INNER JOIN agency ag ON dr.agency = ag.id
         INNER JOIN location lo ON ag.address = lo.id
@@ -135,7 +136,8 @@ public interface AgencyDeletionRequestRepository extends CrudRepository<AgencyDe
             reviewer.verified_agency_rep AS reviewer_var,
             reviewer.created_at AS reviewer_created_at,
             reviewer.banned_at AS reviewer_banned_at,
-            reviewer.restricted_at AS reviewer_restricted_at
+            reviewer.restricted_at AS reviewer_restricted_at,
+            ag.show_contact_info AS agency_show_contact_info
         FROM agency_deletion_request dr
         INNER JOIN agency ag ON dr.agency = ag.id
         INNER JOIN location lo ON ag.address = lo.id

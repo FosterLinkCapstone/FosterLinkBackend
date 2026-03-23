@@ -7,6 +7,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.List;
 
 public interface AuditLogRepository extends JpaRepository<AuditLogEntity, Integer> {
 
@@ -26,6 +29,10 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntity, Intege
             countQuery = "SELECT COUNT(*) FROM audit_log a",
             nativeQuery = true)
     Page<Object[]> findAllForAdminDisplay(Pageable pageable);
+
+    /** Returns all audit log entries where this user is the target, newest first. */
+    @Query("SELECT a FROM AuditLogEntity a WHERE a.targetUserId = :userId ORDER BY a.createdAt DESC")
+    List<AuditLogEntity> findByTargetUserId(@Param("userId") int userId);
 
     /** Deletes all audit log rows whose generated expires_at column is in the past. */
     @Modifying

@@ -30,7 +30,7 @@ public class AgencyMapper {
 
     public List<PublicAgencyResponse> getAllApprovedAgencies(int pageNumber, boolean includeDeletionRequestForAdmin, Integer currentUserId) {
         List<Object[]> toMap = agencyRepository.allApprovedAgencies(PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
-        return toPublicAgencyResponses(toMap);
+        return toPublicAgencyResponses(toMap, currentUserId);
     }
 
     /** Search by: agency (name, mission), agent (full name, username, email, phone), location (city, state, zip). */
@@ -41,7 +41,7 @@ public class AgencyMapper {
             return getAllApprovedAgencies(pageNumber, includeDeletionRequestForAdmin, currentUserId);
         }
         List<Object[]> toMap = agencyRepository.allApprovedAgenciesWithSearch(normalizedSearch, normalizedSearchBy, PageRequest.of(pageNumber, SqlUtil.ITEMS_PER_PAGE));
-        return toPublicAgencyResponses(toMap);
+        return toPublicAgencyResponses(toMap, currentUserId);
     }
 
     public int countApprovedWithSearch(String search, String searchBy) {
@@ -97,10 +97,14 @@ public class AgencyMapper {
             location.setZipCode((Integer) obj[18]);
             agency.setLocation(new LocationResponse(location));
 
+            boolean showContactInfo = obj[53] != null && (Boolean) obj[53];
+            agency.setShowContactInfo(showContactInfo);
             AgentInfoResponse agentInfo = new AgentInfoResponse();
             agentInfo.setId((Integer) obj[19]);
-            agentInfo.setEmail((String) obj[20]);
-            agentInfo.setPhoneNumber((String) obj[21]);
+            if (showContactInfo) {
+                agentInfo.setEmail((String) obj[20]);
+                agentInfo.setPhoneNumber((String) obj[21]);
+            }
             agency.setAgentInfo(agentInfo);
 
             agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 22, 33)));
@@ -145,7 +149,7 @@ public class AgencyMapper {
      *                                                   27 agent.banned_at
      *                                                   28 agent.restricted_at
      */
-    private List<PublicAgencyResponse> toPublicAgencyResponses(List<Object[]> toMap) {
+    private List<PublicAgencyResponse> toPublicAgencyResponses(List<Object[]> toMap, Integer currentUserId) {
         List<PublicAgencyResponse> results = new ArrayList<>();
         for (Object[] obj : toMap) {
             PublicAgencyResponse agency = new PublicAgencyResponse();
@@ -176,6 +180,14 @@ public class AgencyMapper {
             }
 
             agency.setAgent(userMapper.mapPublicUserResponse(Arrays.copyOfRange(obj, 18, 29)));
+
+            // obj[29] = deletion_requested_at, obj[30] = deletion_requested_by_username
+            // Only populate for the agency's own owner — never expose to other public users
+            boolean isOwner = currentUserId != null && currentUserId.equals(obj[18]);
+            if (isOwner && obj.length > 29) {
+                agency.setDeletionRequestedAt(toDate(obj[29]));
+                agency.setDeletionRequestedByUsername(obj[30] != null ? (String) obj[30] : null);
+            }
 
             results.add(agency);
         }
@@ -219,7 +231,8 @@ public class AgencyMapper {
             agency.setCreatedAt(toDate(obj[6]));
             agency.setUpdatedAt(toDate(obj[7]));
 
-            agency.setShowContactInfo(obj[8] != null && (Boolean) obj[8]);
+            boolean showContactInfo = obj[8] != null && (Boolean) obj[8];
+            agency.setShowContactInfo(showContactInfo);
 
             LocationEntity locationEntity = new LocationEntity();
             locationEntity.setId((Integer)obj[9]);
@@ -232,8 +245,10 @@ public class AgencyMapper {
 
             AgentInfoResponse agentInfoResponse = new AgentInfoResponse();
             agentInfoResponse.setId((Integer)obj[15]);
-            agentInfoResponse.setEmail((String)obj[16]);
-            agentInfoResponse.setPhoneNumber((String)obj[17]);
+            if (showContactInfo) {
+                agentInfoResponse.setEmail((String)obj[16]);
+                agentInfoResponse.setPhoneNumber((String)obj[17]);
+            }
             agency.setAgentInfo(agentInfoResponse);
 
             agency.setAgent(userMapper.mapUserResponse(Arrays.copyOfRange(obj, 18, 29)));
@@ -276,7 +291,13 @@ public class AgencyMapper {
         agency.setUpdatedAt(e.getUpdatedAt());
         agency.setLocation(new LocationResponse(e.getAddress()));
         agency.setAgent(new UserResponse(e.getAgent()));
-        agency.setAgentInfo(new AgentInfoResponse(e.getAgent()));
+        AgentInfoResponse agentInfo = new AgentInfoResponse();
+        agentInfo.setId(e.getAgent().getId());
+        if (e.isShowContactInfo()) {
+            agentInfo.setEmail(e.getAgent().getEmail());
+            agentInfo.setPhoneNumber(e.getAgent().getPhoneNumber());
+        }
+        agency.setAgentInfo(agentInfo);
         return agency;
     }
 
