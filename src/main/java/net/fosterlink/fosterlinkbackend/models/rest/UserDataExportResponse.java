@@ -4,7 +4,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import net.fosterlink.fosterlinkbackend.entities.AccountDeletionRequestEntity;
 import net.fosterlink.fosterlinkbackend.entities.AgencyEntity;
+import net.fosterlink.fosterlinkbackend.entities.AuditLogEntity;
 import net.fosterlink.fosterlinkbackend.entities.ConsentRecordEntity;
+import net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity;
+import net.fosterlink.fosterlinkbackend.entities.FaqEntity;
 import net.fosterlink.fosterlinkbackend.entities.ThreadEntity;
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
 
@@ -67,6 +70,19 @@ public class UserDataExportResponse {
 
     @Schema(description = "Consent records for this user")
     private List<ConsentSummary> consentRecords;
+
+    // --- FAQ & suggestions -------------------------------------------------------
+
+    @Schema(description = "FAQ answers authored by this user")
+    private List<FaqAnswerSummary> faqAnswers;
+
+    @Schema(description = "FAQ topic suggestions submitted by this user")
+    private List<FaqSuggestionSummary> faqSuggestions;
+
+    // --- Audit log ---------------------------------------------------------------
+
+    @Schema(description = "Audit log entries where this user is the subject")
+    private List<AuditLogSummary> auditLogs;
 
     // ---- Static inner summaries -------------------------------------------------
 
@@ -150,6 +166,54 @@ public class UserDataExportResponse {
         private String mechanism;
     }
 
+    @Data
+    @Schema(description = "Brief summary of a FAQ answer authored by the user")
+    public static class FaqAnswerSummary {
+        public FaqAnswerSummary(FaqEntity f) {
+            this.id = f.getId();
+            this.title = f.getTitle();
+            this.summary = f.getSummary();
+            this.content = f.getContent();
+            this.createdAt = f.getCreatedAt();
+            this.updatedAt = f.getUpdatedAt();
+        }
+
+        private int id;
+        private String title;
+        private String summary;
+        private String content;
+        private Date createdAt;
+        private Date updatedAt;
+    }
+
+    @Data
+    @Schema(description = "A FAQ topic suggestion submitted by the user")
+    public static class FaqSuggestionSummary {
+        public FaqSuggestionSummary(FAQRequestEntity r) {
+            this.id = r.getId();
+            this.suggestedTopic = r.getSuggestedTopic();
+            this.createdAt = r.getCreatedAt();
+        }
+
+        private int id;
+        private String suggestedTopic;
+        private Date createdAt;
+    }
+
+    @Data
+    @Schema(description = "An audit log entry where this user is the subject")
+    public static class AuditLogSummary {
+        public AuditLogSummary(AuditLogEntity a) {
+            this.id = a.getId();
+            this.action = a.getAction();
+            this.createdAt = a.getCreatedAt();
+        }
+
+        private int id;
+        private String action;
+        private Date createdAt;
+    }
+
     // --- Factory -----------------------------------------------------------------
 
     public static UserDataExportResponse from(
@@ -159,7 +223,10 @@ public class UserDataExportResponse {
             List<Integer> disabledEmailTypeIds,
             List<Integer> mailingListIds,
             AccountDeletionRequestEntity deletionRequest,
-            List<ConsentRecordEntity> consentRecords) {
+            List<ConsentRecordEntity> consentRecords,
+            List<FaqEntity> faqAnswers,
+            List<FAQRequestEntity> faqSuggestions,
+            List<AuditLogEntity> auditLogs) {
 
         UserDataExportResponse r = new UserDataExportResponse();
         r.id = user.getId();
@@ -189,6 +256,9 @@ public class UserDataExportResponse {
         r.mailingListIds = mailingListIds;
         r.accountDeletionRequest = deletionRequest != null ? new AccountDeletionSummary(deletionRequest) : null;
         r.consentRecords = consentRecords.stream().map(ConsentSummary::new).toList();
+        r.faqAnswers = faqAnswers.stream().map(FaqAnswerSummary::new).toList();
+        r.faqSuggestions = faqSuggestions.stream().map(FaqSuggestionSummary::new).toList();
+        r.auditLogs = auditLogs.stream().map(AuditLogSummary::new).toList();
 
         return r;
     }

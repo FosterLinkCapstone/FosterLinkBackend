@@ -34,7 +34,10 @@ import net.fosterlink.fosterlinkbackend.mail.service.UserMailService;
 import net.fosterlink.fosterlinkbackend.models.auth.LoggedInUser;
 import net.fosterlink.fosterlinkbackend.repositories.AccountDeletionRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.AgencyRepository;
+import net.fosterlink.fosterlinkbackend.repositories.AuditLogRepository;
 import net.fosterlink.fosterlinkbackend.repositories.DontSendEmailRepository;
+import net.fosterlink.fosterlinkbackend.repositories.FAQRepository;
+import net.fosterlink.fosterlinkbackend.repositories.FAQRequestRepository;
 import net.fosterlink.fosterlinkbackend.repositories.MailingListMemberRepository;
 import net.fosterlink.fosterlinkbackend.repositories.ThreadRepository;
 import net.fosterlink.fosterlinkbackend.repositories.UserRepository;
@@ -125,6 +128,12 @@ public class UserController {
     private MailingListMemberRepository mailingListMemberRepository;
     @Autowired
     private AccountDeletionRequestRepository accountDeletionRequestRepository;
+    @Autowired
+    private FAQRepository faqRepository;
+    @Autowired
+    private FAQRequestRepository faqRequestRepository;
+    @Autowired
+    private AuditLogRepository auditLogRepository;
 
     @Operation(
             summary = "Register a new user",
@@ -518,10 +527,16 @@ public class UserController {
         AccountDeletionRequestEntity deletionRequest =
                 accountDeletionRequestRepository.findPendingByUserId(userId).orElse(null);
         List<ConsentRecordEntity> consentRecords = consentRecordService.findByUserId(userId);
+        List<net.fosterlink.fosterlinkbackend.entities.FaqEntity> faqAnswers =
+                faqRepository.findByAuthor_IdOrderByCreatedAtDesc(userId);
+        List<net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity> faqSuggestions =
+                faqRequestRepository.findByRequestedByIdOrderByCreatedAtDesc(userId);
+        List<net.fosterlink.fosterlinkbackend.entities.AuditLogEntity> auditLogs =
+                auditLogRepository.findByTargetUserId(userId);
 
         return ResponseEntity.ok(UserDataExportResponse.from(
                 user, threads, agencies, disabledEmailTypeIds, mailingListIds,
-                deletionRequest, consentRecords));
+                deletionRequest, consentRecords, faqAnswers, faqSuggestions, auditLogs));
     }
 
     @Operation(
@@ -553,10 +568,16 @@ public class UserController {
         AccountDeletionRequestEntity deletionRequest =
                 accountDeletionRequestRepository.findPendingByUserId(userId).orElse(null);
         List<ConsentRecordEntity> consentRecords = consentRecordService.findByUserId(userId);
+        List<net.fosterlink.fosterlinkbackend.entities.FaqEntity> faqAnswers =
+                faqRepository.findByAuthor_IdOrderByCreatedAtDesc(userId);
+        List<net.fosterlink.fosterlinkbackend.entities.FAQRequestEntity> faqSuggestions =
+                faqRequestRepository.findByRequestedByIdOrderByCreatedAtDesc(userId);
+        List<net.fosterlink.fosterlinkbackend.entities.AuditLogEntity> auditLogs =
+                auditLogRepository.findByTargetUserId(userId);
 
         UserDataExportResponse exportData = UserDataExportResponse.from(
                 user, threads, agencies, disabledEmailTypeIds, mailingListIds,
-                deletionRequest, consentRecords);
+                deletionRequest, consentRecords, faqAnswers, faqSuggestions, auditLogs);
 
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=\"fosterlink-data-export.json\"")

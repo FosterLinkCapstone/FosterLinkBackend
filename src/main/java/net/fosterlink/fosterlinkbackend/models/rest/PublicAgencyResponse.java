@@ -7,8 +7,10 @@ import lombok.Data;
  * Public-safe agency DTO. Omits:
  * <ul>
  *   <li>approvedByUsername, hiddenByUsername — admin-workflow metadata, resolves 04/F-04</li>
- *   <li>deletionRequestedAt, deletionRequestedByUsername, deletionRequestId — admin-workflow metadata</li>
+ *   <li>deletionRequestId — admin-workflow metadata</li>
  * </ul>
+ * {@code deletionRequestedAt} and {@code deletionRequestedByUsername} are included but only
+ * populated for the agency's own owner (never exposed to other public users).
  * Agent contact info (email, phone) is included only when the agent has opted in via
  * {@code showContactInfo}. When {@code showContactInfo} is false, {@code agentEmail} and
  * {@code agentPhoneNumber} are null (resolves 04/F-03).
@@ -55,4 +57,10 @@ public class PublicAgencyResponse {
 
     @Schema(description = "When the agency was last updated. Null if never updated.")
     private java.util.Date updatedAt;
+
+    @Schema(description = "When a pending deletion was requested. Only populated for the agency's own owner.")
+    private java.util.Date deletionRequestedAt;
+
+    @Schema(description = "Username of who requested deletion. Only populated for the agency's own owner.")
+    private String deletionRequestedByUsername;
 }

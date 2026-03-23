@@ -482,6 +482,7 @@ public class AgencyController {
     @RateLimit(requests = 5, burstRequests = 1, burstDurationSeconds = 60, keyType = "USER")
     @DisallowRestricted
     @PostMapping("/deletion-request")
+    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> createDeletionRequest(@RequestParam int agencyId) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn == null) return ResponseEntity.status(403).build();
@@ -525,6 +526,7 @@ public class AgencyController {
     @DisallowRestricted
     @DeleteMapping("/deletion-request")
     @Transactional
+    @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public ResponseEntity<?> cancelDeletionRequest(@RequestParam int agencyId) {
         LoggedInUser loggedIn = JwtUtil.getLoggedInUser();
         if (loggedIn == null) return ResponseEntity.status(403).build();

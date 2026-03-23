@@ -69,9 +69,9 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
             agent.created_at,
             agent.banned_at,
             agent.restricted_at,
-            (SELECT dr.created_at FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_requested_at,
-            (SELECT u.username FROM agency_deletion_request dr INNER JOIN user u ON dr.requested_by = u.id WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_requested_by_username,
-            (SELECT dr.id FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_request_id
+            (SELECT dr.created_at FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved = FALSE LIMIT 1) AS deletion_requested_at,
+            (SELECT u.username FROM agency_deletion_request dr INNER JOIN user u ON dr.requested_by = u.id WHERE dr.agency = ag.id AND dr.approved = FALSE LIMIT 1) AS deletion_requested_by_username,
+            (SELECT dr.id FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved = FALSE LIMIT 1) AS deletion_request_id
         FROM agency ag
         INNER JOIN user agent ON ag.agent = agent.id
         INNER JOIN location lo ON ag.address = lo.id
@@ -112,9 +112,9 @@ public interface AgencyRepository extends CrudRepository<AgencyEntity, Integer> 
             agent.created_at,
             agent.banned_at,
             agent.restricted_at,
-            (SELECT dr.created_at FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_requested_at,
-            (SELECT u.username FROM agency_deletion_request dr INNER JOIN user u ON dr.requested_by = u.id WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_requested_by_username,
-            (SELECT dr.id FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved IS NULL LIMIT 1) AS deletion_request_id
+            (SELECT dr.created_at FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved = FALSE LIMIT 1) AS deletion_requested_at,
+            (SELECT u.username FROM agency_deletion_request dr INNER JOIN user u ON dr.requested_by = u.id WHERE dr.agency = ag.id AND dr.approved = FALSE LIMIT 1) AS deletion_requested_by_username,
+            (SELECT dr.id FROM agency_deletion_request dr WHERE dr.agency = ag.id AND dr.approved = FALSE LIMIT 1) AS deletion_request_id
         FROM agency ag
         INNER JOIN user agent ON ag.agent = agent.id
         INNER JOIN location lo ON ag.address = lo.id
@@ -179,7 +179,7 @@ WHERE ISNULL(ag.approved) OR ag.approved = FALSE;
           AND (ag.hidden = FALSE OR ag.hidden IS NULL)
           AND NOT EXISTS (
               SELECT 1 FROM agency_deletion_request dr
-              WHERE dr.agency = ag.id AND dr.approved IS NULL
+              WHERE dr.agency = ag.id AND dr.approved = FALSE
           )
         """, nativeQuery = true)
     Long countPending();
