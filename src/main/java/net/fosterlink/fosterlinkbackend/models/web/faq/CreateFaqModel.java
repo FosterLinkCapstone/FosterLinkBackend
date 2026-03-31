@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import net.fosterlink.fosterlinkbackend.config.validation.MaxNewlines;
 
 @Data
 @Schema(description = "Data required to create a new FAQ",
@@ -17,10 +18,12 @@ public class CreateFaqModel {
     @Schema(description = "A brief summary of the FAQ content", example = "Learn about the requirements and process to become a foster parent")
     @NotBlank
     @Size(min=10,max=1000)
+    @MaxNewlines(10)
     private String summary;
     @Schema(description = "The full content of the FAQ", example = "To become a foster parent, you must meet certain requirements...")
     @NotBlank
     @Size(min=20,max=50000)
+    @MaxNewlines(50)
     private String content;
 
 }

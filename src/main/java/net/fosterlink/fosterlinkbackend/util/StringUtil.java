@@ -2,6 +2,7 @@ package net.fosterlink.fosterlinkbackend.util;
 
 import org.apache.commons.text.StringEscapeUtils;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.jsoup.safety.Safelist;
 
 public class StringUtil {
@@ -12,11 +13,11 @@ public class StringUtil {
         // Safelist.basic() permits <br>, so they survive the clean pass.
         String escaped = StringEscapeUtils.escapeHtml4(danger);
         String withBreaks = escaped.replace("\r\n", "<br>").replace("\n", "<br>").replace("\r", "<br>");
-        String cleaned = Jsoup.clean(withBreaks, Safelist.basic());
+        // Disable pretty-printing so Jsoup does not inject extra newlines around <br> tags.
+        Document.OutputSettings outputSettings = new Document.OutputSettings().prettyPrint(false);
+        String cleaned = Jsoup.clean(withBreaks, "", Safelist.basic(), outputSettings);
         // Restore newlines for plain-text / markdown storage.
-        // Jsoup may append a newline after <br> in its output (e.g. "<br>\n"),
-        // so consume any trailing \r?\n to avoid doubling on each save.
-        return cleaned.replaceAll("(?i)<br\\s*/?>\\r?\\n?", "\n");
+        return cleaned.replaceAll("(?i)<br\\s*/?>", "\n");
     }
 
 }
