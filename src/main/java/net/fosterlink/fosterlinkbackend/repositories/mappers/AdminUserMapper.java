@@ -31,6 +31,7 @@ public class AdminUserMapper {
         res.setAgencyCount(toInt(row[17]));
         res.setFaqAnswerCount(toInt(row[18]));
         res.setFaqSuggestionCount(toInt(row[19]));
+        res.setPendingDeletion(toBool(row[20]));
         return res;
     }
 

@@ -202,8 +202,7 @@ public class AdminUserController {
     @DisallowRestricted
     @GetMapping("/deleted")
     public ResponseEntity<?> getDeletedUsers(@RequestParam(defaultValue = "0") int page) {
-        int offset = page * SqlUtil.ITEMS_PER_PAGE;
-        List<Object[]> rows = userRepository.findDeletedPaginated(SqlUtil.ITEMS_PER_PAGE, offset);
+        List<Object[]> rows = userRepository.findDeletedPaginated(PageRequest.of(page, SqlUtil.ITEMS_PER_PAGE));
         long totalCount = userRepository.countDeleted();
 
         List<AdminUserResponse> users = new ArrayList<>();

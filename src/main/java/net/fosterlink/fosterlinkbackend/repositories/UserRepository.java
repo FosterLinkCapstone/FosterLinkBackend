@@ -1,6 +1,7 @@
 package net.fosterlink.fosterlinkbackend.repositories;
 
 import net.fosterlink.fosterlinkbackend.entities.UserEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -57,7 +58,8 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
                    (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
                    (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
                    (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
-                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count,
+                   (EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)) AS pending_deletion
             FROM user u
             WHERE u.account_deleted = false
               AND CONCAT(u.first_name, ' ', u.last_name) LIKE CONCAT('%', :query, '%')
@@ -77,7 +79,8 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
                    (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
                    (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
                    (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
-                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count,
+                   (EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)) AS pending_deletion
             FROM user u
             WHERE u.account_deleted = false
               AND u.username LIKE CONCAT('%', :query, '%')
@@ -97,7 +100,8 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
                    (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
                    (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
                    (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
-                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count,
+                   (EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)) AS pending_deletion
             FROM user u
             WHERE u.account_deleted = false
               AND u.email LIKE CONCAT('%', :query, '%')
@@ -117,7 +121,8 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
                    (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
                    (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
                    (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
-                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count,
+                   (EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)) AS pending_deletion
             FROM user u
             WHERE u.account_deleted = false
               AND u.phone_number LIKE CONCAT('%', :query, '%')
@@ -137,7 +142,8 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
                    (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
                    (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
                    (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
-                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count,
+                   (EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)) AS pending_deletion
             FROM user u
             WHERE u.account_deleted = false
               AND (
@@ -173,7 +179,8 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
                    (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
                    (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
                    (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
-                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count,
+                   (EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)) AS pending_deletion
             FROM user u
             WHERE u.account_deleted = false
             ORDER BY u.id
@@ -192,15 +199,20 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
                    (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
                    (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
                    (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
-                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count,
+                   (EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)) AS pending_deletion
             FROM user u
             WHERE u.account_deleted = true
-            ORDER BY u.id
-            LIMIT :pageSize OFFSET :offset
+               OR EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)
+            ORDER BY pending_deletion DESC, id
             """, nativeQuery = true)
-    List<Object[]> findDeletedPaginated(@Param("pageSize") int pageSize, @Param("offset") int offset);
+    List<Object[]> findDeletedPaginated(Pageable pageable);
 
-    @Query(value = "SELECT COUNT(*) FROM user u WHERE u.account_deleted = true", nativeQuery = true)
+    @Query(value = """
+            SELECT COUNT(*) FROM user u
+            WHERE u.account_deleted = true
+               OR EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)
+            """, nativeQuery = true)
     long countDeleted();
 
     @Query("SELECT u FROM UserEntity u WHERE u.administrator = true AND u.accountDeleted = false")
@@ -220,7 +232,8 @@ public interface UserRepository extends CrudRepository<UserEntity, Integer> {
                    (SELECT COUNT(*) FROM thread_reply tr WHERE tr.posted_by = u.id) AS reply_count,
                    (SELECT COUNT(*) FROM agency a WHERE a.agent = u.id) AS agency_count,
                    (SELECT COUNT(*) FROM faq f WHERE f.author = u.id) AS faq_answer_count,
-                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count
+                   (SELECT COUNT(*) FROM faq_request fr WHERE fr.requested_by = u.id) AS faq_suggestion_count,
+                   (EXISTS (SELECT 1 FROM account_deletion_request adr WHERE adr.requested_by = u.id AND adr.approved = 0)) AS pending_deletion
             FROM user u
             WHERE u.id = :userId
             """, nativeQuery = true)

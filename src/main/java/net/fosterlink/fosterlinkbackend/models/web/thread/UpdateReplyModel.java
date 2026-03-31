@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import net.fosterlink.fosterlinkbackend.config.validation.MaxNewlines;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -19,6 +20,7 @@ public class UpdateReplyModel {
     @Schema(description = "The updated content of the reply")
     @NotBlank
     @Size(min=1,max=5000)
+    @MaxNewlines(25)
     private String content;
 
 }

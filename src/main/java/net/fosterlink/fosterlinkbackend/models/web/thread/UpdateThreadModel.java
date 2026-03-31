@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import net.fosterlink.fosterlinkbackend.config.validation.MaxNewlines;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -24,6 +25,7 @@ public class UpdateThreadModel {
     @Schema(description = "The updated content of the thread. Can be null.")
     @Nullable
     @Size(min=5, max=10000)
+    @MaxNewlines(50)
     private String content;
 
 }
