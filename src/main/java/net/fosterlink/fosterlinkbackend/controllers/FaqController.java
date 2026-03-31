@@ -508,7 +508,11 @@ public class FaqController {
     public ResponseEntity<?> getAllAuthor(@RequestParam Integer userId, @RequestParam int pageNumber) {
 
         Optional<UserEntity> authorOpt = userRepository.findById(userId);
-        if (authorOpt.isEmpty() || authorOpt.get().isAccountDeleted()) return ResponseEntity.notFound().build();
+        if (authorOpt.isEmpty()) return ResponseEntity.notFound().build();
+        LoggedInUser loggedInForAuthor = JwtUtil.getLoggedInUser();
+        boolean callerIsOwnerOrAdmin = loggedInForAuthor != null &&
+                (loggedInForAuthor.getDatabaseId() == userId || JwtUtil.hasAuthority("ADMINISTRATOR"));
+        if (authorOpt.get().isAccountDeleted() && !callerIsOwnerOrAdmin) return ResponseEntity.notFound().build();
 
         int totalCount = fAQRepository.countApprovedByAuthor(userId);
         int totalPages = totalCount <= 0 ? 1 : (totalCount + SqlUtil.ITEMS_PER_PAGE - 1) / SqlUtil.ITEMS_PER_PAGE;

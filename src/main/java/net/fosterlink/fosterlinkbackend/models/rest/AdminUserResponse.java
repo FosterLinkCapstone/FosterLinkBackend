@@ -81,4 +81,8 @@ public class AdminUserResponse {
 
     @Schema(description = "Number of FAQ topic suggestions submitted")
     private int faqSuggestionCount;
+
+    // --- Deletion status ---
+    @Schema(description = "Whether the user has a pending deletion request that has not yet been approved")
+    private boolean pendingDeletion;
 }

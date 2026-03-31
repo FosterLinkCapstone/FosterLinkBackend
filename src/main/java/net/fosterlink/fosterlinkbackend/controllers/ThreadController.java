@@ -273,11 +273,16 @@ public class ThreadController {
     @GetMapping("/search-by-user")
     public ResponseEntity<?> searchByUser(@RequestParam int userId, @RequestParam int pageNumber) {
         Optional<UserEntity> authorOpt = userRepository.findById(userId);
-        if (authorOpt.isEmpty() || authorOpt.get().isAccountDeleted()) {
+        if (authorOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         LoggedInUser loggedInForSearch = JwtUtil.getLoggedInUser();
+        boolean callerIsOwnerOrAdmin = loggedInForSearch != null &&
+                (loggedInForSearch.getDatabaseId() == userId || JwtUtil.hasAuthority("ADMINISTRATOR"));
+        if (authorOpt.get().isAccountDeleted() && !callerIsOwnerOrAdmin) {
+            return ResponseEntity.notFound().build();
+        }
         int sendingUserId = loggedInForSearch != null ? loggedInForSearch.getDatabaseId() : -1;
 
         var threads = threadMapper.searchByUser(sendingUserId, userId, pageNumber);
