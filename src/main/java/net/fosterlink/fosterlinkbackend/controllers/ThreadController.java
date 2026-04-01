@@ -1070,8 +1070,15 @@ public class ThreadController {
         if (!replies.isEmpty()) {
             List<Integer> replyIds = replies.stream().map(ThreadReplyEntity::getId).toList();
             threadReplyLikeRepository.deleteByThreadIn(replyIds);
+            // deleteByThreadIn stages em.remove() calls in the persistence context; flush now
+            // so the reply-like rows are actually deleted before the FK-constrained reply delete.
+            entityManager.flush();
         }
         threadReplyRepository.deleteByThreadId(threadId);
+        // The bulk JPQL delete above doesn't evict entities from the first-level cache.
+        // Clear it so Hibernate doesn't see stale MANAGED reply entities referencing the
+        // REMOVED metadata entities when we delete them below.
+        entityManager.clear();
         replyMetadataIds.forEach(postMetadataRepository::deleteById);
         threadLikeRepository.deleteByThread(threadId);
         threadTagRepository.deleteByThread_Id(threadId);
