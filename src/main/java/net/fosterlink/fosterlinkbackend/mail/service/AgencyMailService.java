@@ -18,7 +18,6 @@ public class AgencyMailService {
     private static final String AGENCY_SUBMITTED_TEMPLATE = "mail/agency-submitted";
     private static final String AGENCY_APPROVED_TEMPLATE = "mail/agency-approved";
     private static final String AGENCY_DENIED_TEMPLATE = "mail/agency-denied";
-    private static final String AGENCY_DELETION_APPROVED_TEMPLATE = "mail/agency-deletion-approved";
     private static final String AGENCY_DELETION_DELAYED_TEMPLATE = "mail/agency-deletion-delayed";
     private static final String AGENCY_DELETION_WARNING_TEMPLATE = "mail/agency-deletion-warning";
 
@@ -59,17 +58,6 @@ public class AgencyMailService {
         context.setVariable("agencyName", agencyName);
         context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
         mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your agency application was not approved - FosterLink", AGENCY_DENIED_TEMPLATE, context);
-    }
-
-    /** Sent to the agency representative after an administrator approves their deletion request. */
-    @CheckEmailPreference(value = "AGENCY_DELETION_RESOLVED", uiName = "Agency deletion request resolved")
-    @Async
-    public void sendAgencyDeletionApproved(int userId, String toEmail, String firstName, String agencyName, String unsubscribeToken) {
-        Context context = new Context(Locale.getDefault());
-        context.setVariable("greetingName", mailSendHelper.greetingName(firstName));
-        context.setVariable("agencyName", agencyName);
-        context.setVariable("unsubscribeUrl", mailSendHelper.buildUnsubscribeUrl(userId, unsubscribeToken));
-        mailSendHelper.sendTemplatedEmail(userId, toEmail, "Your agency deletion request has been approved - FosterLink", AGENCY_DELETION_APPROVED_TEMPLATE, context);
     }
 
     /** Sent to the agency representative when an administrator delays their deletion request by 30 days. */
