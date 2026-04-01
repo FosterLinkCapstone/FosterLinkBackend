@@ -31,13 +31,11 @@ public class AgencyDeletionService {
     @Autowired private AgencyMailService agencyMailService;
     @Autowired private TokenAuthService tokenAuthService;
 
-    /** Admin approves a deletion request. Deletes the agency and sends a confirmation email. */
+    /** Admin approves a deletion request. Deletes the agency immediately. */
     @Transactional
     @CacheEvict(value = "agencyApprovedRows", allEntries = true)
     public void approveDeletion(AgencyDeletionRequestEntity request, UserEntity admin) {
         AgencyEntity agency = request.getAgency();
-        UserEntity agent = agency != null ? agency.getAgent() : null;
-        String agencyName = agency != null ? agency.getName() : "";
 
         request.setApproved(true);
         request.setReviewedAt(new Date());
@@ -53,11 +51,6 @@ public class AgencyDeletionService {
             }
         }
 
-        if (agent != null) {
-            String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(agent);
-            agencyMailService.sendAgencyDeletionApproved(
-                    agent.getId(), agent.getEmail(), agent.getFirstName(), agencyName, unsubToken);
-        }
     }
 
     /**
@@ -95,12 +88,9 @@ public class AgencyDeletionService {
         List<AgencyDeletionRequestEntity> expired = deletionRequestRepository.findAllPastAutoApproveDate(new Date());
         if (expired.isEmpty()) return;
 
-        // Pre-load all agency/agent data and collect IDs before any deletes
         List<Integer> expiredIds = new ArrayList<>();
         List<Integer> agencyIds = new ArrayList<>();
         List<Integer> addressIds = new ArrayList<>();
-        List<UserEntity> agentsToNotify = new ArrayList<>();
-        List<String> agencyNamesForNotify = new ArrayList<>();
 
         for (AgencyDeletionRequestEntity request : expired) {
             expiredIds.add(request.getId());
@@ -110,12 +100,6 @@ public class AgencyDeletionService {
                 if (agency.getAddress() != null) {
                     addressIds.add(agency.getAddress().getId());
                 }
-                UserEntity agent = agency.getAgent();
-                agentsToNotify.add(agent);
-                agencyNamesForNotify.add(agency.getName());
-            } else {
-                agentsToNotify.add(null);
-                agencyNamesForNotify.add("");
             }
         }
 
@@ -131,16 +115,6 @@ public class AgencyDeletionService {
             locationRepository.deleteAllByIds(addressIds);
         }
 
-        // Send emails using pre-loaded agent references
-        for (int i = 0; i < expired.size(); i++) {
-            UserEntity agent = agentsToNotify.get(i);
-            if (agent != null) {
-                String unsubToken = tokenAuthService.getOrCreateUnsubscribeToken(agent);
-                agencyMailService.sendAgencyDeletionApproved(
-                        agent.getId(), agent.getEmail(), agent.getFirstName(),
-                        agencyNamesForNotify.get(i), unsubToken);
-            }
-        }
     }
 
     /**
