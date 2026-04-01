@@ -124,8 +124,10 @@ public class FaqMapper {
     public ApprovalCheckResponse checkApprovalStatusForUser(int userId) {
         List<Object[]> toMap = fAQApprovalRepository.getApprovalCountsForUser(userId);
         ApprovalCheckResponse approvalCheckResponse = new ApprovalCheckResponse();
-        approvalCheckResponse.setCountPending(Integer.parseInt(String.valueOf(toMap.get(0)[0])));
-        approvalCheckResponse.setCountDenied(Integer.parseInt(String.valueOf(toMap.get(0)[1])));
+        Object pending = toMap.get(0)[0];
+        Object denied = toMap.get(0)[1];
+        approvalCheckResponse.setCountPending(pending != null ? Integer.parseInt(String.valueOf(pending)) : 0);
+        approvalCheckResponse.setCountDenied(denied != null ? Integer.parseInt(String.valueOf(denied)) : 0);
         return approvalCheckResponse;
     }
     public List<FaqRequestResponse> getAllRequests() {
