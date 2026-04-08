@@ -33,7 +33,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -321,8 +320,7 @@ public class AdminUserController {
 
         if ("AGENCY_REP".equals(role) && enabled
                 && (target.getPhoneNumber() == null || target.getPhoneNumber().isBlank())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "User must have a phone number before being granted the agency representative role.");
+            return ResponseEntity.badRequest().body("User must have a phone number before being granted the agency representative role.");
         }
 
         switch (role) {
